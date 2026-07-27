@@ -58,8 +58,8 @@
                                     <input type="text" name="school_years[]" class="w-full bg-white border-slate-200 rounded-xl px-5 py-3 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all" placeholder="e.g. 2023-2024" required>
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Excel File (F138)</label>
-                                    <input type="file" name="files[]" class="w-full bg-white border-slate-200 rounded-xl px-5 py-2.5 text-xs font-bold text-slate-500 focus:ring-2 focus:ring-blue-500 transition-all" accept=".xlsx,.xls" required>
+                                    <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Reference File (Excel/PDF/Image)</label>
+                                    <input type="file" name="files[]" class="w-full bg-white border-slate-200 rounded-xl px-5 py-2.5 text-xs font-bold text-slate-500 focus:ring-2 focus:ring-blue-500 transition-all" accept=".xlsx,.xls,.pdf,.jpg,.jpeg,.png" required>
                                 </div>
                             </div>
                         </div>
@@ -157,13 +157,23 @@
                                             </td>
                                             <td class="px-8 py-5">
                                                 <div class="flex items-center justify-center gap-3">
+                                                    @php
+                                                        $extension = pathinfo($upload->file_path, PATHINFO_EXTENSION);
+                                                        $isImage = in_array(strtolower($extension), ['jpg', 'jpeg', 'png']);
+                                                        $isPdf = strtolower($extension) === 'pdf';
+                                                    @endphp
+                                                    
                                                     <a href="{{ Storage::url($upload->file_path) }}" 
-                                                       class="w-10 h-10 flex items-center justify-center text-emerald-600 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-xl transition-all shadow-sm" 
-                                                       title="Download Excel" 
-                                                       download>
-                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                                        </svg>
+                                                       class="w-10 h-10 flex items-center justify-center {{ $isPdf ? 'text-red-600 bg-red-50 hover:bg-red-600' : ($isImage ? 'text-blue-600 bg-blue-50 hover:bg-blue-600' : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-600') }} hover:text-white rounded-xl transition-all shadow-sm" 
+                                                       title="View/Download {{ strtoupper($extension) }}" 
+                                                       target="_blank">
+                                                        @if($isPdf)
+                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                                        @elseif($isImage)
+                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                        @else
+                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                        @endif
                                                     </a>
                                                     <form action="{{ route('grade-portal.delete', $upload->id) }}" 
                                                           method="POST" 

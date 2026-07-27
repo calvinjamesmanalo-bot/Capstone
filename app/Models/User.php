@@ -24,6 +24,7 @@ class User extends Authenticatable
         'password',
         'role',
         'student_number',
+        'can_bypass_request_limit',
     ];
 
     /**

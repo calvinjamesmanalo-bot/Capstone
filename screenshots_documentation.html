@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RequestHub - Functions of the Proposed System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px 20px;
+        }
+
+        .figure-section {
+            margin-bottom: 50px;
+            border-left: 4px solid #2a5298;
+            padding-left: 20px;
+        }
+
+        .figure-number {
+            font-size: 0.9em;
+            color: #2a5298;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .figure-title {
+            font-size: 1.8em;
+            color: #1e3c72;
+            margin: 10px 0 20px 0;
+            font-weight: 600;
+        }
+
+        .screenshot-container {
+            background: #f8f9fa;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .screenshot-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .placeholder-text {
+            color: #999;
+            font-size: 1.1em;
+            font-style: italic;
+        }
+
+        .description {
+            background: #f0f4f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            line-height: 1.8;
+        }
+
+        .description p {
+            margin-bottom: 15px;
+        }
+
+        .description p:last-child {
+            margin-bottom: 0;
+        }
+
+        .what-to-show {
+            background: #e8f4f8;
+            padding: 15px;
+            border-left: 4px solid #17a2b8;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 0.95em;
+        }
+
+        .what-to-show strong {
+            color: #17a2b8;
+        }
+
+        .divider {
+            border-top: 2px solid #e0e0e0;
+            margin: 40px 0;
+        }
+
+        .summary-section {
+            background: #f9f9f9;
+            padding: 30px;
+            border-radius: 8px;
+            margin-top: 40px;
+        }
+
+        .summary-section h2 {
+            color: #1e3c72;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .summary-section ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .summary-section li {
+            padding: 10px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+
+        .summary-section li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .instructions {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .instructions h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .instructions p {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+            color: #856404;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .container {
+                box-shadow: none;
+                border-radius: 0;
+            }
+            .divider {
+                page-break-after: avoid;
+            }
+            .figure-section {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>RequestHub</h1>
+            <p>Functions of the Proposed System - Screenshots Documentation</p>
+        </div>
+
+        <div class="content">
+            <div class="instructions">
+                <h3>📋 How to Use This Document</h3>
+                <p>This document contains 14 figures with descriptions for your thesis documentation. To add screenshots:</p>
+                <ol>
+                    <li>Take a screenshot of each page using your web browser</li>
+                    <li>Save the image file in the same folder as this HTML file</li>
+                    <li>Name images as: <code>figure1.jpg, figure2.jpg, etc.</code></li>
+                    <li>The images will automatically display in the placeholders below</li>
+                    <li>Use the descriptions provided to document each figure in your thesis</li>
+                </ol>
+            </div>
+
+            <!-- Figure 1 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 1</div>
+                <div class="figure-title">Records Management System Login Page</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure1.jpg" alt="Login Page" style="display: none;">
+                    <div class="placeholder-text">Screenshot: Login Interface with Role Selection</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The login interface with Fiat Lux Academe branding and role selection buttons.
+                </div>
+
+                <div class="description">
+                    <p>The login page presents the authentication interface for RequestHub, the proposed records management system. Users enter their credentials (username/student ID and password) to access the system. The page displays role-based quick-login options (Admin, Student, Registrar, Records Officer) at the bottom for convenient access.</p>
+                    <p>The system authenticates user identity and directs them to role-specific dashboards. This interface ensures only authorized personnel can access sensitive student records while maintaining security. The clean, professional design with institution branding provides an intuitive first impression of the system.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 2 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 2</div>
+                <div class="figure-title">Student Dashboard - Main Portal</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure2.jpg" alt="Student Dashboard" style="display: none;">
+                    <div class="placeholder-text">Screenshot: Student Home Page with Welcome Message and Request Overview</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The student home page showing welcome message, active requests, and quick stats.
+                </div>
+
+                <div class="description">
+                    <p>The student dashboard serves as the main portal after login, displaying a personalized welcome message and comprehensive request overview. The interface shows an "Active Requests" section that lists all current document requests with their status (e.g., "Form 137 - ready_to_release"), and provides a clear view of request progress.</p>
+                    <p>Quick stats display key information including pending requests, completed requests, and total request count. A dedicated history section shows past completed requests, and a prominent "Request New Document" button enables quick submission of new requests. This streamlined layout allows students to easily track their document requests and submissions.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 3 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 3</div>
+                <div class="figure-title">Student Request Form - Document Submission</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure3.jpg" alt="Request Form" style="display: none;">
+                    <div class="placeholder-text">Screenshot: Document Request Submission Form</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The document request form with student information and document type selection.
+                </div>
+
+                <div class="description">
+                    <p>The Student Request Portal allows students to submit new document requests through a well-organized form. The form displays pre-filled fields for Student ID and Full Name that are automatically populated from the system database, reducing manual entry errors and ensuring data accuracy.</p>
+                    <p>A dropdown menu allows students to select from available document types including Form 137 (Permanent Record), Form 138 (Report Card), Certificate of Good Moral, and Diploma. The interface includes a prominent "Submit Request" button and displays important notes about request policies, such as restrictions on duplicate requests. This design ensures accurate data collection and prevents submission errors.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 4 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 4</div>
+                <div class="figure-title">Student My Requests - Request Tracking</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure4.jpg" alt="My Requests" style="display: none;">
+                    <div class="placeholder-text">Screenshot: Request History with Status Tracking</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The request history page showing active and past requests with status badges.
+                </div>
+
+                <div class="description">
+                    <p>The "My Requests" page enables students to track all their document submissions with complete status visibility. The page is organized into two main sections: Active Requests and History of Requests. Each request displays the document type, unique ticket number for reference, submission date, and current status with color-coded badges.</p>
+                    <p>The status information provides real-time updates on request processing status (e.g., "READY TO RELEASE"), allowing students to know exactly when their documents are ready. A "New Request" button provides quick access to submit additional requests. This centralized tracking system provides transparency and helps students monitor their document request progress in real-time.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 5 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 5</div>
+                <div class="figure-title">Records Officer Dashboard - System Overview</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure5.jpg" alt="Records Officer Dashboard" style="display: none;">
+                    <div class="placeholder-text">Screenshot: Records Officer Home Page with Statistics and Activity</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The admin/records officer dashboard with statistics and recent activities.
+                </div>
+
+                <div class="description">
+                    <p>The Records Officer Dashboard displays comprehensive system control and monitoring capabilities specifically designed for efficient request processing. Key statistics cards prominently display critical information including Total Requests, Pending requests count, and Total Grades uploaded. A personalized welcome message provides context about current system status.</p>
+                    <p>The interface includes a Recent Requests table listing incoming requests with student information and status, quick action links to access detailed request management, and a System Activity log showing recent user actions and system events. System Health indicators display storage usage, database connectivity status, and link status. This comprehensive overview provides Records Officers with immediate access to critical information needed for daily operations.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 6 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 6</div>
+                <div class="figure-title">Document Requests Queue - Active Requests Management</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure6.jpg" alt="Active Requests Queue" style="display: none;">
+                    <div class="placeholder-text">Screenshot: Request Management Table with Status Updates</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The request management table showing all active requests with status update dropdown and action buttons.
+                </div>
+
+                <div class="description">
+                    <p>The Active Requests page displays all incoming student document requests in a comprehensive, organized table format. Each row represents a request with columns for Ticket & Student information, Document Type, Current Status, Request Date, and available Actions. Records Officers can view all essential request details in a single view for efficient processing.</p>
+                    <p>The interface provides dynamic status management through a dropdown menu allowing Records Officers to update request status through the workflow stages (Pending, Processing, Processed, Ready to Release, Released, Rejected). A remarks field enables adding processing notes for internal documentation. Direct "Open Form Maker" links provide quick access to generate documents for selected requests. This queue management system enables Records Officers to efficiently process requests while maintaining workflow transparency.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 7 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 7</div>
+                <div class="figure-title">Form 137 Generator - Document Creation Interface</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure7.jpg" alt="Form 137 Maker" style="display: none;">
+                    <div class="placeholder-text">Screenshot: Form 137 Generator with Student Search</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The Form 137 Maker page with student search field and load button.
+                </div>
+
+                <div class="description">
+                    <p>The Form 137 Generator enables Records Officers to create official student permanent records efficiently. The interface includes a search field for locating student records by student number and a Load button to retrieve the selected student's information from the database. The page clearly identifies its purpose as "Official Student Permanent Record Maker".</p>
+                    <p>Once a student record is loaded, Records Officers can review all student information, make any necessary edits or corrections, and generate the official PDF document for printing or digital distribution. The system automatically pulls data from the student database to pre-populate forms, reducing manual entry errors. This streamlined document generation process significantly reduces the time needed to create official records.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 8 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 8</div>
+                <div class="figure-title">Form 138 Maker - Report Card Generation</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure8.jpg" alt="Form 138 Maker" style="display: none;">
+                    <div class="placeholder-text">Screenshot: Form 138 Report Card Generation</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The Form 138 generation page with student name, school year, and subject ratings table.
+                </div>
+
+                <div class="description">
+                    <p>The Form 138 Maker facilitates the generation of official student report cards for specific school years. The interface displays student name and school year fields for identifying the subject of the report, along with fields for specifying the grade level. A comprehensive subject ratings table lists academic subjects with columns for each quarter grade (Q1, Q2, Q3, Q4) and final grade.</p>
+                    <p>Records Officers can add multiple subjects to the report card using an "Add Subject" button, and remove incorrect entries with action buttons. The organized table layout ensures accurate grade entry while maintaining professional document formatting. The "Generate" button creates the official report card in PDF format for distribution to students or archival.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 9 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 9</div>
+                <div class="figure-title">Grade Portal Upload - Form 138 Management</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure9.jpg" alt="Grade Portal" style="display: none;">
+                    <div class="placeholder-text">Screenshot: Grade Portal with Upload and Search Interface</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The Grade Portal with upload form and Grade Viewer search interface.
+                </div>
+
+                <div class="description">
+                    <p>The Grade Portal provides a dual-interface page for comprehensive grade management. The left section provides an "Upload Form 138" interface where Registrars enter student information (Student Number, Student Name), academic details (School Year), and upload reference files containing grade data (Excel, PDF, or Image formats). An "Add another School Year" button enables uploading grades for multiple academic years in a single session.</p>
+                    <p>The right section contains a "Grade Viewer" interface that allows Records Officers to search for and retrieve existing student grade records by student number. This integrated design enables both uploading new grades and accessing existing academic records without switching pages. The two-column layout provides an intuitive workflow for comprehensive grade management and record retrieval.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 10 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 10</div>
+                <div class="figure-title">Request History - Archive Management</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure10.jpg" alt="Request History" style="display: none;">
+                    <div class="placeholder-text">Screenshot: Request Archive with History Table</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The request history page showing completed/rejected requests table structure and empty state.
+                </div>
+
+                <div class="description">
+                    <p>The Request History page (Records Archive) maintains a comprehensive archive of all completed and rejected document requests. The interface displays a table structure with columns for Ticket & Student information, Document Type, Final Status, Date Processed, and Processing Remarks. This organized format enables Records Officers to quickly locate and review past request details.</p>
+                    <p>The page provides an important audit trail of all processed requests, essential for record-keeping and compliance verification. Administrators can filter and search historical records by date range, student, or document type. This archive functionality supports institutional recordkeeping requirements and enables tracking of request processing trends over time.</p>
+                </div>
+
+                <div style="background: #e8f5e9; padding: 20px; border-left: 4px solid #4caf50; border-radius: 4px; margin-top: 15px;">
+                    <strong style="color: #2e7d32; display: block; margin-bottom: 10px;">✨ Special Features for System Engineering:</strong>
+                    <ul style="margin-left: 20px; color: #2e7d32; list-style: none; padding-left: 20px;">
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Complete Audit Trail:</strong> Maintains full history of all completed and rejected requests with immutable records</li>
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Advanced Filtering:</strong> Search by date range, student ID, document type, or processing status</li>
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Export Capabilities:</strong> Generate reports in CSV and PDF formats for compliance and archival</li>
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Data Integrity:</strong> Historical records cannot be modified, ensuring compliance with institutional policies</li>
+                        <li style="position: relative;"><span style="position: absolute; left: 0;">→</span> <strong>Processing Metrics:</strong> Track average processing time and identify efficiency trends</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 11 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 11</div>
+                <div class="figure-title">User Directory - User Management Interface</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure11.jpg" alt="User Management" style="display: none;">
+                    <div class="placeholder-text">Screenshot: User Management with Accounts Table</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The User Management page showing active accounts table with user roles and last login info.
+                </div>
+
+                <div class="description">
+                    <p>The User Directory provides administrators with comprehensive user account management capabilities. The interface displays an "Active Accounts" table listing all system users with columns for user identity (avatar, name, email), assigned role (Admin, Registrar, Records Officer, Student), account status (Active/Inactive), last login timestamp, and management actions (Edit/Delete buttons).</p>
+                    <p>An "Add New User" button enables creating new user accounts directly from this interface. The page displays total registered user statistics and provides search functionality for locating specific users. Role-based access control is clearly visible through the role assignment column, allowing administrators to verify proper permission levels. This centralized interface simplifies user account management and ensures proper access control.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 12 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 12</div>
+                <div class="figure-title">System Audit Logs - Activity Tracking</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure12.jpg" alt="Audit Logs" style="display: none;">
+                    <div class="placeholder-text">Screenshot: System Activity Log with Event History</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The System Audit Logs page with activity history table showing timestamp, user, action, module, and status.
+                </div>
+
+                <div class="description">
+                    <p>The System Audit Logs page monitors and displays all system activities and user actions in real-time. The activity history table includes comprehensive columns for Timestamp (recording when actions occurred), User (identifying who performed the action), Action type (describing what was done: Updated Request Status, Submitted Request, Full System Reset, etc.), Module affected (Requests, Grades, User Management), and operation Status (Success/Failure indicators).</p>
+                    <p>This comprehensive logging system provides crucial accountability for all system operations. Administrators can filter and search logs by date range, specific users, or action types for investigation and auditing purposes. A "Clear Logs" feature enables archiving historical logs while maintaining recent activity data. The audit trail functionality supports compliance requirements and helps troubleshoot system issues.</p>
+                </div>
+
+                <div style="background: #fff3e0; padding: 20px; border-left: 4px solid #ff9800; border-radius: 4px; margin-top: 15px;">
+                    <strong style="color: #e65100; display: block; margin-bottom: 10px;">✨ Special Features for System Engineering:</strong>
+                    <ul style="margin-left: 20px; color: #e65100; list-style: none; padding-left: 20px;">
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Real-time Activity Monitoring:</strong> Captures all system activities with precise timestamp and user identification</li>
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>User Action Tracking:</strong> Records who performed each action, enabling accountability and compliance auditing</li>
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Module-level Logging:</strong> Tracks which system modules were accessed and what operations were performed</li>
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Advanced Search & Filter:</strong> Query logs by timestamp, user, action type, or module for forensic investigation</li>
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Success/Failure Indicators:</strong> Shows operation status for troubleshooting and error diagnosis</li>
+                        <li style="position: relative;"><span style="position: absolute; left: 0;">→</span> <strong>Log Archival Management:</strong> Clear and archive old logs while preserving historical data for compliance</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 13 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 13</div>
+                <div class="figure-title">Data Analytics - System Insights and Reporting</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure13.jpg" alt="Analytics Dashboard" style="display: none;">
+                    <div class="placeholder-text">Screenshot: Analytics Dashboard with Charts and Metrics</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The Analytics dashboard with report filters, most requested documents, monthly trends chart, and request status distribution.
+                </div>
+
+                <div class="description">
+                    <p>The Data Analytics page provides comprehensive system insights through visual analytics and reporting tools. The interface includes report filters allowing administrators to select specific months and years for analysis. The "Most Requested" section displays which document types are most frequently requested by students, helping administrators understand usage patterns.</p>
+                    <p>A "Monthly Request Volume" chart visualizes request trends across months, making it easy to identify peak usage periods. The "Request Status Distribution" section displays statistics for each status stage (Pending, Processing, Processed, Ready to Release, Completed), showing the volume of requests in each workflow stage. These analytics help administrators identify bottlenecks, optimize workflow efficiency, and make data-driven decisions about resource allocation and system improvements.</p>
+                </div>
+
+                <div style="background: #f3e5f5; padding: 20px; border-left: 4px solid #9c27b0; border-radius: 4px; margin-top: 15px;">
+                    <strong style="color: #6a1b9a; display: block; margin-bottom: 10px;">✨ Special Features for System Engineering:</strong>
+                    <ul style="margin-left: 20px; color: #6a1b9a; list-style: none; padding-left: 20px;">
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Dynamic Filtering:</strong> Filter analytics by month and year to analyze trends across different time periods</li>
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Most Requested Analysis:</strong> Identify popular documents and track document type demand patterns</li>
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Monthly Volume Charts:</strong> Visual line graphs showing request volume trends with peak usage identification</li>
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Status Distribution Metrics:</strong> Real-time statistics for each workflow stage (Pending, Processing, Processed, Ready to Release, Completed)</li>
+                        <li style="position: relative; margin-bottom: 8px;"><span style="position: absolute; left: 0;">→</span> <strong>Performance Indicators:</strong> Track system efficiency and identify workflow bottlenecks</li>
+                        <li style="position: relative;"><span style="position: absolute; left: 0;">→</span> <strong>Data-Driven Decision Making:</strong> Export reports for presentations and strategic planning</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Figure 14 -->
+            <div class="figure-section">
+                <div class="figure-number">Figure 14</div>
+                <div class="figure-title">System Settings - Configuration Management</div>
+                
+                <div class="screenshot-container">
+                    <img src="figure14.jpg" alt="Settings" style="display: none;">
+                    <div class="placeholder-text">Screenshot: System Configuration Page</div>
+                </div>
+
+                <div class="what-to-show">
+                    <strong>What to Show:</strong> The Settings page with General Configuration fields and System Status controls.
+                </div>
+
+                <div class="description">
+                    <p>The System Settings page enables administrators to configure system-wide preferences and institutional information. The "General Configuration" section provides fields for entering Institution Name (Fiat Lux Academe), System Email address (admin@fiatlux.edu.ph), Contact Number, and Office Hours. These settings are used throughout the system for user communications and system notifications.</p>
+                    <p>The "System Status" section includes a Maintenance Mode toggle that allows administrators to temporarily disable public access during system updates or maintenance windows. An "Update Status" button applies changes immediately. This centralized settings interface provides administrators with comprehensive control over system configuration, institutional branding, and system availability management.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Summary -->
+            <div class="summary-section">
+                <h2>System Summary</h2>
+                
+                <p>The RequestHub system provides a comprehensive solution for managing student document requests with distinct user interfaces optimized for each user role:</p>
+                
+                <h3 style="color: #1e3c72; margin-top: 20px; margin-bottom: 15px;">User Roles & Features:</h3>
+                <ul>
+                    <li><strong>Students:</strong> Document request submission, real-time status tracking, and request history viewing</li>
+                    <li><strong>Records Officers:</strong> Request queue management, document generation, and workflow processing</li>
+                    <li><strong>Registrars:</strong> Grade management, document submission, and academic record storage</li>
+                    <li><strong>Administrators:</strong> Complete system control, user management, analytics, and system configuration</li>
+                </ul>
+
+                <h3 style="color: #1e3c72; margin-top: 20px; margin-bottom: 15px;">Key Functions:</h3>
+                <ul>
+                    <li>Student document request management with multiple document types support</li>
+                    <li>Role-based access control with secure authentication</li>
+                    <li>Automated document generation (Forms 137, 138, Good Moral, Diploma)</li>
+                    <li>Grade portal for academic record management and storage</li>
+                    <li>Request workflow management with status tracking and notifications</li>
+                    <li>Comprehensive analytics and reporting for decision-making</li>
+                    <li>System audit logging for accountability and compliance</li>
+                    <li>User management and role-based permission assignment</li>
+                    <li>System configuration and maintenance controls</li>
+                </ul>
+
+                <div style="background: #e3f2fd; border: 2px solid #1976d2; border-radius: 8px; padding: 25px; margin-top: 30px;">
+                    <h3 style="color: #1565c0; margin-bottom: 20px; text-align: center;">🔒 Special Features for System Engineering</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                        <!-- Request History Special Features -->
+                        <div style="background: white; padding: 20px; border-radius: 6px; border-left: 4px solid #4caf50;">
+                            <h4 style="color: #2e7d32; margin-bottom: 12px; font-size: 1.1em;">📋 Request History</h4>
+                            <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.95em;">
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> Complete Audit Trail</li>
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> Advanced Filtering</li>
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> Export Capabilities</li>
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> Data Integrity</li>
+                                <li style="margin-bottom: 0; color: #333;"><strong>✓</strong> Processing Metrics</li>
+                            </ul>
+                        </div>
+
+                        <!-- System Logs Special Features -->
+                        <div style="background: white; padding: 20px; border-radius: 6px; border-left: 4px solid #ff9800;">
+                            <h4 style="color: #e65100; margin-bottom: 12px; font-size: 1.1em;">📊 System Audit Logs</h4>
+                            <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.95em;">
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> Real-time Monitoring</li>
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> User Action Tracking</li>
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> Module-level Logging</li>
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> Advanced Search</li>
+                                <li style="margin-bottom: 0; color: #333;"><strong>✓</strong> Status Indicators</li>
+                            </ul>
+                        </div>
+
+                        <!-- Data Analytics Special Features -->
+                        <div style="background: white; padding: 20px; border-radius: 6px; border-left: 4px solid #9c27b0;">
+                            <h4 style="color: #6a1b9a; margin-bottom: 12px; font-size: 1.1em;">📈 Data Analytics</h4>
+                            <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.95em;">
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> Dynamic Filtering</li>
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> Demand Analysis</li>
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> Volume Charts</li>
+                                <li style="margin-bottom: 8px; color: #333;"><strong>✓</strong> Status Metrics</li>
+                                <li style="margin-bottom: 0; color: #333;"><strong>✓</strong> Performance Reports</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 20px; color: #1565c0; text-align: center; font-style: italic;">These three components provide comprehensive system visibility, accountability, and data-driven decision making for system administrators and compliance requirements.</p>
+                </div>
+
+                <p style="margin-top: 20px;">The modern, intuitive interface improves operational efficiency, reduces manual processing time, and provides transparency throughout the document request workflow for all stakeholders.</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2026 Fiat Lux Academe RequestHub - Functions Documentation</p>
+            <p>For thesis and system documentation purposes</p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-load images from same directory
+        const figures = [
+            'figure1.jpg', 'figure2.jpg', 'figure3.jpg', 'figure4.jpg',
+            'figure5.jpg', 'figure6.jpg', 'figure7.jpg', 'figure8.jpg',
+            'figure9.jpg', 'figure10.jpg', 'figure11.jpg', 'figure12.jpg',
+            'figure13.jpg', 'figure14.jpg'
+        ];
+
+        figures.forEach((fig, index) => {
+            const img = document.querySelector(`img[src="${fig}"]`);
+            if (img) {
+                img.addEventListener('error', function() {
+                    // Keep placeholder if image not found
+                });
+                img.addEventListener('load', function() {
+                    img.style.display = 'block';
+                    img.nextElementSibling.style.display = 'none';
+                });
+            }
+        });
+
+        // Print functionality
+        window.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+                e.preventDefault();
+                window.print();
+            }
+        });
+    </script>
+</body>
+</html>

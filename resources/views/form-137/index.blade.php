@@ -5,19 +5,33 @@
 @section('page_subtitle', 'Generate and manage student permanent records')
 
 @section('content')
-<div class="space-y-10">
+<style>
+    .form-137-page .text-indigo-600 { color: #062b63 !important; }
+    .form-137-page .bg-indigo-600 { background-color: #062b63 !important; }
+    .form-137-page .bg-indigo-50 { background-color: #fff8e7 !important; }
+    .form-137-page .border-indigo-100 { border-color: #f1d38a !important; }
+    .form-137-page .hover\:bg-indigo-50:hover { background-color: #fff3cf !important; }
+    .form-137-page .hover\:bg-indigo-700:hover { background-color: #041d45 !important; }
+    .form-137-page .hover\:text-indigo-600:hover,
+    .form-137-page .hover\:text-indigo-700:hover { color: #062b63 !important; }
+    .form-137-page .text-slate-400 { color: #64748b !important; }
+    .form-137-page .text-\[10px\] { font-size: 0.75rem !important; }
+    .form-137-page .p-10 { padding: 1.5rem !important; }
+    .form-137-page .p-20 { padding: 2rem !important; }
+    .form-137-page .p-32 { padding: 3rem 1.5rem !important; }
+    .form-137-page input:focus { border-color: #062b63 !important; }
+</style>
+<div class="form-137-page space-y-8">
     <!-- Header Section -->
-    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div class="p-10 flex flex-col md:flex-row md:items-center justify-between gap-8 bg-slate-50/50">
-            <div class="flex items-center gap-6">
-                <div class="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-indigo-600">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border-l-4 border-[#d59b11]">
+            <div class="flex items-center gap-4">
+                <div class="w-16 h-16 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden">
+                    <img src="{{ asset('images/fiat.png') }}" alt="Fiat Lux Academe logo" class="w-14 h-14 object-contain" />
                 </div>
                 <div>
-                    <h2 class="text-2xl font-black text-slate-800 uppercase tracking-tight">Form 137 Generator</h2>
-                    <p class="text-sm font-medium text-slate-400 mt-1">Official Student Permanent Record Maker</p>
+                    <h2 class="text-2xl font-semibold text-[#062b63]">Form 137 Generator</h2>
+                    <p class="text-sm text-slate-600 mt-1">Create an official student permanent record.</p>
                 </div>
             </div>
 
@@ -32,11 +46,11 @@
                         <input type="text" 
                                name="student_number" 
                                value="{{ request('student_number') }}" 
-                               class="w-full pl-14 pr-6 py-4 bg-white border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm" 
-                               placeholder="Enter Student Number...">
+                               class="w-full pl-14 pr-4 py-3 bg-white border-slate-300 rounded-lg text-sm font-medium text-slate-800 focus:ring-2 focus:ring-[#062b63] focus:border-[#062b63] transition-all"
+                               placeholder="Enter student number">
                     </div>
-                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black shadow-lg shadow-indigo-500/20 transition-all text-xs uppercase tracking-widest">
-                        Load
+                    <button type="submit" class="bg-[#062b63] hover:bg-[#041d45] text-white px-6 py-3 rounded-lg font-semibold transition-colors text-sm">
+                        Find student
                     </button>
                 </div>
             </form>
@@ -135,19 +149,35 @@
                             </div>
                             <div class="p-8 space-y-4">
                                 @foreach($uploads as $upload)
+                                    @php
+                                        $extension = pathinfo($upload->file_path, PATHINFO_EXTENSION);
+                                        $isPdf = strtolower($extension) === 'pdf';
+                                        $isImage = in_array(strtolower($extension), ['jpg', 'jpeg', 'png']);
+                                    @endphp
                                     <div class="flex items-center gap-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl group hover:bg-white hover:shadow-xl hover:shadow-indigo-500/5 transition-all">
+                                        <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 {{ $isPdf ? 'bg-red-50 text-red-500' : ($isImage ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500') }}">
+                                            @if($isPdf)
+                                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                            @elseif($isImage)
+                                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                            @else
+                                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                            @endif
+                                        </div>
                                         <div class="flex-1 min-w-0">
                                             <p class="text-[10px] font-black text-indigo-600 uppercase tracking-widest">SY {{ $upload->school_year }}</p>
                                             <p class="text-xs font-bold text-slate-400 truncate mt-1">{{ $upload->original_filename }}</p>
                                         </div>
                                         <div class="flex gap-2">
+                                            @if(!$isPdf && !$isImage)
                                             <button onclick="showReferencePreview('{{ route('form-137.view-html', $upload->id) }}', 'SY: {{ $upload->school_year }}')" class="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-indigo-600 bg-white rounded-xl shadow-sm transition-all" title="View Preview">
                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                 </svg>
                                             </button>
-                                            <a href="{{ Storage::url($upload->file_path) }}" download class="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-emerald-600 bg-white rounded-xl shadow-sm transition-all" title="Download Excel">
+                                            @endif
+                                            <a href="{{ Storage::url($upload->file_path) }}" target="_blank" class="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-emerald-600 bg-white rounded-xl shadow-sm transition-all" title="View/Download">
                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                                 </svg>

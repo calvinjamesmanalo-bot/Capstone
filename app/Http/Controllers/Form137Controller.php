@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Models\Grade;
 use App\Models\Form138Upload;
-use App\Models\RequestDocument;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -17,6 +16,7 @@ class Form137Controller extends Controller
 {
     public function index(Request $request)
     {
+        $students = Student::orderBy('name')->get();
         $student = null;
         $uploads = [];
         $existingGrades = [];
@@ -24,7 +24,7 @@ class Form137Controller extends Controller
         if ($request->has('student_number')) {
             $student = Student::where('student_number', $request->student_number)->first();
             if ($student) {
-                $uploads = Form138Upload::where('student_number', $student->student_number)
+                $uploads = \App\Models\Form138Upload::where('student_number', $student->student_number)
                     ->orderBy('school_year', 'desc')
                     ->get();
                 
@@ -35,7 +35,7 @@ class Form137Controller extends Controller
             }
         }
 
-        return view('form-137.index', compact('student', 'uploads', 'existingGrades'));
+        return view('form-137.index', compact('student', 'uploads', 'existingGrades', 'students'));
     }
 
     public function previewManual(Request $request)
@@ -209,34 +209,6 @@ class Form137Controller extends Controller
         header('Content-Disposition: attachment; filename="'. $fileName .'"');
         $writer->save('php://output');
         exit;
-    }
-
-    public function previewRequest($id)
-    {
-        $requestDoc = RequestDocument::findOrFail($id);
-        $student = Student::where('student_number', $requestDoc->student_number)->firstOrFail();
-        
-        // Use all available uploads for this student for the preview
-        $selectedUploadIds = Form138Upload::where('student_number', $student->student_number)
-            ->pluck('id')
-            ->toArray();
-
-        $spreadsheet = $this->generateSpreadsheet($student, $selectedUploadIds);
-        
-        if ($spreadsheet instanceof \Illuminate\Http\RedirectResponse) {
-            return $spreadsheet;
-        }
-
-        $writer = new Html($spreadsheet);
-        $html = $writer->generateHtmlAll();
-        
-        $styledHtml = str_replace(
-            '</style>',
-            'body { font-family: sans-serif; padding: 20px; background: #f3f4f6; } .container { background: white; padding: 40px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); margin: 0 auto; max-width: 1000px; } table { border-collapse: collapse; width: 100%; margin-top: 20px; } th, td { border: 1px solid #000; padding: 4px; font-size: 12px; } </style>',
-            $html
-        );
-        
-        return '<div class="container">' . $styledHtml . '</div>';
     }
 
     public function viewHtml($id)

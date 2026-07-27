@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\RequestDocument;
+use App\Models\Setting;
 use App\Models\Student;
 use Illuminate\Http\Request;
 
@@ -59,17 +60,52 @@ class RequestController extends Controller
                 ->get();
         }
 
-        return view('requests.student', compact('activeRequests', 'requestHistory', 'studentNumber'));
+        $documentPrices = $this->documentPrices();
+
+        return view('requests.student', compact('activeRequests', 'requestHistory', 'studentNumber', 'documentPrices'));
+    }
+
+    public function myRequests()
+    {
+        $user = auth()->user();
+        $studentNumber = session('student_number') ?? ($user ? $user->student_number : null);
+        
+        $activeRequests = [];
+        $requestHistory = [];
+        
+        if ($studentNumber) {
+            $activeRequests = RequestDocument::where('student_number', $studentNumber)
+                ->whereIn('status', ['pending', 'processing', 'processed', 'ready_to_release'])
+                ->latest()
+                ->get();
+
+            $requestHistory = RequestDocument::where('student_number', $studentNumber)
+                ->whereIn('status', ['completed', 'rejected'])
+                ->latest()
+                ->get();
+        }
+
+        return view('requests.my-requests', compact('activeRequests', 'requestHistory', 'studentNumber'));
     }
 
     public function store(Request $request)
     {
         $user = auth()->user();
         
-        // Validation changes based on user role
+        // Validation changes based on user role and payment method
         $rules = [
-            'document_type' => 'required|string',
+            'document_type' => 'required|string|in:Form 137,Form 138,Certificate of Enrollment,Certificate of Completion,Certificate of Good Moral Character,Certificate of Recognition,Diploma',
+            'delivery_method' => 'required|string|in:pickup,delivery',
+            'payment_method' => 'required|string|in:cash,gcash,bank_transfer',
+            'release_location' => 'nullable|string',
         ];
+
+        // Require proof for GCash and Bank Transfer
+        if (in_array($request->payment_method, ['gcash', 'bank_transfer'])) {
+            $rules['payment_proof'] = 'required|file|mimes:jpeg,png,jpg,pdf|max:5120'; // Max 5MB
+        } else {
+            $rules['payment_proof'] = 'nullable|file|mimes:jpeg,png,jpg,pdf|max:5120';
+        }
 
         if (!$user || $user->role !== 'student') {
             $rules['student_number'] = 'required|string';
@@ -97,15 +133,165 @@ class RequestController extends Controller
             ['name' => $studentName]
         );
 
+        // Check for duplicate active requests
+        $existingRequest = RequestDocument::where('student_number', $studentNumber)
+            ->where('document_type', $request->document_type)
+            ->whereNotIn('status', ['completed', 'rejected'])
+            ->first();
+
+        // Check if user can bypass limit
+        $canBypass = false;
+        if ($user && $user->role === 'student') {
+            $canBypass = $user->can_bypass_request_limit;
+        } else {
+            // If submitted by staff for a student, find the user record for that student number
+            $studentUser = \App\Models\User::where('student_number', $studentNumber)->first();
+            if ($studentUser) {
+                $canBypass = $studentUser->can_bypass_request_limit;
+            }
+        }
+
+        if ($existingRequest && !$canBypass) {
+            return redirect()->back()->with('error', "You already have an active request for {$request->document_type}. You need to go to registrar's office to complete your request if you need another copy.");
+        }
+
+        // Simulate clearance check - in real system, this would query a finance database
+        $clearanceStatus = 'cleared';
+        $financialBalance = 0.00;
+        
+        // For demonstration: randomly assign balance to some requests
+        if (rand(1, 10) <= 2) {
+            $clearanceStatus = 'has_balance';
+            $financialBalance = rand(500, 5000);
+        }
+
+        // Generate Ticket Number: REQ-YYYY-XXXX (where XXXX is a unique random string or increment)
+        $ticketNumber = 'REQ-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(3)));
+        
+        // Ensure uniqueness
+        while (RequestDocument::where('ticket_number', $ticketNumber)->exists()) {
+            $ticketNumber = 'REQ-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(3)));
+        }
+
+        // Handle payment proof upload
+        $paymentProofPath = null;
+        if ($request->hasFile('payment_proof')) {
+            $paymentProofPath = $request->file('payment_proof')->store('payment_proofs', 'public');
+        }
+
+        $documentPrice = $this->documentPrices()[$request->document_type];
+
         RequestDocument::create([
+            'ticket_number' => $ticketNumber,
             'student_number' => $studentNumber,
             'document_type' => $request->document_type,
+            'document_price' => $documentPrice,
+            'delivery_method' => $request->delivery_method,
+            'payment_method' => $request->payment_method,
+            'release_location' => $request->release_location,
+            'payment_proof_path' => $paymentProofPath,
+            'clearance_status' => $clearanceStatus,
+            'financial_balance' => $financialBalance,
+            'payment_confirmed' => false,
             'status' => 'pending',
         ]);
 
-        record_log('Submitted Request', 'Requests', "Student #{$studentNumber} requested {$request->document_type}");
+        // Reset the bypass flag after one successful bypass
+        if ($canBypass) {
+            if ($user && $user->role === 'student') {
+                $user->update(['can_bypass_request_limit' => false]);
+            } else {
+                $studentUser = \App\Models\User::where('student_number', $studentNumber)->first();
+                if ($studentUser) {
+                    $studentUser->update(['can_bypass_request_limit' => false]);
+                }
+            }
+        }
 
-        return redirect()->back()->with('success', 'Your request has been submitted!');
+        record_log('Submitted Request', 'Requests', "Student #{$studentNumber} requested {$request->document_type} for ₱".number_format($documentPrice, 2)." (Ticket: {$ticketNumber}) - Delivery: {$request->delivery_method}, Payment: {$request->payment_method}");
+
+        $message = "Your request has been submitted! Ticket Number: {$ticketNumber}. Document fee: ₱".number_format($documentPrice, 2).'.';
+        if ($clearanceStatus === 'has_balance') {
+            $message .= " Note: You have an outstanding balance of ₱" . number_format($financialBalance, 2) . ". Please settle this before your document can be released.";
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    private function documentPrices(): array
+    {
+        $defaults = [
+            'Form 137' => 150,
+            'Form 138' => 100,
+            'Certificate of Enrollment' => 100,
+            'Certificate of Completion' => 120,
+            'Certificate of Good Moral Character' => 100,
+            'Certificate of Recognition' => 120,
+            'Diploma' => 150,
+        ];
+
+        $keys = [
+            'Form 137' => 'price_form_137',
+            'Form 138' => 'price_form_138',
+            'Certificate of Enrollment' => 'price_certificate_enrollment',
+            'Certificate of Completion' => 'price_certificate_completion',
+            'Certificate of Good Moral Character' => 'price_good_moral',
+            'Certificate of Recognition' => 'price_certificate_recognition',
+            'Diploma' => 'price_diploma',
+        ];
+
+        $settings = Setting::whereIn('key', array_values($keys))->pluck('value', 'key');
+
+        foreach ($keys as $document => $key) {
+            $defaults[$document] = (float) ($settings[$key] ?? $defaults[$document]);
+        }
+
+        return $defaults;
+    }
+
+    public function confirmPayment(Request $request, $request_id)
+    {
+        $user = auth()->user();
+        
+        if (!in_array($user->role, ['registrar', 'admin', 'records_officer'])) {
+            return redirect()->back()->with('error', 'Unauthorized access.');
+        }
+
+        $requestDoc = RequestDocument::findOrFail($request_id);
+        
+        $requestDoc->update([
+            'payment_confirmed' => true,
+            'clearance_status' => 'cleared',
+        ]);
+
+        record_log('Payment Confirmed', 'Requests', "Confirmed payment for Request #{$request_id} (Ticket: {$requestDoc->ticket_number})");
+
+        return redirect()->back()->with('success', 'Payment confirmed successfully.');
+    }
+
+    public function updateClearance(Request $request, $request_id)
+    {
+        $user = auth()->user();
+        
+        if (!in_array($user->role, ['registrar', 'admin'])) {
+            return redirect()->back()->with('error', 'Only Registrar or Admin can update clearance status.');
+        }
+
+        $request->validate([
+            'clearance_status' => 'required|string|in:cleared,pending_clearance,has_balance',
+            'financial_balance' => 'nullable|numeric|min:0',
+        ]);
+
+        $requestDoc = RequestDocument::findOrFail($request_id);
+        
+        $requestDoc->update([
+            'clearance_status' => $request->clearance_status,
+            'financial_balance' => $request->financial_balance ?? 0,
+        ]);
+
+        record_log('Clearance Updated', 'Requests', "Updated clearance for Request #{$request_id} to {$request->clearance_status}");
+
+        return redirect()->back()->with('success', 'Clearance status updated successfully.');
     }
 
     public function updateStatus(Request $request, $request_id)
@@ -130,6 +316,20 @@ class RequestController extends Controller
 
         record_log('Updated Request Status', 'Requests', "Updated Request #{$request_id} status to {$request->status}");
 
+        if (
+            $request->status === 'processing'
+            && in_array($user->role, ['records_officer', 'admin'], true)
+            && in_array(strtolower($requestDoc->document_type), ['form 137', 'form 138', 'f137', 'f138'], true)
+        ) {
+            $form = str_contains(strtolower($requestDoc->document_type), '137') ? 'f137' : 'f138';
+            $path = $form === 'f137' ? '/f137/preview' : '/f138/preview';
+            $generatorUrl = rtrim((string) config('generator.url'), '/').$path.'?'.http_build_query([
+                'student' => $requestDoc->student_number,
+            ]);
+
+            return redirect()->away($generatorUrl);
+        }
+
         return redirect()->back()->with('success', 'Request status updated to ' . str_replace('_', ' ', $request->status));
     }
 
@@ -153,5 +353,19 @@ class RequestController extends Controller
         }
 
         return redirect()->back()->with('success', 'Request history cleared successfully.');
+    }
+
+    public function resetAll()
+    {
+        if (auth()->user()->role !== 'admin') {
+            return redirect()->back()->with('error', 'Only Admins can perform a full system reset of requests.');
+        }
+
+        $count = RequestDocument::count();
+        RequestDocument::truncate();
+        
+        record_log('Full Request System Reset', 'Requests', "Permanently deleted all {$count} request records from the system.");
+
+        return redirect()->back()->with('success', 'System Reset Successful: All requests and history have been cleared.');
     }
 }

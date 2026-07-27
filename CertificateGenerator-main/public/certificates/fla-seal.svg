@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <defs>
+    <path id="seal-top" d="M 32 93 A 58 58 0 0 1 148 93" />
+    <path id="seal-bottom" d="M 148 93 A 58 58 0 0 1 32 93" />
+  </defs>
+  <circle cx="90" cy="90" r="83" fill="#05025d" stroke="#f5ca22" stroke-width="5" />
+  <circle cx="90" cy="90" r="68" fill="#05025d" stroke="#f5ca22" stroke-width="2" />
+  <circle cx="90" cy="90" r="45" fill="#ffffff" stroke="#f5ca22" stroke-width="4" />
+  <g fill="#f5ca22" font-family="Times New Roman, Times, serif" font-weight="700">
+    <text font-size="12" letter-spacing="1.3">
+      <textPath href="#seal-top" startOffset="50%" text-anchor="middle">FIAT LUX ACADEME</textPath>
+    </text>
+    <text font-size="11" letter-spacing="5">
+      <textPath href="#seal-bottom" startOffset="50%" text-anchor="middle">CAVITE</textPath>
+    </text>
+  </g>
+  <g stroke="#05025d" stroke-width="3" stroke-linejoin="round">
+    <path d="M60 73 L76 65 L80 91 L64 99 Z" fill="#f5ca22" />
+    <path d="M84 58 L103 63 L97 93 L78 88 Z" fill="#f5ca22" />
+    <path d="M106 72 L124 67 L120 96 L101 100 Z" fill="#f5ca22" />
+    <path d="M76 103 L95 96 L101 118 L82 124 Z" fill="#f5ca22" />
+    <path d="M55 114 L70 107 L78 127 L64 135 Z" fill="#f5ca22" />
+    <path d="M106 106 L125 99 L126 123 L108 130 Z" fill="#f5ca22" />
+  </g>
+  <text x="90" y="145" fill="#05025d" font-family="Times New Roman, Times, serif" font-size="10" font-weight="700" text-anchor="middle">1993</text>
+</svg>

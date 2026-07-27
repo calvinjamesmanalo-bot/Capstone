@@ -19,9 +19,13 @@
                     </svg>
                     Filter
                 </button>
-                <button class="px-4 py-2 text-xs font-bold text-red-600 bg-red-50 border border-red-100 rounded-xl hover:bg-red-100 transition-all">
-                    Clear Logs
-                </button>
+                <form action="{{ route('logs.clear') }}" method="POST" onsubmit="return confirm('Are you sure you want to clear all logs? This cannot be undone.');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="px-4 py-2 text-xs font-bold text-red-600 bg-red-50 border border-red-100 rounded-xl hover:bg-red-100 transition-all">
+                        Clear Logs
+                    </button>
+                </form>
             </div>
         </div>
         

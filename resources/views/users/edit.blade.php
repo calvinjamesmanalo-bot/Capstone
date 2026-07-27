@@ -27,7 +27,7 @@
             </a>
         </div>
 
-        <form action="{{ route('users.update', $user) }}" method="POST" class="p-10">
+        <form action="{{ route('users.update', $user) }}" method="POST" class="p-10" id="editUserForm">
             @csrf
             @method('PUT')
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -144,15 +144,29 @@
                 </div>
             </div>
 
-            <div class="mt-12 flex justify-end">
-                <button type="submit" class="px-10 py-4 bg-indigo-600 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all uppercase tracking-widest flex items-center gap-3">
+            <div class="mt-12 flex flex-col md:flex-row justify-between items-center gap-6">
+                @if($user->role === 'student')
+                <div class="flex-1 w-full">
+                    <form action="{{ route('users.toggle-bypass', $user) }}" method="POST">
+                        @csrf
+                        <button type="submit" class="w-full md:w-auto px-8 py-4 {{ $user->can_bypass_request_limit ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-100' }} border text-xs font-black rounded-2xl hover:shadow-lg transition-all uppercase tracking-widest flex items-center justify-center gap-3">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {{ $user->can_bypass_request_limit ? 'Disable Re-request' : 'Enable Re-request' }}
+                        </button>
+                    </form>
+                </div>
+                @endif
+                
+                <button type="submit" form="editUserForm" class="w-full md:w-auto px-10 py-4 bg-indigo-600 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all uppercase tracking-widest flex items-center justify-center gap-3">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                     Update Account
                 </button>
             </div>
-        </form>
+        </div>
     </div>
 </div>
 @endsection

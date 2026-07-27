@@ -12,8 +12,17 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::orderBy('created_at', 'desc')->get();
-        return view('users.index', compact('users'));
+        $staffUsers = User::where('role', '!=', 'student')
+            ->orderBy('role')
+            ->orderBy('name')
+            ->get();
+
+        $studentUsers = User::where('role', 'student')
+            ->orderBy('name')
+            ->orderBy('student_number')
+            ->get();
+
+        return view('users.index', compact('staffUsers', 'studentUsers'));
     }
 
     public function create()
@@ -143,11 +152,23 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
-        $userName = $user->name;
+        $name = $user->display_name;
         $user->delete();
 
-        record_log('Deleted User', 'User Management', "Deleted account for {$userName}", 'warning');
+        record_log('Deleted User', 'User Management', "Deleted account for {$name}");
 
         return redirect()->route('users.index')->with('success', 'User deleted successfully.');
+    }
+
+    public function toggleBypass(User $user)
+    {
+        $user->update([
+            'can_bypass_request_limit' => !$user->can_bypass_request_limit
+        ]);
+
+        $status = $user->can_bypass_request_limit ? 'enabled' : 'disabled';
+        record_log('Toggled Request Bypass', 'User Management', "{$status} re-request bypass for {$user->display_name}");
+
+        return redirect()->back()->with('success', "Re-request capability has been " . ($user->can_bypass_request_limit ? 'enabled' : 'disabled') . " for this student.");
     }
 }

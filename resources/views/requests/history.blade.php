@@ -19,21 +19,36 @@
                     <p class="text-sm font-medium text-slate-400 mt-1">Total of {{ $requests->count() }} history record(s) found</p>
                 </div>
             </div>
-            @if($requests->count() > 0)
-            <button type="button" onclick="toggleClearModal()" class="px-6 py-3 bg-red-50 text-red-600 hover:bg-red-100 font-bold text-xs uppercase tracking-widest rounded-xl transition-all">
-                <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Clear History
-            </button>
-            @endif
+            <div class="flex items-center gap-4">
+                @if(auth()->user()->role === 'admin')
+                <form action="{{ route('requests.reset-all') }}" method="POST" onsubmit="return confirm('CRITICAL ACTION: This will PERMANENTLY DELETE ALL requests, history, and ticket records. This cannot be undone. Are you absolutely sure?');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="px-6 py-3 bg-red-600 text-white text-xs font-black rounded-xl shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all uppercase tracking-widest flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Full System Reset
+                    </button>
+                </form>
+                @endif
+                
+                @if($requests->count() > 0)
+                <button type="button" onclick="toggleClearModal()" class="px-6 py-3 bg-red-50 text-red-600 hover:bg-red-100 font-bold text-xs uppercase tracking-widest rounded-xl transition-all">
+                    <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Clear History
+                </button>
+                @endif
+            </div>
         </div>
 
         <div class="overflow-x-auto">
             <table class="w-full text-left">
                 <thead>
                     <tr class="bg-slate-50 text-[10px] uppercase tracking-[0.3em] font-black text-slate-400 border-b border-slate-100">
-                        <th class="px-10 py-6">Student Information</th>
+                        <th class="px-10 py-6">Ticket & Student</th>
                         <th class="px-10 py-6">Document Type</th>
                         <th class="px-10 py-6">Status</th>
                         <th class="px-10 py-6">Date Processed</th>
@@ -49,6 +64,9 @@
                                     {{ substr($req->student->name, 0, 1) }}
                                 </div>
                                 <div>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-[9px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-md uppercase tracking-widest">{{ $req->ticket_number ?? 'N/A' }}</span>
+                                    </div>
                                     <div class="text-sm font-black text-slate-800 tracking-tight">{{ $req->student->name }}</div>
                                     <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{{ $req->student_number }}</div>
                                 </div>

@@ -53,7 +53,7 @@ class GradeController extends Controller
             'student_number' => 'required|string',
             'name' => 'required|string',
             'school_years.*' => 'required|string',
-            'files.*' => 'required|file|mimes:xlsx,xls',
+            'files.*' => 'required|file|mimes:xlsx,xls,pdf,jpg,jpeg,png',
         ]);
 
         // Find or create student
@@ -70,16 +70,23 @@ class GradeController extends Controller
             $filename = time() . '_' . $file->getClientOriginalName();
             $path = $file->storeAs('form138_uploads/' . $student->student_number, $filename, 'public');
 
+            // Determine if it's a PDF for the pdf_path field
+            $pdfPath = null;
+            if ($file->getClientOriginalExtension() === 'pdf') {
+                $pdfPath = $path;
+            }
+
             Form138Upload::create([
                 'student_number' => $student->student_number,
                 'school_year' => $schoolYear,
                 'file_path' => $path,
+                'pdf_path' => $pdfPath,
                 'original_filename' => $file->getClientOriginalName(),
             ]);
 
-            record_log('Uploaded Grade Sheet', 'Grades', "Uploaded Form 138 for {$student->student_number} (SY: {$schoolYear})");
+            record_log('Uploaded Reference File', 'Grades', "Uploaded reference Form 138 for {$student->student_number} (SY: {$schoolYear})");
         }
 
-        return redirect()->back()->with('success', count($files) . ' Form 138 files uploaded successfully.');
+        return redirect()->back()->with('success', count($files) . ' reference file(s) uploaded successfully.');
     }
 }

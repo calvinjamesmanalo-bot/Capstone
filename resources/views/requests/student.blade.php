@@ -5,160 +5,197 @@
 @section('page_subtitle', 'Submit a new document request to the registrar')
 
 @section('content')
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+<div class="w-full">
     <!-- Request Form -->
-    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden h-fit">
-        <div class="p-10 border-b border-slate-50 bg-slate-50/50">
-            <h3 class="font-black text-slate-800 text-xl text-center uppercase tracking-tight">New Request</h3>
-            <p class="text-[10px] font-black text-indigo-600 mt-2 text-center uppercase tracking-widest">Submit a new document request</p>
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-5 border-b border-slate-200 bg-slate-50">
+            <h3 class="font-bold text-[#000638] text-xl">New document request</h3>
+            <p class="text-sm text-slate-500 mt-1">Complete the required information below.</p>
         </div>
         
-        <form action="{{ route('student.request.store') }}" method="POST" class="p-10 space-y-8">
+        <form action="{{ route('student.request.store') }}" method="POST" enctype="multipart/form-data" class="p-6 grid grid-cols-1 xl:grid-cols-2 gap-5">
             @csrf
             
             @if(auth()->check() && auth()->user()->role === 'student')
-                <div class="p-8 bg-indigo-50 rounded-3xl border border-indigo-100 space-y-4">
-                    <div class="flex items-center justify-between border-b border-indigo-100/50 pb-4">
-                        <span class="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Student ID</span>
-                        <span class="text-sm font-black text-indigo-700 uppercase tracking-tight">{{ auth()->user()->student_number }}</span>
+                <div class="xl:col-span-2 p-5 bg-[#ffd22d]/10 rounded-xl border border-[#ffd22d]/50 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="flex min-h-14 items-center justify-between gap-4 rounded-lg border border-[#ffd22d]/40 bg-white/70 px-4 py-3">
+                        <span class="text-xs font-semibold text-slate-500">Student ID</span>
+                        <span class="text-base font-bold text-[#000638]">{{ auth()->user()->student_number }}</span>
                     </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Full Name</span>
-                        <span class="text-sm font-black text-indigo-700 uppercase tracking-tight text-right">{{ auth()->user()->display_name }}</span>
+                    <div class="flex min-h-14 items-center justify-between gap-4 rounded-lg border border-[#ffd22d]/40 bg-white/70 px-4 py-3">
+                        <span class="text-xs font-semibold text-slate-500">Full name</span>
+                        <span class="text-base font-bold text-[#000638] text-right">{{ auth()->user()->display_name }}</span>
                     </div>
                 </div>
             @else
                 <div class="space-y-3">
-                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Student Number</label>
+                    <label class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Student Number</label>
                     <input type="text" name="student_number" required value="{{ $studentNumber ?? '' }}" placeholder="e.g. 2023-0001"
-                        class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300">
+                        class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-400 text-base">
                 </div>
 
                 <div class="space-y-3">
-                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Full Name</label>
+                    <label class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Full Name</label>
                     <input type="text" name="name" required value="{{ session('student_name') ?? '' }}" placeholder="e.g. Juan Dela Cruz"
-                        class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300">
+                        class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-400 text-base">
                 </div>
             @endif
 
+            <div class="xl:col-span-2 overflow-hidden rounded-xl border border-slate-200">
+                <div class="flex items-center justify-between gap-4 bg-[#000638] px-5 py-3 text-white">
+                    <div>
+                        <h4 class="text-sm font-bold">Document price list</h4>
+                        <p class="mt-0.5 text-xs text-slate-300">Official fees set by the administrator</p>
+                    </div>
+                    <span class="rounded-lg bg-[#ffd22d] px-3 py-1.5 text-xs font-bold text-[#000638]">₱100–₱150</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-xs text-slate-500">
+                            <tr>
+                                <th class="px-5 py-2.5 font-semibold">Document</th>
+                                <th class="px-5 py-2.5 text-right font-semibold">Price</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 bg-white text-sm">
+                            @foreach($documentPrices as $document => $price)
+                                <tr>
+                                    <td class="px-5 py-2.5 text-slate-700">{{ $document }}</td>
+                                    <td class="px-5 py-2.5 text-right font-bold text-[#000638]">₱{{ number_format($price, 2) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="space-y-3">
-                <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Document Type</label>
-                <select name="document_type" required
-                    class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 appearance-none">
-                    <option value="Form 137">Form 137 (Permanent Record)</option>
-                    <option value="Good Moral">Certificate of Good Moral</option>
-                    <option value="Diploma">Diploma</option>
-                    <option value="Certification">General Certification</option>
+                <div class="flex items-center justify-between gap-3">
+                    <label class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Document Type</label>
+                    <span id="selected_document_price" class="text-sm font-bold text-[#000638]"></span>
+                </div>
+                <select name="document_type" id="document_type" required
+                    class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 appearance-none text-base">
+                    @foreach($documentPrices as $document => $price)
+                        <option value="{{ $document }}" data-price="{{ number_format($price, 2, '.', '') }}">{{ $document }}</option>
+                    @endforeach
                 </select>
             </div>
 
-            <div class="pt-4">
-                <button type="submit" class="w-full py-5 bg-indigo-600 text-white text-xs font-black rounded-2xl shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 transition-all uppercase tracking-[0.2em] flex items-center justify-center gap-3 active:scale-95">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="space-y-3">
+                <label class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Delivery Method</label>
+                <select name="delivery_method" id="delivery_method" required
+                    class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 appearance-none text-base">
+                    <option value="pickup">Pickup at Registrar's Office</option>
+                    <option value="delivery">Delivery (Additional Fee May Apply)</option>
+                </select>
+            </div>
+
+            <div class="space-y-3 xl:col-span-2" id="release_location_field" style="display: none;">
+                <label class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Delivery Address</label>
+                <input type="text" name="release_location" placeholder="Enter complete delivery address"
+                    class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-400 text-base">
+            </div>
+
+            <div class="space-y-3">
+                <label class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Payment Method</label>
+                <select name="payment_method" required id="payment_method_select"
+                    class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 appearance-none text-base">
+                    <option value="cash">Cash (at Registrar)</option>
+                    <option value="gcash">GCash</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                </select>
+            </div>
+
+            <div class="space-y-3 xl:col-span-2" id="payment_proof_field">
+                <label class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1" id="payment_proof_label">
+                    Upload Proof of Payment (Optional)
+                </label>
+                <input type="file" name="payment_proof" id="payment_proof_input" accept="image/*,.pdf"
+                    class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-700 text-sm">
+                <p class="text-[11px] text-slate-500 font-medium" id="payment_proof_hint">
+                    Upload receipt, screenshot, or any proof of payment/clearance
+                </p>
+            </div>
+
+            <div class="pt-2 xl:col-span-2 flex justify-end">
+                <button type="submit" class="w-full sm:w-auto px-8 py-3 bg-[#000638] text-sm font-semibold rounded-lg shadow-sm hover:bg-[#10175a] transition-colors flex items-center justify-center gap-3 text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                     </svg>
                     Submit Request
                 </button>
             </div>
         </form>
-    </div>
 
-    <!-- Recent Requests -->
-    <div class="space-y-8">
-        <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-            <div class="p-10 border-b border-slate-50 bg-slate-50/50">
-                <h3 class="font-black text-slate-800 text-xl uppercase tracking-tight">Active Requests</h3>
-                <p class="text-[10px] font-black text-indigo-600 mt-2 uppercase tracking-widest">In-progress applications</p>
-            </div>
-            
-            <div class="p-10">
-                @if(count($activeRequests) > 0)
-                    <div class="space-y-4">
-                        @foreach($activeRequests as $req)
-                            <div class="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex items-center justify-between group hover:bg-white hover:shadow-2xl hover:shadow-indigo-500/5 transition-all">
-                                <div class="flex items-center gap-5">
-                                    <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <h4 class="font-black text-slate-800 text-sm uppercase tracking-tight">{{ $req->document_type }}</h4>
-                                        <p class="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{{ $req->created_at->format('M d, Y • h:i A') }}</p>
-                                    </div>
-                                </div>
-                                <div>
-                                    @php
-                                        $statusClasses = [
-                                            'pending' => 'bg-amber-50 text-amber-600 border-amber-100',
-                                            'processing' => 'bg-blue-50 text-blue-600 border-blue-100',
-                                        ];
-                                        $statusClass = $statusClasses[$req->status] ?? 'bg-slate-50 text-slate-600 border-slate-100';
-                                    @endphp
-                                    <span class="px-4 py-2 rounded-xl border {{ $statusClass }} text-[10px] font-black uppercase tracking-widest shadow-sm">
-                                        {{ $req->status }}
-                                    </span>
-                                </div>
-                            </div>
-                            @if($req->remarks)
-                                <div class="mt-2 ml-16 p-4 bg-white border border-slate-100 rounded-2xl text-[10px] text-slate-500 font-medium">
-                                    <span class="font-black text-indigo-600 uppercase tracking-widest mr-2">Remarks:</span> {{ $req->remarks }}
-                                </div>
-                            @endif
-                        @endforeach
-                    </div>
-                @else
-                    <div class="text-center py-10">
-                        <p class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No active requests</p>
-                    </div>
-                @endif
-            </div>
-        </div>
-
-        <!-- History of Requests -->
-        <div class="bg-slate-50/50 rounded-[2.5rem] border border-slate-100 overflow-hidden">
-            <div class="p-8 border-b border-slate-100 bg-white/50">
-                <h3 class="font-black text-slate-400 text-sm uppercase tracking-widest">History of Requests</h3>
-            </div>
-            <div class="p-8">
-                @if(count($requestHistory) > 0)
-                    <div class="space-y-3">
-                        @foreach($requestHistory as $req)
-                            <div class="flex items-center justify-between p-4 bg-white/50 rounded-2xl border border-slate-100 opacity-70 hover:opacity-100 transition-opacity">
-                                <div class="flex items-center gap-4">
-                                    <div class="text-slate-400">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                                    </div>
-                                    <div>
-                                        <h4 class="text-xs font-bold text-slate-600">{{ $req->document_type }}</h4>
-                                        <p class="text-[9px] font-medium text-slate-400">{{ $req->created_at->format('M d, Y') }}</p>
-                                    </div>
-                                </div>
-                                <span class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest {{ $req->status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600' }}">
-                                    {{ $req->status }}
-                                </span>
-                            </div>
-                        @endforeach
-                    </div>
-                @else
-                    <div class="text-center py-4">
-                        <p class="text-[9px] font-bold text-slate-300 uppercase tracking-widest">No past records</p>
-                    </div>
-                @endif
-            </div>
-        </div>
-
-        <div class="p-8 bg-indigo-50/50 rounded-[2rem] border border-indigo-100/50 flex items-center gap-6">
-            <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm shrink-0">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-            </div>
-            <div>
-                <h4 class="text-sm font-black text-slate-800 uppercase tracking-tight">Status Tracking</h4>
-                <p class="text-[11px] text-slate-500 font-medium mt-1">Your requests are updated in real-time by the registrar's office. Check back here to see the progress of your applications.</p>
+        <div class="px-6 pb-6">
+            <div class="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-4">
+                <div class="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-amber-600 shadow-sm shrink-0">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <h4 class="text-xs font-black text-amber-800 uppercase tracking-tight">Important Note</h4>
+                    <p class="text-[11px] text-amber-700 font-medium mt-1 leading-relaxed">
+                        If you have an active request, you cannot submit another one for the same document.
+                        If you need to request again, <strong>you need to go to the Registrar's Office to complete or clear your previous request.</strong>
+                    </p>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Shortcut to My Requests -->
+
 </div>
+
+<script>
+document.getElementById('delivery_method').addEventListener('change', function() {
+    const locationField = document.getElementById('release_location_field');
+    if (this.value === 'delivery') {
+        locationField.style.display = 'block';
+    } else {
+        locationField.style.display = 'none';
+    }
+});
+
+// Handle payment proof requirement
+const paymentMethodSelect = document.getElementById('payment_method_select');
+const paymentProofInput = document.getElementById('payment_proof_input');
+const paymentProofLabel = document.getElementById('payment_proof_label');
+const paymentProofHint = document.getElementById('payment_proof_hint');
+const documentTypeSelect = document.getElementById('document_type');
+const selectedDocumentPrice = document.getElementById('selected_document_price');
+
+function updateSelectedDocumentPrice() {
+    const option = documentTypeSelect.options[documentTypeSelect.selectedIndex];
+    selectedDocumentPrice.textContent = 'Fee: ₱' + Number(option.dataset.price).toFixed(2);
+}
+
+updateSelectedDocumentPrice();
+documentTypeSelect.addEventListener('change', updateSelectedDocumentPrice);
+
+function updatePaymentProofRequirement() {
+    const selectedMethod = paymentMethodSelect.value;
+
+    if (selectedMethod === 'gcash' || selectedMethod === 'bank_transfer') {
+        paymentProofInput.required = true;
+        paymentProofLabel.innerHTML = 'Upload Proof of Payment <span class="text-red-500">*</span>';
+        paymentProofHint.innerHTML = 'Receipt/screenshot is REQUIRED for GCash and Bank Transfer';
+        paymentProofHint.className = 'text-[11px] text-red-600 font-bold';
+    } else {
+        paymentProofInput.required = false;
+        paymentProofLabel.innerHTML = 'Upload Proof of Payment (Optional)';
+        paymentProofHint.innerHTML = 'Upload receipt, screenshot, or any proof of payment/clearance';
+        paymentProofHint.className = 'text-[11px] text-slate-500 font-medium';
+    }
+}
+
+// Initialize on page load
+updatePaymentProofRequirement();
+
+// Update on change
+paymentMethodSelect.addEventListener('change', updatePaymentProofRequirement);
+</script>
 @endsection

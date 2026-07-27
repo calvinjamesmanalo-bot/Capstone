@@ -58,6 +58,33 @@
             </div>
         </div>
 
+        <!-- Document Pricing -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-6 border-b border-slate-200 bg-slate-50">
+                <h3 class="font-bold text-[#000638] text-lg">Document price list</h3>
+                <p class="text-sm text-slate-500 mt-1">Set each document fee from ₱100 to ₱150.</p>
+            </div>
+            <div class="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                @foreach([
+                    'price_certificate_enrollment' => ['Certificate of Enrollment', 100],
+                    'price_certificate_completion' => ['Certificate of Completion', 120],
+                    'price_good_moral' => ['Certificate of Good Moral Character', 100],
+                    'price_certificate_recognition' => ['Certificate of Recognition', 120],
+                    'price_diploma' => ['Diploma', 150],
+                ] as $key => [$label, $default])
+                    <div class="space-y-2">
+                        <label for="{{ $key }}" class="text-sm font-semibold text-slate-700">{{ $label }}</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-4 font-bold text-slate-500">₱</span>
+                            <input type="number" name="{{ $key }}" id="{{ $key }}" value="{{ old($key, $settings[$key] ?? $default) }}" min="100" max="150" step="1" required
+                                class="w-full rounded-lg border border-slate-300 bg-white py-3 pl-9 pr-4 text-sm font-semibold text-[#000638] focus:border-[#000638] focus:ring-2 focus:ring-[#ffd22d]/40">
+                        </div>
+                        @error($key)<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
         <!-- System Status -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             <div class="p-8 border-b border-slate-50 bg-slate-50/50">
