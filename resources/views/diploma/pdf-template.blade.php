@@ -136,6 +136,11 @@
         </div>
 
         <div class="seal">OFFICIAL SEAL</div>
+        @include('documents.partials.qr', array_merge([
+            'qrDocumentType' => 'Diploma',
+            'qrSubject' => $name,
+            'qrFields' => ['course' => $course, 'graduation_date' => $date],
+        ], $qrContext ?? []))
     </div>
 </body>
 </html>

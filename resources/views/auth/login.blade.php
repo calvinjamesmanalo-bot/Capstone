@@ -109,5 +109,6 @@
             </div>
         </section>
     </main>
+    @include('partials.loading-overlay')
 </body>
 </html>

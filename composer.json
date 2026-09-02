@@ -8,9 +8,12 @@
     "require": {
         "php": "^8.2",
         "dompdf/dompdf": "^3.1",
+        "endroid/qr-code": "^6.0",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
-        "phpoffice/phpspreadsheet": "^5.7"
+        "phpoffice/phpspreadsheet": "^5.7",
+        "setasign/fpdi": "2.6",
+        "tecnickcom/tcpdf": "6.10"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -51,7 +54,7 @@
         ],
         "dev:all": [
             "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#60a5fa,#c4b5fd,#fb7185,#fdba74\" \"php -S 127.0.0.1:8000 -t public server.php\" \"php generator/artisan serve --host=127.0.0.1 --port=8001\" \"php artisan queue:listen --tries=1 --timeout=0\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=fiat-hub,school-forms,queue,logs,vite --kill-others"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php -S 127.0.0.1:8000 -t public server.php\" \"php artisan queue:listen --tries=1 --timeout=0\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=fiat-hub,queue,logs,vite --kill-others"
         ],
         "test": [
             "@php artisan config:clear --ansi",

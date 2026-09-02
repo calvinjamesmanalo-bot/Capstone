@@ -16,6 +16,8 @@ Route::get('/f137/template', [Form137Controller::class, 'template'])->name('f137
 Route::post('/generate-f138', [Form137Controller::class, 'generateF138'])->name('generate-f138');
 Route::post('/grade-sheets', [F138WorkflowController::class, 'storeGradeSheets'])->name('grade-sheets.store');
 Route::get('/f138/preview', [F138WorkflowController::class, 'preview'])->name('f138.preview');
+Route::get('/f138/pdf', [F138WorkflowController::class, 'pdf'])->name('f138.pdf');
+Route::get('/f138/download', [F138WorkflowController::class, 'download'])->name('f138.download');
 Route::get('/records', [StudentRecordController::class, 'index'])->name('students.index');
 Route::delete('/records/uploads/{upload}', [StudentRecordController::class, 'destroy'])->name('students.uploads.destroy');
 Route::get('/records/uploads/{upload}', [StudentRecordController::class, 'download'])->name('students.uploads.download');

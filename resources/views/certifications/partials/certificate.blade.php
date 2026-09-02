@@ -5,6 +5,11 @@
 @endphp
 
 <section class="certificate-page certificate-{{ $form['certificate_type'] }} @if ($templateImage) has-template-image @endif">
+    @if(($documentMode ?? 'draft') === 'draft')
+        <div style="position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; pointer-events:none; overflow:hidden;">
+            <div style="transform:rotate(-28deg); border:5px solid rgba(185,28,28,.18); padding:14px 28px; color:rgba(185,28,28,.18); font:900 42px/1 Arial,sans-serif; letter-spacing:5px; text-align:center;">DRAFT<br><span style="font-size:15px; letter-spacing:2px;">NOT YET OFFICIALLY ISSUED</span></div>
+        </div>
+    @endif
     @if ($templateImage)
         <img class="certificate-template-layer" src="{{ $templateImage }}" alt="">
     @else
@@ -132,4 +137,24 @@
     </div>
 
     <div class="seal-note">Not Valid<br>Without<br>School Seal</div>
+    @if(($documentMode ?? 'draft') === 'official')
+        <div class="certificate-qr">
+            @include('documents.partials.qr', [
+            'qrDocumentType' => $certificate['label'],
+            'qrSubject' => $form['student_name'],
+            'qrRequestId' => $form['request_id'] ?: null,
+            'qrHolderIdentifier' => $form['student_number'],
+            'qrPurpose' => $form['purpose'],
+            'qrIssuedAt' => $form['issue_date'],
+            'qrExpiresAt' => $form['expires_at'],
+            'qrPdfWillBeSigned' => true,
+            'qrFields' => [
+                'grade_level' => $form['grade_level'],
+                'section' => $form['section'],
+                'school_year' => $form['school_year'],
+                'recognition' => $form['recognition'],
+            ],
+            ])
+        </div>
+    @endif
 </section>

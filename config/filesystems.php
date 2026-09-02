@@ -38,6 +38,14 @@ return [
             'report' => false,
         ],
 
+        'school_forms_local' => [
+            'driver' => 'local',
+            'root' => base_path('generator/storage/app/private'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

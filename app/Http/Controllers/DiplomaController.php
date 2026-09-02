@@ -7,6 +7,7 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Dompdf\Dompdf;
 use Dompdf\Options;
+use App\Support\DocumentQrCode;
 
 class DiplomaController extends Controller
 {
@@ -30,6 +31,7 @@ class DiplomaController extends Controller
     {
         $request->validate([
             'student_name' => 'required|string',
+            'request_id' => 'nullable|integer|exists:request_documents,id',
             'checklist' => 'required|array|size:4',
             'course' => 'required|string',
             'graduation_date' => 'required|date',
@@ -39,7 +41,21 @@ class DiplomaController extends Controller
         $course = strtoupper($request->course);
         $date = date('F d, Y', strtotime($request->graduation_date));
 
-        $html = view('diploma.pdf-template', compact('name', 'course', 'date'))->render();
+        $student = Student::where('name', $request->student_name)->first();
+        $qrContext = [
+            'qrRequestId' => $request->integer('request_id') ?: null,
+            'qrHolderIdentifier' => $student?->student_number,
+            'qrIssuedAt' => now(),
+        ];
+
+        $documentQr = app(DocumentQrCode::class)->make('Diploma', $name, [
+            'request_id' => $request->integer('request_id') ?: null,
+            'holder_identifier' => $student?->student_number,
+            'issued_at' => now(),
+            'fields' => ['course' => $course, 'graduation_date' => $date],
+        ]);
+
+        $html = view('diploma.pdf-template', compact('name', 'course', 'date', 'qrContext', 'documentQr'))->render();
 
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
@@ -50,11 +66,17 @@ class DiplomaController extends Controller
         $dompdf->setPaper('A4', 'landscape');
         $dompdf->render();
 
-        if ($request->has('preview')) {
-            return $dompdf->stream("Diploma_{$name}.pdf", ["Attachment" => false]);
-        }
+        $filename = "Diploma_{$name}.pdf";
+        $bytes = $dompdf->output();
+        app(DocumentQrCode::class)->registerArtifact($documentQr['document'], $bytes, $filename, 'application/pdf');
 
-        return $dompdf->stream("Diploma_{$name}.pdf");
+        $disposition = $request->has('preview') ? 'inline' : 'attachment';
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, private',
+        ]);
     }
 
     public function submitToRegistrar(Request $request)
@@ -110,7 +132,18 @@ class DiplomaController extends Controller
             $date = date('F d, Y', strtotime($matches[1]));
         }
 
-        $html = view('diploma.pdf-template', compact('name', 'course', 'date'))->render();
+        $qrContext = [
+            'qrRequestId' => $docRequest->id,
+            'qrHolderIdentifier' => $docRequest->student_number,
+            'qrIssuedAt' => $docRequest->updated_at,
+        ];
+        $documentQr = app(DocumentQrCode::class)->make('Diploma', $name, [
+            'request_id' => $docRequest->id,
+            'holder_identifier' => $docRequest->student_number,
+            'issued_at' => $docRequest->updated_at,
+            'fields' => ['course' => $course, 'graduation_date' => $date],
+        ]);
+        $html = view('diploma.pdf-template', compact('name', 'course', 'date', 'qrContext', 'documentQr'))->render();
 
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
@@ -121,6 +154,14 @@ class DiplomaController extends Controller
         $dompdf->setPaper('A4', 'landscape');
         $dompdf->render();
 
-        return $dompdf->stream("Diploma_{$name}.pdf", ["Attachment" => false]);
+        $filename = "Diploma_{$name}.pdf";
+        $bytes = $dompdf->output();
+        app(DocumentQrCode::class)->registerArtifact($documentQr['document'], $bytes, $filename, 'application/pdf');
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, private',
+        ]);
     }
 }

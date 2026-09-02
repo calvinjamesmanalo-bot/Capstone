@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Models\Grade;
 use App\Models\Form138Upload;
+use App\Models\RequestDocument;
+use App\Support\DocumentQrCode;
+use App\Support\DocumentWorkbookVerification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -203,12 +206,44 @@ class Form137Controller extends Controller
         }
 
         $fileName = 'F137_' . $student->student_number . '.xlsx';
-        $writer = new Xlsx($spreadsheet);
+        $temporary = tempnam(sys_get_temp_dir(), 'f137-legacy-');
+        if ($temporary === false) {
+            abort(500, 'Unable to prepare the Form 137 workbook.');
+        }
+        $xlsxPath = $temporary.'.xlsx';
+        @unlink($temporary);
+        (new Xlsx($spreadsheet))->save($xlsxPath);
 
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="'. $fileName .'"');
-        $writer->save('php://output');
-        exit;
+        $requestId = $request->integer('request_id') ?: RequestDocument::query()
+            ->where('student_number', $student->student_number)
+            ->whereIn('document_type', ['Form 137', 'F137'])
+            ->latest('id')
+            ->value('id');
+        $qr = app(DocumentQrCode::class)->make('Form 137', $student->name, [
+            'request_id' => $requestId,
+            'holder_identifier' => $student->student_number,
+            'fields' => [
+                'selected_uploads' => array_values($selectedUploadIds),
+                'manual_records' => $tempGrades['data'] ?? [],
+            ],
+        ]);
+        app(DocumentWorkbookVerification::class)->attachToFile($xlsxPath, $qr, [
+            'document_type' => 'Form 137',
+            'holder_name' => $student->name,
+            'holder_identifier' => $student->student_number,
+            'issue_date' => now()->toDateString(),
+        ]);
+        app(DocumentQrCode::class)->registerArtifactFile(
+            $qr['document'],
+            $xlsxPath,
+            $fileName,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        );
+
+        return response()->download($xlsxPath, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        ])->deleteFileAfterSend(true);
     }
 
     public function viewHtml($id)

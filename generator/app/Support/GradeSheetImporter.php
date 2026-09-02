@@ -8,6 +8,45 @@ class GradeSheetImporter
 {
     public function __construct(private readonly XlsxWorkbookReader $reader) {}
 
+    public function assertMatchesSelection(string $path, string $schoolYear, string $level, int $gradingPeriod): void
+    {
+        $values = [];
+        foreach ($this->firstSheetRows($path) as $row) {
+            foreach ($row['cells'] as $cell) {
+                $value = trim((string) ($cell['value'] ?? ''));
+                if ($value !== '') $values[] = $value;
+            }
+        }
+
+        $contents = implode("\n", $values);
+        $detectedSchoolYear = preg_match('/\b(20\d{2})\s*[-–]\s*(20\d{2})\b/u', $contents, $yearMatch)
+            ? $yearMatch[1].'-'.$yearMatch[2]
+            : null;
+        $gradeWords = ['one' => 1, 'two' => 2, 'three' => 3];
+        $detectedGrade = null;
+        if (preg_match('/\bgrade\s+(one|two|three|[1-3])\b/i', $contents, $gradeMatch)) {
+            $gradeToken = strtolower($gradeMatch[1]);
+            $detectedGrade = $gradeWords[$gradeToken] ?? (int) $gradeToken;
+        }
+        $periodWords = ['first'=>1, '1st'=>1, 'second'=>2, '2nd'=>2, 'third'=>3, '3rd'=>3, 'fourth'=>4, '4th'=>4];
+        $detectedPeriod = preg_match('/\b(first|second|third|fourth|[1-4](?:st|nd|rd|th))\s+grading\b/i', $contents, $periodMatch)
+            ? $periodWords[strtolower($periodMatch[1])]
+            : null;
+        preg_match('/\bgrade\s+([1-3])\b/i', $level, $selectedGradeMatch);
+        $selectedGrade = isset($selectedGradeMatch[1]) ? (int) $selectedGradeMatch[1] : null;
+
+        if ($detectedSchoolYear === null || $detectedGrade === null || $detectedPeriod === null) {
+            throw new RuntimeException('The workbook is missing a readable school year, grade level, or grading period header. Use the official grade sheet template.');
+        }
+        if ($detectedSchoolYear !== $schoolYear || $detectedGrade !== $selectedGrade || $detectedPeriod !== $gradingPeriod) {
+            $periodNames = [1=>'First', 2=>'Second', 3=>'Third', 4=>'Fourth'];
+            throw new RuntimeException(
+                "Workbook metadata mismatch. The file is {$detectedSchoolYear}, Grade {$detectedGrade}, {$periodNames[$detectedPeriod]} Grading, "
+                ."but the selected upload destination is {$schoolYear}, {$level}, {$periodNames[$gradingPeriod]} Grading."
+            );
+        }
+    }
+
     public function summaries(string $path): array
     {
         $rows = $this->firstSheetRows($path);

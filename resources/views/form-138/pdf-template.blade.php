@@ -93,7 +93,7 @@
     </style>
 </head>
 <body>
-    <div class="watermark">OFFICIAL COPY</div>
+    <div class="watermark">DRAFT · NOT YET OFFICIALLY ISSUED</div>
 
     <div class="container">
         <div class="header">

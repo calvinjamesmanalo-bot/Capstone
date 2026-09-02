@@ -219,11 +219,11 @@
                 </a>
                 @endif
 
-                @if(in_array($role, ['admin', 'registrar', 'records_officer']))
+                @if(in_array($role, ['admin', 'registrar']))
                 <p class="px-4 mb-3 mt-6 text-xs font-semibold text-slate-400 uppercase tracking-wide">Academic Records</p>
 
                 @if(in_array($role, ['admin', 'registrar']))
-                <a href="{{ rtrim(config('generator.url'), '/') }}/records" target="_blank" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group hover:bg-slate-800/50">
+                <a href="{{ route('generator.grade-sheets') }}" target="_blank" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group hover:bg-slate-800/50">
                     <div class="w-5 h-5 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -233,8 +233,8 @@
                 </a>
                 @endif
 
-                @if(in_array($role, ['admin', 'records_officer']))
-                <a href="{{ rtrim(config('generator.url'), '/') }}" target="_blank" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group hover:bg-slate-800/50">
+                @if($role === 'admin')
+                <a href="{{ route('generator.maker', ['form' => 'f137']) }}" target="_blank" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group hover:bg-slate-800/50">
                     <div class="w-5 h-5 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -243,7 +243,7 @@
                     <span class="text-base font-semibold">Form 137 Maker</span>
                 </a>
 
-                <a href="{{ rtrim(config('generator.url'), '/') }}" target="_blank" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group hover:bg-slate-800/50">
+                <a href="{{ route('generator.maker', ['form' => 'f138']) }}" target="_blank" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group hover:bg-slate-800/50">
                     <div class="w-5 h-5 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -308,7 +308,7 @@
 
             <!-- Logout -->
             <div class="p-6 border-t border-white/10">
-                <form action="{{ route('logout') }}" method="POST">
+                <form action="{{ route('logout') }}" method="POST" id="logout-form">
                     @csrf
                     <button type="submit" class="w-full flex items-center gap-4 px-4 py-3 text-base font-semibold text-red-300 rounded-xl hover:text-red-200 hover:bg-red-500/10 transition-all">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -404,6 +404,52 @@
             syncLabel();
         })();
     </script>
+    @if($role === 'student')
+    <script>
+        (() => {
+            const idleLimit = 15_000;
+            const logoutForm = document.getElementById('logout-form');
+            let lastActivity = Date.now();
+            let logoutTimer;
+            let loggingOut = false;
+
+            const logoutIfIdle = () => {
+                const remaining = idleLimit - (Date.now() - lastActivity);
+
+                if (remaining <= 0) {
+                    if (!loggingOut && logoutForm) {
+                        loggingOut = true;
+                        logoutForm.submit();
+                    }
+                    return;
+                }
+
+                logoutTimer = window.setTimeout(logoutIfIdle, remaining);
+            };
+
+            const registerActivity = () => {
+                if (loggingOut) return;
+                lastActivity = Date.now();
+                window.clearTimeout(logoutTimer);
+                logoutTimer = window.setTimeout(logoutIfIdle, idleLimit);
+            };
+
+            ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart'].forEach((eventName) => {
+                window.addEventListener(eventName, registerActivity, { passive: true });
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    window.clearTimeout(logoutTimer);
+                    logoutIfIdle();
+                }
+            });
+
+            logoutTimer = window.setTimeout(logoutIfIdle, idleLimit);
+        })();
+    </script>
+    @endif
     @stack('scripts')
+    @include('partials.loading-overlay')
 </body>
 </html>

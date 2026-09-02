@@ -24,9 +24,12 @@ class StudentRecordController extends Controller
             ->when($hasSearch, fn ($query) => $query->where('school_year', $schoolYear)
                 ->where('level', $level)->where('section', $section))
             ->orderBy('grading_period')->orderBy('file_type')->get();
+        $attendanceUploads = $uploads->where('file_type', 'attendance')->values();
+        $summaryUploads = $uploads->where('file_type', 'summary')->values();
 
         return view('students.index', compact(
-            'schoolYear', 'level', 'section', 'hasSearch', 'schoolYears', 'levels', 'sections', 'uploads'
+            'schoolYear', 'level', 'section', 'hasSearch', 'schoolYears', 'levels', 'sections',
+            'uploads', 'attendanceUploads', 'summaryUploads'
         ));
     }
 

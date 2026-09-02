@@ -1,27 +1,39 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\GradeController;
-use App\Http\Controllers\Form137Controller;
-use App\Http\Controllers\Form138Controller;
-use App\Http\Controllers\GoodMoralController;
-use App\Http\Controllers\DiplomaController;
-use App\Http\Controllers\RequestController;
-use App\Http\Controllers\UserController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AnalyticsController;
-use App\Http\Controllers\SettingController;
-use App\Http\Controllers\CertificationController;
-use App\Http\Controllers\GeneratorController;
-
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\CertificationController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DiplomaController;
+use App\Http\Controllers\DocumentVerificationController;
+use App\Http\Controllers\Form137Controller;
+use App\Http\Controllers\Form138Controller;
+use App\Http\Controllers\GeneratorController;
+use App\Http\Controllers\GoodMoralController;
+use App\Http\Controllers\GradeController;
+use App\Http\Controllers\RequestController;
+use App\Http\Controllers\SchoolFormController;
+use App\Http\Controllers\SchoolFormF137Controller;
+use App\Http\Controllers\SchoolFormF138Controller;
+use App\Http\Controllers\SchoolFormRecordController;
+use App\Http\Controllers\SettingController;
+use App\Http\Controllers\UserController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 Route::get('/login/as/{role}', [LoginController::class, 'loginAsRole'])->name('login.as');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+
+// Public, signed document verification endpoints used by printed QR codes.
+Route::get('/verify', [DocumentVerificationController::class, 'lookup'])->name('documents.lookup');
+Route::get('/verify/{identifier}', [DocumentVerificationController::class, 'show'])
+    ->where('identifier', '[A-Za-z0-9-]+')
+    ->name('documents.verify');
+Route::post('/verify/{identifier}/file', [DocumentVerificationController::class, 'verifyFile'])
+    ->where('identifier', '[A-Za-z0-9-]+')
+    ->name('documents.verify-file');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
@@ -49,9 +61,22 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/requests/history/clear', [RequestController::class, 'clearHistory'])->name('requests.history.clear');
     Route::delete('/requests/reset-all', [RequestController::class, 'resetAll'])->name('requests.reset-all');
 
-    // Untouched F137/F138 generator application
-    Route::get('/school-forms/{documentRequest?}', [GeneratorController::class, 'maker'])->name('generator.maker');
-    Route::get('/school-forms-grade-sheets', [GeneratorController::class, 'gradeSheets'])->name('generator.grade-sheets');
+    // Integrated F137/F138 school-forms module
+    Route::get('/school-forms', [SchoolFormController::class, 'home'])->name('school-forms.home');
+    Route::get('/school-forms/request/{documentRequest?}', [GeneratorController::class, 'maker'])->name('generator.maker');
+    Route::get('/school-forms/grade-sheets', [GeneratorController::class, 'gradeSheets'])->name('generator.grade-sheets');
+    Route::post('/school-forms/grade-sheets', [SchoolFormF138Controller::class, 'storeGradeSheets'])->name('school-forms.grade-sheets.store');
+    Route::get('/school-forms/records', [SchoolFormRecordController::class, 'index'])->name('school-forms.records');
+    Route::get('/school-forms/uploads/{upload}', [SchoolFormRecordController::class, 'download'])->name('school-forms.uploads.download');
+    Route::get('/school-forms/uploads/{upload}/preview', [SchoolFormRecordController::class, 'preview'])->name('school-forms.uploads.preview');
+    Route::delete('/school-forms/uploads/{upload}', [SchoolFormRecordController::class, 'destroy'])->name('school-forms.uploads.destroy');
+    Route::get('/school-forms/f137/preview', [SchoolFormF137Controller::class, 'preview'])->name('school-forms.f137.preview');
+    Route::get('/school-forms/f137/download', [SchoolFormF137Controller::class, 'download'])->name('school-forms.f137.download');
+    Route::get('/school-forms/f137/template', [SchoolFormF137Controller::class, 'template'])->name('school-forms.f137.template');
+    Route::get('/school-forms/f138/preview', [SchoolFormF138Controller::class, 'preview'])->name('school-forms.f138.preview');
+    Route::get('/school-forms/f138/pdf', [SchoolFormF138Controller::class, 'pdf'])->name('school-forms.f138.pdf');
+    Route::get('/school-forms/f138/download', [SchoolFormF138Controller::class, 'download'])->name('school-forms.f138.download');
+    Route::post('/school-forms/f138/finalize', [SchoolFormF138Controller::class, 'finalize'])->name('school-forms.f138.finalize');
 
     // Legacy Grade Portal
     Route::get('/grade-portal', [GradeController::class, 'index'])->name('grade-portal.index');
@@ -73,6 +98,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/certifications', [CertificationController::class, 'index'])->name('certifications.index');
     Route::post('/certifications/preview', [CertificationController::class, 'preview'])->name('certifications.preview');
     Route::post('/certifications/pdf', [CertificationController::class, 'pdf'])->name('certifications.pdf');
+    Route::post('/certifications/finalize', [CertificationController::class, 'finalize'])->name('certifications.finalize');
 
     // Good Moral Maker
     Route::get('/good-moral', [GoodMoralController::class, 'index'])->name('good-moral.index');
@@ -92,4 +118,10 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/logs/clear', [ActivityLogController::class, 'clear'])->name('logs.clear');
     Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
     Route::post('/settings', [SettingController::class, 'update'])->name('settings.update');
+    Route::post('/documents/authenticity/{document}/revoke', [DocumentVerificationController::class, 'revoke'])
+        ->name('documents.revoke');
+    Route::get('/documents/authenticity/{document}/issued', [DocumentVerificationController::class, 'issued'])
+        ->name('documents.issued');
+    Route::get('/documents/authenticity/{document}/download', [DocumentVerificationController::class, 'downloadOfficial'])
+        ->name('documents.download');
 });

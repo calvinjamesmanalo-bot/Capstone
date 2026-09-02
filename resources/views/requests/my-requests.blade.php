@@ -32,6 +32,9 @@
                                 </div>
                                 <div>
                                     <h4 class="font-black text-slate-800 text-base uppercase tracking-tight">{{ $req->document_type }}</h4>
+                                    @if(in_array(strtolower($req->document_type), ['form 138', 'f138']) && $req->school_year)
+                                        <p class="mt-1 text-xs font-black uppercase tracking-wider text-blue-700">School year: {{ $req->school_year }}</p>
+                                    @endif
                                     <div class="flex flex-wrap items-center gap-2 mt-1">
                                         <span class="text-[10px] font-black bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-md uppercase tracking-widest">{{ $req->ticket_number ?? 'NO TICKET' }}</span>
                                         <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">{{ $req->created_at->format('M d, Y • h:i A') }}</p>
@@ -54,7 +57,7 @@
                             <div class="flex flex-col items-end gap-2">
                                 @if($req->payment_proof_path)
                                     <a href="{{ asset('storage/' . $req->payment_proof_path) }}" target="_blank" class="px-3 py-1.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-lg hover:bg-indigo-200 transition-all uppercase tracking-widest">
-                                        View Payment Proof
+                                        View Transcript Receipt
                                     </a>
                                 @endif
                                 @php
@@ -105,6 +108,9 @@
                                 <div>
                                     <div class="flex items-center gap-2">
                                         <h4 class="text-sm font-bold text-slate-700">{{ $req->document_type }}</h4>
+                                        @if(in_array(strtolower($req->document_type), ['form 138', 'f138']) && $req->school_year)
+                                            <p class="mt-1 text-xs font-bold text-blue-700">School year: {{ $req->school_year }}</p>
+                                        @endif
                                         <span class="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase tracking-widest">{{ $req->ticket_number ?? 'N/A' }}</span>
                                     </div>
                                     <p class="text-xs font-medium text-slate-500">{{ $req->created_at->format('M d, Y') }}</p>

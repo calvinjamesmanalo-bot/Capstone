@@ -6,6 +6,7 @@ use App\Models\Student;
 use App\Models\GradeSheetUpload;
 use App\Support\GradeSheetImporter;
 use App\Support\Form137WorkbookGenerator;
+use App\Support\SchoolProfile;
 use App\Support\XlsxWorkbookReader;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -24,14 +25,14 @@ class Form137Controller extends Controller
         return view('students.f137-preview', compact('student', 'records'));
     }
 
-    public function download(Request $request, Form137WorkbookGenerator $generator)
+    public function download(Request $request, Form137WorkbookGenerator $generator, SchoolProfile $schoolProfile)
     {
         [$student, $records] = $this->studentRecords($request);
 
         $path = $generator->generate([
             'lrn' => $student->lrn,
             'name_parts' => $this->splitName($student->name),
-        ], $records->all());
+        ], $records->all(), $schoolProfile->values());
         $fileIdentifier = $student->student_number ?: $student->lrn;
 
         return response()->download(

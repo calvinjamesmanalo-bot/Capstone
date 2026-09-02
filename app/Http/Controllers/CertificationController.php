@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Student;
 use App\Models\RequestDocument;
+use App\Models\Student;
+use App\Support\DocumentIssuanceService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 class CertificationController extends Controller
 {
@@ -43,14 +45,87 @@ class CertificationController extends Controller
 
     public function preview(Request $request)
     {
-        return view('certifications.preview', $this->viewData($this->validatedForm($request)));
+        $this->authorizeStaff();
+        $data = $this->viewData($this->validatedForm($request));
+        $data['documentMode'] = 'draft';
+        if (($data['form']['request_id'] ?? '') !== '') {
+            record_log('Draft Generated', 'Document Issuance', "Generated certificate draft for request #{$data['form']['request_id']}");
+        }
+
+        return view('certifications.preview', $data);
     }
 
     public function pdf(Request $request)
     {
+        $this->authorizeStaff();
         $form = $this->validatedForm($request);
         $data = $this->viewData($form);
-        $options = new Options();
+        $data['documentMode'] = 'draft';
+        $filename = Str::slug($data['certificate']['label'].' '.$form['student_name'].' '.$form['school_year']).'-draft.pdf';
+        $bytes = $this->renderPdf($data);
+
+        $disposition = $request->input('output') !== 'stream' ? 'attachment' : 'inline';
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, private',
+        ]);
+    }
+
+    public function finalize(Request $request, DocumentIssuanceService $issuance)
+    {
+        $this->authorizeIssuer();
+        $form = $this->validatedForm($request);
+        abort_if($form['request_id'] === '', 422, 'An existing document request is required for official issuance.');
+
+        $documentRequest = RequestDocument::with('student')->findOrFail($form['request_id']);
+        $data = $this->viewData($form);
+        abort_unless($documentRequest->document_type === $data['certificate']['label'], 422, 'The request document type does not match this certificate.');
+        abort_unless($documentRequest->student_number === $form['student_number'], 422, 'The request student does not match this certificate.');
+
+        $filename = Str::slug($data['certificate']['label'].' '.$form['student_name'].' '.$form['school_year']).'.pdf';
+        try {
+            $document = $issuance->issue(
+                $documentRequest,
+                $data['certificate']['label'],
+                $form['student_name'],
+                [
+                    'holder_identifier' => $form['student_number'],
+                    'purpose' => $form['purpose'],
+                    'issued_at' => $form['issue_date'],
+                    'expires_at' => $form['expires_at'],
+                    'fields' => [
+                        'grade_level' => $form['grade_level'],
+                        'section' => $form['section'],
+                        'school_year' => $form['school_year'],
+                        'recognition' => $form['recognition'],
+                    ],
+                ],
+                $filename,
+                function (array $qr) use ($data): string {
+                    $official = $data;
+                    $official['documentMode'] = 'official';
+                    $official['documentQr'] = $qr;
+
+                    return $this->renderPdf($official);
+                },
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return redirect()->route('certifications.index', ['request_id' => $documentRequest->id])
+                ->withInput()
+                ->with('error', 'Official issuance failed safely; no document was issued. '.$exception->getMessage());
+        }
+
+        return redirect()->route('documents.issued', $document)
+            ->with('success', "{$document->control_number} was digitally signed and officially issued.");
+    }
+
+    private function renderPdf(array $data): string
+    {
+        $options = new Options;
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
 
@@ -59,9 +134,17 @@ class CertificationController extends Controller
         $pdf->setPaper('a4', 'portrait');
         $pdf->render();
 
-        $filename = Str::slug($data['certificate']['label'].' '.$form['student_name'].' '.$form['school_year']).'.pdf';
+        return $pdf->output();
+    }
 
-        return $pdf->stream($filename, ['Attachment' => $request->input('output') !== 'stream']);
+    private function authorizeStaff(): void
+    {
+        abort_unless(auth()->check() && in_array(auth()->user()->role, ['admin', 'registrar', 'records_officer'], true), 403);
+    }
+
+    private function authorizeIssuer(): void
+    {
+        abort_unless(auth()->check() && in_array(auth()->user()->role, ['admin', 'records_officer'], true), 403);
     }
 
     private function validatedForm(Request $request): array
@@ -75,6 +158,7 @@ class CertificationController extends Controller
             'section' => ['nullable', 'string', 'max:50'],
             'school_year' => ['required', 'regex:/^\d{4}-\d{4}$/'],
             'issue_date' => ['required', 'date'],
+            'expires_at' => ['nullable', 'date', 'after_or_equal:issue_date'],
             'purpose' => ['nullable', 'string', 'max:180'],
             'recognition' => ['nullable', 'required_if:certificate_type,recognition', 'string', 'max:180'],
         ], [
@@ -84,7 +168,7 @@ class CertificationController extends Controller
 
         $data['request_id'] = $data['request_id'] ?? '';
 
-        foreach (['student_number', 'section', 'purpose', 'recognition'] as $field) {
+        foreach (['student_number', 'section', 'purpose', 'recognition', 'expires_at'] as $field) {
             $data[$field] = trim($data[$field] ?? '');
         }
 
@@ -116,7 +200,7 @@ class CertificationController extends Controller
 
     private function defaultForm(): array
     {
-        return ['request_id' => '', 'certificate_type' => '', 'student_number' => '', 'student_name' => '', 'grade_level' => '', 'section' => '', 'school_year' => '', 'issue_date' => '', 'purpose' => '', 'recognition' => ''];
+        return ['request_id' => '', 'certificate_type' => '', 'student_number' => '', 'student_name' => '', 'grade_level' => '', 'section' => '', 'school_year' => '', 'issue_date' => '', 'expires_at' => '', 'purpose' => '', 'recognition' => ''];
     }
 
     private function certificateTypes(): array
@@ -145,7 +229,7 @@ class CertificationController extends Controller
 
     private function imageDataUri(string $path): ?string
     {
-        if (!is_file($path)) {
+        if (! is_file($path)) {
             return null;
         }
 

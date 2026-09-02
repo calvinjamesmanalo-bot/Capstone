@@ -37,7 +37,7 @@ class Form137WorkbookGenerator
         'islamic values education' => 44,
     ];
 
-    public function generate(array $student, array $records): string
+    public function generate(array $student, array $records, array $schoolProfile = []): string
     {
         $template = base_path('F137.xlsx');
 
@@ -80,6 +80,10 @@ class Form137WorkbookGenerator
         $this->clearTemplateRecordValues($document, $xpath);
         $this->writeStudent($document, $xpath, $student);
 
+        foreach (self::RECORD_SLOTS as $slot) {
+            $this->writeSchoolProfile($document, $xpath, $slot, $schoolProfile);
+        }
+
         foreach (array_slice($records, 0, count(self::RECORD_SLOTS)) as $index => $record) {
             $this->writeRecord($document, $xpath, self::RECORD_SLOTS[$index], $record);
         }
@@ -105,11 +109,49 @@ class Form137WorkbookGenerator
     private function writeStudent(DOMDocument $document, DOMXPath $xpath, array $student): void
     {
         $name = $student['name_parts'];
-        $this->setText($document, $xpath, 'B9', 'LAST NAME: '.$name['last']);
+        $this->setText($document, $xpath, 'B9', 'LAST NAME:');
+        $this->setText($document, $xpath, 'D9', $name['last']);
         $this->setText($document, $xpath, 'I9', 'FIRST NAME: '.$name['first']);
-        $this->setText($document, $xpath, 'Q9', 'NAME EXTN.: '.$name['extension']);
-        $this->setText($document, $xpath, 'T9', 'MIDDLE NAME: '.$name['middle']);
-        $this->setText($document, $xpath, 'B14', 'Learner Reference Number (LRN): '.($student['lrn'] ?: ''));
+        $this->setText($document, $xpath, 'Q9', 'NAME EXTN.:');
+        $this->setText($document, $xpath, 'S9', $name['extension']);
+        $this->setText($document, $xpath, 'T9', 'MIDDLE NAME:');
+        $this->setText($document, $xpath, 'AA9', $name['middle']);
+        $this->setText($document, $xpath, 'B10', 'Learner Reference Number (LRN):');
+        $this->setText($document, $xpath, 'G10', (string) ($student['lrn'] ?: ''));
+    }
+
+    private function writeSchoolProfile(DOMDocument $document, DOMXPath $xpath, array $slot, array $profile): void
+    {
+        $school = trim((string) ($profile['school'] ?? ''));
+        $schoolId = trim((string) ($profile['school_id'] ?? ''));
+        $district = trim((string) ($profile['district'] ?? ''));
+        $division = trim((string) ($profile['division'] ?? ''));
+        $region = trim((string) ($profile['region'] ?? ''));
+        $position = $slot['label_col'].$slot['start_row'];
+
+        if ($position === 'B23') {
+            $this->setText($document, $xpath, 'B23', 'School: '.$school);
+            $this->setText($document, $xpath, 'J23', 'School ID:');
+            $this->setText($document, $xpath, 'N23', $schoolId);
+            $this->setText($document, $xpath, 'B24', 'District: '.$district.'    Division: '.$division);
+            $this->setText($document, $xpath, 'L24', 'Region: '.$region);
+            return;
+        }
+
+        if ($position === 'Q23') {
+            $this->setText($document, $xpath, 'Q23', 'School: '.$school);
+            $this->setText($document, $xpath, 'AC23', 'School ID: '.$schoolId);
+            $this->setText($document, $xpath, 'Q24', 'District: '.$district.'    Division: '.$division);
+            $this->setText($document, $xpath, 'AB24', 'Region: '.$region);
+            return;
+        }
+
+        $schoolCell = $position === 'B52' ? 'B52' : 'Q52';
+        $districtCell = $position === 'B52' ? 'B53' : 'Q53';
+        $regionCell = $position === 'B52' ? 'M53' : 'AB53';
+        $this->setText($document, $xpath, $schoolCell, 'School: '.$school.'    School ID: '.$schoolId);
+        $this->setText($document, $xpath, $districtCell, 'District: '.$district.'    Division: '.$division);
+        $this->setText($document, $xpath, $regionCell, 'Region: '.$region);
     }
 
     private function writeRecord(DOMDocument $document, DOMXPath $xpath, array $slot, array $record): void

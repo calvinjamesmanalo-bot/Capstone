@@ -6,7 +6,10 @@ use App\Models\GradeSheetUpload;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
+use App\Support\GradeSheetImporter;
+use App\Support\SchoolProfile;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 use ZipArchive;
@@ -46,6 +49,15 @@ class ExampleTest extends TestCase
 
     public function test_student_f137_is_generated_as_a_populated_excel_workbook(): void
     {
+        $schoolProfile = $this->mock(SchoolProfile::class);
+        $schoolProfile->shouldReceive('values')->once()->andReturn([
+            'school' => 'Fiat Lux Academe',
+            'district' => 'Imus District',
+            'school_id' => '401234',
+            'division' => 'City Schools Division of Imus',
+            'region' => 'Region IV-A',
+        ]);
+
         $student = Student::create([
             'student_number' => '2020-0001',
             'lrn' => '424413240015',
@@ -90,9 +102,62 @@ class ExampleTest extends TestCase
         $this->assertStringContainsString('Dela Cruz', $worksheet);
         $this->assertStringContainsString('2020-2021', $worksheet);
         $this->assertStringContainsString('Miss Criz Joy D. Marzol', $worksheet);
+        $this->assertMatchesRegularExpression('/<c r="D9"[^>]*>.*Dela Cruz.*<\/c>/', $worksheet);
+        $this->assertMatchesRegularExpression('/<c r="AA9"[^>]*>.*Santos.*<\/c>/', $worksheet);
+        $this->assertMatchesRegularExpression('/<c r="G10"[^>]*>.*424413240015.*<\/c>/', $worksheet);
+        $this->assertMatchesRegularExpression('/<c r="B23"[^>]*>.*Fiat Lux Academe.*<\/c>/', $worksheet);
+        $this->assertMatchesRegularExpression('/<c r="Q23"[^>]*>.*Fiat Lux Academe.*<\/c>/', $worksheet);
+        $this->assertMatchesRegularExpression('/<c r="B52"[^>]*>.*Fiat Lux Academe.*<\/c>/', $worksheet);
+        $this->assertMatchesRegularExpression('/<c r="Q52"[^>]*>.*Fiat Lux Academe.*<\/c>/', $worksheet);
+        $this->assertMatchesRegularExpression('/<c r="N23"[^>]*>.*401234.*<\/c>/', $worksheet);
+        $this->assertStringContainsString('Imus District', $worksheet);
+        $this->assertStringContainsString('City Schools Division of Imus', $worksheet);
+        $this->assertStringContainsString('Region IV-A', $worksheet);
         $this->assertStringContainsString('<c r="G33"', $worksheet);
         $this->assertMatchesRegularExpression('/<c r="G33"[^>]*><v>90(?:\.0+)?<\/v><\/c>/', $worksheet);
         $this->assertStringNotContainsString('<v>80.86</v>', $worksheet);
+    }
+
+    public function test_f138_generation_opens_a_preview_before_downloading_the_pdf(): void
+    {
+        $student = Student::create([
+            'student_number' => '2020-0001',
+            'lrn' => '424413240015',
+            'name' => 'Dela Cruz, Juan Santos',
+        ]);
+        $enrollment = StudentEnrollment::create([
+            'student_id' => $student->id,
+            'school_year' => '2020-2021',
+            'level' => 'Grade 1',
+            'section' => 'Amity',
+            'adviser_name' => 'Miss Criz Joy D. Marzol',
+        ]);
+        StudentGrade::create([
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 1,
+            'learning_area' => 'Mathematics',
+            'grade' => 90,
+        ]);
+
+        $parameters = ['student' => '2020-0001', 'school_year' => '2020-2021'];
+
+        $this->get(route('f138.preview', $parameters))
+            ->assertOk()
+            ->assertSee('F138 Preview')
+            ->assertSee('Download F138 PDF')
+            ->assertSee(route('f138.download', $parameters))
+            ->assertSee('Mathematics')
+            ->assertSee('General Average')
+            ->assertSee('90')
+            ->assertDontSee('F138 PDF preview');
+
+        $this->get(route('f138.pdf', $parameters))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+
+        $this->get(route('f138.download', $parameters))
+            ->assertOk()
+            ->assertDownload('F138-2020-0001.pdf');
     }
 
     public function test_the_same_f137_can_be_generated_using_a_formatted_lrn(): void
@@ -132,13 +197,64 @@ class ExampleTest extends TestCase
         $this->assertTrue($student->is($matched));
     }
 
-    public function test_grade_sheet_uploader_uses_the_average_file_field_expected_by_the_controller(): void
+    public function test_grade_sheet_uploader_accepts_one_grading_period_pair(): void
     {
         $response = $this->get('/records');
 
-        $response->assertOk();
-        $response->assertSee('name="average_files[0][1]"', false);
-        $response->assertDontSee('name="summary_files[0][1]"', false);
+        $response->assertOk()
+            ->assertSee('name="grading_period"', false)
+            ->assertSee('name="attendance_file"', false)
+            ->assertSee('name="summary_file"', false)
+            ->assertDontSee('attendance_files[0]', false)
+            ->assertDontSee('Upload all sheets');
+    }
+
+    public function test_grade_sheet_upload_only_imports_the_selected_grading_period(): void
+    {
+        Storage::fake('local');
+        $importer = $this->mock(GradeSheetImporter::class);
+        $importer->shouldReceive('assertMatchesSelection')->twice();
+        $importer->shouldReceive('teacherName')->twice()->andReturn('Louisse Chua');
+        $importer->shouldReceive('summaries')->once()->andReturn([]);
+        $importer->shouldReceive('attendance')->once()->andReturn([]);
+
+        $response = $this->post(route('grade-sheets.store'), [
+            'grade_school_year' => '2021-2022',
+            'grade_level' => 'Grade 2',
+            'grade_section' => 'Amity',
+            'grading_period' => 2,
+            'attendance_file' => UploadedFile::fake()->create(
+                'second-attendance.xlsx',
+                10,
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            ),
+            'summary_file' => UploadedFile::fake()->create(
+                'second-summary.xlsx',
+                10,
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            ),
+        ]);
+
+        $response->assertRedirect(route('students.index'))
+            ->assertSessionHas('status', 'Second grading attendance and summary sheets were uploaded.');
+        $this->assertDatabaseCount('grade_sheet_uploads', 2);
+        $this->assertDatabaseHas('grade_sheet_uploads', [
+            'school_year' => '2021-2022',
+            'level' => 'Grade 2',
+            'section' => 'Amity',
+            'grading_period' => 2,
+            'file_type' => 'attendance',
+        ]);
+        $this->assertDatabaseHas('grade_sheet_uploads', [
+            'school_year' => '2021-2022',
+            'level' => 'Grade 2',
+            'section' => 'Amity',
+            'grading_period' => 2,
+            'file_type' => 'summary',
+        ]);
+        $this->assertDatabaseMissing('grade_sheet_uploads', ['grading_period' => 1]);
+        $this->assertDatabaseMissing('grade_sheet_uploads', ['grading_period' => 3]);
+        $this->assertDatabaseMissing('grade_sheet_uploads', ['grading_period' => 4]);
     }
 
     public function test_record_finder_searches_by_class_and_f138_accepts_student_identifiers(): void
@@ -169,9 +285,16 @@ class ExampleTest extends TestCase
             'grading_period' => 1, 'file_type' => 'summary', 'original_name' => 'first-summary.xlsx',
             'stored_path' => 'grade-sheets/test.xlsx',
         ]);
+        Storage::disk('local')->put('grade-sheets/attendance.xlsx', 'excel');
+        GradeSheetUpload::create([
+            'school_year' => '2020-2021', 'level' => 'Grade 1', 'section' => 'Amity',
+            'grading_period' => 1, 'file_type' => 'attendance', 'original_name' => 'first-attendance.xlsx',
+            'stored_path' => 'grade-sheets/attendance.xlsx',
+        ]);
 
         $this->get('/records?school_year=2020-2021&level=Grade+1&section=Amity')
-            ->assertOk()->assertSee('first-summary.xlsx')->assertSee('Summary sheet');
+            ->assertOk()
+            ->assertSeeInOrder(['Attendance sheets', 'first-attendance.xlsx', 'Summary sheets', 'first-summary.xlsx']);
         $this->get(route('students.uploads.download', $upload))->assertDownload('first-summary.xlsx');
         $this->from('/records?school_year=2020-2021&level=Grade+1&section=Amity')
             ->delete(route('students.uploads.destroy', $upload))->assertRedirect();

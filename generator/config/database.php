@@ -44,6 +44,17 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
+        'reghub' => [
+            'driver' => 'sqlite',
+            'database' => env('REGHUB_DB_DATABASE', dirname(base_path()).DIRECTORY_SEPARATOR.'database'.DIRECTORY_SEPARATOR.'database.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+            'busy_timeout' => 5000,
+            'journal_mode' => null,
+            'synchronous' => null,
+            'transaction_mode' => 'DEFERRED',
+        ],
+
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),

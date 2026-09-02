@@ -14,6 +14,7 @@ class RequestDocument extends Model
         'ticket_number',
         'student_number',
         'document_type',
+        'school_year',
         'document_price',
         'status',
         'remarks',
@@ -35,5 +36,10 @@ class RequestDocument extends Model
     public function student()
     {
         return $this->belongsTo(Student::class, 'student_number', 'student_number');
+    }
+
+    public function authenticities()
+    {
+        return $this->hasMany(DocumentAuthenticity::class);
     }
 }

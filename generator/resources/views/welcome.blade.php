@@ -21,12 +21,12 @@
         </div>
         <div class="p-6 sm:p-8">
             <form id="f138-section" method="GET" action="{{ route('f138.preview') }}" target="_blank">
-                <div class="mb-5"><h3 class="font-bold">Create F138 for a student</h3><p class="mt-1 text-sm text-slate-500">Enter the student's student number or LRN.</p></div>
+                <div class="mb-5"><h3 class="font-bold">Create F138 for a student</h3><p class="mt-1 text-sm text-slate-500">Choose the exact school year that the F138 will be made from.</p></div>
                 <div class="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-5 sm:grid-cols-2">
-                    <label><span class="mb-2 block text-xs font-bold uppercase text-slate-500">Student number or LRN</span><input name="student" value="2020-0001" maxlength="40" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 font-semibold" required></label>
-                    <label><span class="mb-2 block text-xs font-bold uppercase text-slate-500">School year</span><select name="school_year" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-3"><option value="">Latest uploaded school year</option><option>2020-2021</option><option>2021-2022</option><option>2022-2023</option></select></label>
+                    <label><span class="mb-2 block text-xs font-bold uppercase text-slate-500">Student number or LRN</span><input name="student" value="{{ request('student', '2020-0001') }}" maxlength="40" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 font-semibold" required></label>
+                    <label><span class="mb-2 block text-xs font-bold uppercase text-slate-500">School year</span><select name="school_year" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-3" required><option value="">Choose school year</option>@foreach (['2020-2021','2021-2022','2022-2023'] as $year)<option value="{{ $year }}" @selected(request('school_year') === $year)>{{ $year }}</option>@endforeach</select></label>
                 </div>
-                <div class="mt-5 flex justify-end"><button class="rounded-lg bg-blue-600 px-6 py-3 text-sm font-bold text-white">Preview student F138 PDF</button></div>
+                <div class="mt-5 flex justify-end"><button class="rounded-lg bg-blue-600 px-6 py-3 text-sm font-bold text-white">Generate F138</button></div>
             </form>
             <form id="f137-section" class="hidden" method="GET" action="{{ route('f137.preview') }}" target="_blank">
                 <div class="mb-5"><h3 class="font-bold">Create F137 for a student</h3><p class="mt-1 text-sm text-slate-500">All available uploaded school-year records for the student will be compiled automatically.</p></div>

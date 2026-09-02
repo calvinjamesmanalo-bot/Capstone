@@ -93,5 +93,10 @@
     <div class="footer">
         <p>This is a computer-generated document. No signature is required unless otherwise specified.</p>
     </div>
+    @include('documents.partials.qr', array_merge([
+        'qrDocumentType' => 'Certificate of Good Moral Character',
+        'qrSubject' => $name,
+        'qrPurpose' => $purpose,
+    ], $qrContext ?? []))
 </body>
 </html>

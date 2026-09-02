@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Student;
+use App\Models\Form138Upload;
 use App\Models\Grade;
-use Illuminate\Http\Request;
+use App\Models\Student;
 use Dompdf\Dompdf;
 use Dompdf\Options;
-use Illuminate\Support\Facades\View;
+use Illuminate\Http\Request;
 
 class Form138Controller extends Controller
 {
@@ -28,14 +28,14 @@ class Form138Controller extends Controller
                 $studentNumber = $student->student_number;
 
                 // Fetch reference files for this student
-                $referenceFiles = \App\Models\Form138Upload::where('student_number', $studentNumber)
+                $referenceFiles = Form138Upload::where('student_number', $studentNumber)
                     ->orderBy('school_year', 'desc')
                     ->get();
-                
+
                 $latestGrades = Grade::where('student_number', $studentNumber)
                     ->orderBy('school_year', 'desc')
                     ->get();
-                
+
                 if ($latestGrades->isNotEmpty()) {
                     $schoolYear = $latestGrades->first()->school_year;
                     $gradeLevel = $latestGrades->first()->grade_level;
@@ -51,22 +51,28 @@ class Form138Controller extends Controller
     {
         $request->validate([
             'student_name' => 'required|string',
+            'request_id' => 'nullable|integer|exists:request_documents,id',
             'school_year' => 'required|string',
             'grade_level' => 'required|string',
             'subjects' => 'required|array',
         ]);
 
         $student = Student::where('name', $request->student_name)->first();
-        
         $html = view('form-138.pdf-template', [
             'student' => $student,
             'student_name' => $request->student_name,
             'school_year' => $request->school_year,
             'grade_level' => $request->grade_level,
-            'subjects' => $request->subjects
+            'subjects' => $request->subjects,
+            'documentMode' => 'draft',
+            'qrContext' => [
+                'qrRequestId' => $request->integer('request_id') ?: null,
+                'qrHolderIdentifier' => $student?->student_number,
+                'qrIssuedAt' => now(),
+            ],
         ])->render();
 
-        $options = new Options();
+        $options = new Options;
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
 
@@ -75,7 +81,14 @@ class Form138Controller extends Controller
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
-        $filename = "Form138_" . str_replace(' ', '_', $request->student_name) . ".pdf";
-        return $dompdf->stream($filename, ["Attachment" => $request->has('download') ? true : false]);
+        $filename = 'Form138_'.str_replace(' ', '_', $request->student_name).'_DRAFT.pdf';
+        $bytes = $dompdf->output();
+        $disposition = $request->has('download') ? 'attachment' : 'inline';
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, private',
+        ]);
     }
 }

@@ -69,6 +69,20 @@
                 </div>
             </div>
 
+            <div class="space-y-3" id="school_year_field" style="display: none;">
+                <label for="school_year" class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+                    School Year for Form 138
+                </label>
+                <select name="school_year" id="school_year"
+                    class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 appearance-none text-base">
+                    <option value="">Choose school year</option>
+                    @foreach (['2020-2021', '2021-2022', '2022-2023'] as $year)
+                        <option value="{{ $year }}" @selected(old('school_year') === $year)>{{ $year }}</option>
+                    @endforeach
+                </select>
+                <p class="text-[11px] text-slate-500 font-medium">The records officer will use this school year when preparing your Form 138.</p>
+            </div>
+
             <div class="space-y-3">
                 <div class="flex items-center justify-between gap-3">
                     <label class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Document Type</label>
@@ -77,7 +91,7 @@
                 <select name="document_type" id="document_type" required
                     class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 appearance-none text-base">
                     @foreach($documentPrices as $document => $price)
-                        <option value="{{ $document }}" data-price="{{ number_format($price, 2, '.', '') }}">{{ $document }}</option>
+                        <option value="{{ $document }}" data-price="{{ number_format($price, 2, '.', '') }}" @selected(old('document_type') === $document)>{{ $document }}</option>
                     @endforeach
                 </select>
             </div>
@@ -107,14 +121,14 @@
                 </select>
             </div>
 
-            <div class="space-y-3 xl:col-span-2" id="payment_proof_field">
-                <label class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1" id="payment_proof_label">
-                    Upload Proof of Payment (Optional)
+            <div class="space-y-3 xl:col-span-2">
+                <label class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1" for="transcript_receipt">
+                    Upload Transcript Receipt from Accounting <span class="text-red-500">*</span>
                 </label>
-                <input type="file" name="payment_proof" id="payment_proof_input" accept="image/*,.pdf"
+                <input type="file" name="transcript_receipt" id="transcript_receipt" accept="image/jpeg,image/png,.pdf" required
                     class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-700 text-sm">
-                <p class="text-[11px] text-slate-500 font-medium" id="payment_proof_hint">
-                    Upload receipt, screenshot, or any proof of payment/clearance
+                <p class="text-[11px] text-red-600 font-bold">
+                    Required: attach the transcript clearance receipt issued by Accounting before submitting your request.
                 </p>
             </div>
 
@@ -160,11 +174,6 @@ document.getElementById('delivery_method').addEventListener('change', function()
     }
 });
 
-// Handle payment proof requirement
-const paymentMethodSelect = document.getElementById('payment_method_select');
-const paymentProofInput = document.getElementById('payment_proof_input');
-const paymentProofLabel = document.getElementById('payment_proof_label');
-const paymentProofHint = document.getElementById('payment_proof_hint');
 const documentTypeSelect = document.getElementById('document_type');
 const selectedDocumentPrice = document.getElementById('selected_document_price');
 
@@ -173,29 +182,19 @@ function updateSelectedDocumentPrice() {
     selectedDocumentPrice.textContent = 'Fee: ₱' + Number(option.dataset.price).toFixed(2);
 }
 
-updateSelectedDocumentPrice();
-documentTypeSelect.addEventListener('change', updateSelectedDocumentPrice);
+const schoolYearField = document.getElementById('school_year_field');
+const schoolYearSelect = document.getElementById('school_year');
 
-function updatePaymentProofRequirement() {
-    const selectedMethod = paymentMethodSelect.value;
-
-    if (selectedMethod === 'gcash' || selectedMethod === 'bank_transfer') {
-        paymentProofInput.required = true;
-        paymentProofLabel.innerHTML = 'Upload Proof of Payment <span class="text-red-500">*</span>';
-        paymentProofHint.innerHTML = 'Receipt/screenshot is REQUIRED for GCash and Bank Transfer';
-        paymentProofHint.className = 'text-[11px] text-red-600 font-bold';
-    } else {
-        paymentProofInput.required = false;
-        paymentProofLabel.innerHTML = 'Upload Proof of Payment (Optional)';
-        paymentProofHint.innerHTML = 'Upload receipt, screenshot, or any proof of payment/clearance';
-        paymentProofHint.className = 'text-[11px] text-slate-500 font-medium';
-    }
+function updateDocumentFields() {
+    updateSelectedDocumentPrice();
+    const needsSchoolYear = documentTypeSelect.value === 'Form 138';
+    schoolYearField.style.display = needsSchoolYear ? 'block' : 'none';
+    schoolYearSelect.required = needsSchoolYear;
+    if (!needsSchoolYear) schoolYearSelect.value = '';
 }
 
-// Initialize on page load
-updatePaymentProofRequirement();
+updateDocumentFields();
+documentTypeSelect.addEventListener('change', updateDocumentFields);
 
-// Update on change
-paymentMethodSelect.addEventListener('change', updatePaymentProofRequirement);
 </script>
 @endsection

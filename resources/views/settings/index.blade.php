@@ -58,6 +58,54 @@
             </div>
         </div>
 
+        <!-- F137 School Profile -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="p-8 border-b border-slate-50 bg-slate-50/50">
+                <h3 class="font-black text-slate-800 text-lg">F137 School Profile</h3>
+                <p class="text-xs font-medium text-slate-400 mt-1">These details will automatically fill every Scholastic Record section in generated F137 files.</p>
+            </div>
+            <div class="p-8 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2 md:col-span-2">
+                        <label for="school_name" class="text-xs font-black text-slate-500 uppercase tracking-widest px-1">School</label>
+                        <input type="text" name="school_name" id="school_name" value="{{ old('school_name', $settings['school_name'] ?? $settings['institution_name'] ?? 'Fiat Lux Academe') }}" maxlength="160"
+                            class="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all">
+                        @error('school_name')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="space-y-2">
+                        <label for="school_district" class="text-xs font-black text-slate-500 uppercase tracking-widest px-1">District</label>
+                        <input type="text" name="school_district" id="school_district" value="{{ old('school_district', $settings['school_district'] ?? '') }}" maxlength="120"
+                            class="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all">
+                        @error('school_district')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="space-y-2">
+                        <label for="school_id" class="text-xs font-black text-slate-500 uppercase tracking-widest px-1">School ID</label>
+                        <input type="text" name="school_id" id="school_id" value="{{ old('school_id', $settings['school_id'] ?? '') }}" maxlength="40"
+                            class="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all">
+                        @error('school_id')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="space-y-2">
+                        <label for="school_division" class="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Division</label>
+                        <input type="text" name="school_division" id="school_division" value="{{ old('school_division', $settings['school_division'] ?? '') }}" maxlength="120"
+                            class="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all">
+                        @error('school_division')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="space-y-2">
+                        <label for="school_region" class="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Region</label>
+                        <input type="text" name="school_region" id="school_region" value="{{ old('school_region', $settings['school_region'] ?? '') }}" maxlength="120"
+                            class="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all">
+                        @error('school_region')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+
+                <div class="pt-4">
+                    <button type="submit" class="px-8 py-4 bg-blue-600 text-white text-xs font-black rounded-2xl shadow-xl shadow-blue-600/10 hover:bg-blue-700 transition-all uppercase tracking-[0.2em]">
+                        Save School Profile
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Document Pricing -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="p-6 border-b border-slate-200 bg-slate-50">

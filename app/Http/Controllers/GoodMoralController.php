@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Support\Facades\View;
+use App\Support\DocumentQrCode;
 
 class GoodMoralController extends Controller
 {
@@ -69,7 +70,18 @@ class GoodMoralController extends Controller
             $purpose = substr($docRequest->remarks, 9);
         }
 
-        $html = view('good-moral.pdf-template', compact('name', 'date', 'purpose'))->render();
+        $qrContext = [
+            'qrRequestId' => $docRequest->id,
+            'qrHolderIdentifier' => $docRequest->student_number,
+            'qrIssuedAt' => $docRequest->updated_at,
+        ];
+        $documentQr = app(DocumentQrCode::class)->make('Certificate of Good Moral Character', $name, [
+            'request_id' => $docRequest->id,
+            'holder_identifier' => $docRequest->student_number,
+            'purpose' => $purpose,
+            'issued_at' => $docRequest->updated_at,
+        ]);
+        $html = view('good-moral.pdf-template', compact('name', 'date', 'purpose', 'qrContext', 'documentQr'))->render();
 
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
@@ -80,13 +92,22 @@ class GoodMoralController extends Controller
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
-        return $dompdf->stream("Good_Moral_{$name}.pdf", ["Attachment" => false]);
+        $filename = "Good_Moral_{$name}.pdf";
+        $bytes = $dompdf->output();
+        app(DocumentQrCode::class)->registerArtifact($documentQr['document'], $bytes, $filename, 'application/pdf');
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, private',
+        ]);
     }
 
     public function generate(Request $request)
     {
         $request->validate([
             'student_name' => 'required|string',
+            'request_id' => 'nullable|integer|exists:request_documents,id',
             'checklist' => 'required|array|size:4', // Siguraduhin na lahat ng checklist ay chineck
         ], [
             'checklist.required' => 'Dapat i-check lahat ng requirements bago mag-generate.',
@@ -97,7 +118,21 @@ class GoodMoralController extends Controller
         $date = now()->format('jS \d\a\y \o\f F, Y');
         $purpose = $request->purpose ?? 'any legal purpose it may serve';
 
-        $html = view('good-moral.pdf-template', compact('name', 'date', 'purpose'))->render();
+        $student = Student::where('name', $request->student_name)->first();
+        $qrContext = [
+            'qrRequestId' => $request->integer('request_id') ?: null,
+            'qrHolderIdentifier' => $student?->student_number,
+            'qrIssuedAt' => now(),
+        ];
+
+        $documentQr = app(DocumentQrCode::class)->make('Certificate of Good Moral Character', $name, [
+            'request_id' => $request->integer('request_id') ?: null,
+            'holder_identifier' => $student?->student_number,
+            'purpose' => $purpose,
+            'issued_at' => now(),
+        ]);
+
+        $html = view('good-moral.pdf-template', compact('name', 'date', 'purpose', 'qrContext', 'documentQr'))->render();
 
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
@@ -108,10 +143,16 @@ class GoodMoralController extends Controller
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
-        if ($request->has('preview')) {
-            return $dompdf->stream("Good_Moral_{$name}.pdf", ["Attachment" => false]);
-        }
+        $filename = "Good_Moral_{$name}.pdf";
+        $bytes = $dompdf->output();
+        app(DocumentQrCode::class)->registerArtifact($documentQr['document'], $bytes, $filename, 'application/pdf');
 
-        return $dompdf->stream("Good_Moral_{$name}.pdf");
+        $disposition = $request->has('preview') ? 'inline' : 'attachment';
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, private',
+        ]);
     }
 }

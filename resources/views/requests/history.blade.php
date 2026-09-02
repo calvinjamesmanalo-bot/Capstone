@@ -49,6 +49,7 @@
                 <thead>
                     <tr class="bg-slate-50 text-[10px] uppercase tracking-[0.3em] font-black text-slate-400 border-b border-slate-100">
                         <th class="px-10 py-6">Ticket & Student</th>
+                        <th class="px-10 py-6">Verification</th>
                         <th class="px-10 py-6">Document Type</th>
                         <th class="px-10 py-6">Status</th>
                         <th class="px-10 py-6">Date Processed</th>
@@ -57,6 +58,7 @@
                 </thead>
                 <tbody class="divide-y divide-slate-50">
                     @foreach($requests as $req)
+                    @php($authenticity = $req->authenticities->first())
                     <tr class="hover:bg-slate-50/50 transition-all group opacity-80 hover:opacity-100">
                         <td class="px-10 py-8">
                             <div class="flex items-center gap-4">
@@ -71,6 +73,24 @@
                                     <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{{ $req->student_number }}</div>
                                 </div>
                             </div>
+                        </td>
+                        <td class="px-10 py-8">
+                            @if($authenticity)
+                                <div class="text-[10px] font-black text-slate-700">{{ $authenticity->control_number }}</div>
+                                <div class="mt-2 flex flex-wrap items-center gap-2">
+                                    <a href="{{ app(\App\Support\DocumentQrCode::class)->verificationUrl($authenticity) }}" target="_blank" class="text-[10px] font-black uppercase tracking-wider text-indigo-600">Open result</a>
+                                    <span class="px-2 py-1 rounded-md text-[9px] font-black uppercase {{ $authenticity->status === 'valid' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600' }}">{{ $authenticity->status }}</span>
+                                </div>
+                                @if($authenticity->status !== 'revoked' && in_array(auth()->user()->role, ['admin', 'registrar']))
+                                    <form class="mt-2" method="POST" action="{{ route('documents.revoke', $authenticity) }}" onsubmit="return confirm('Revoke this issued document? The QR will show a warning immediately.');">
+                                        @csrf
+                                        <input type="hidden" name="reason" value="Revoked by {{ auth()->user()->role }} from request history">
+                                        <button class="text-[9px] font-black uppercase tracking-wider text-red-600" type="submit">Revoke document</button>
+                                    </form>
+                                @endif
+                            @else
+                                <span class="text-[10px] text-slate-400">Not issued digitally</span>
+                            @endif
                         </td>
                         <td class="px-10 py-8 text-sm font-bold text-slate-600">
                             {{ $req->document_type }}

@@ -22,20 +22,24 @@ class GeneratorController extends Controller
         $parameters = [];
         if ($documentRequest) {
             $parameters['student'] = $documentRequest->student_number;
+            if ($form === 'f138') {
+                $parameters['school_year'] = $documentRequest->school_year;
+            }
+            $parameters['request_id'] = $documentRequest->id;
         }
 
-        $path = $documentRequest
-            ? ($form === 'f137' ? '/f137/preview' : '/f138/preview')
-            : '/';
+        if (! $documentRequest) {
+            return redirect()->route('school-forms.home', ['form' => $form]);
+        }
 
-        return redirect()->away($this->generatorUrl($path, $parameters));
+        return redirect()->route("school-forms.{$form}.preview", $parameters);
     }
 
     public function gradeSheets(): RedirectResponse
     {
-        $this->authorizeStaff(['admin', 'registrar']);
+        $this->authorizeStaff(['admin', 'registrar', 'records_officer']);
 
-        return redirect()->away($this->generatorUrl('/records'));
+        return redirect()->route('school-forms.records');
     }
 
     private function authorizeStaff(array $roles): void
@@ -50,12 +54,5 @@ class GeneratorController extends Controller
             'form 138', 'f138' => 'f138',
             default => null,
         };
-    }
-
-    private function generatorUrl(string $path, array $parameters = []): string
-    {
-        $url = rtrim((string) config('generator.url'), '/').$path;
-
-        return $parameters ? $url.'?'.http_build_query($parameters) : $url;
     }
 }

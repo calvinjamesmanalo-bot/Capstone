@@ -590,6 +590,25 @@
         line-height: 1.2;
     }
 
+    .certificate-qr {
+        position: absolute;
+        bottom: 0.28in;
+        left: 50%;
+        z-index: 2;
+        width: 1.65in;
+        margin-left: -0.825in;
+        text-align: center;
+    }
+
+    .certificate-qr > div {
+        margin-top: 0 !important;
+    }
+
+    .certificate-qr img {
+        width: 0.66in !important;
+        height: 0.66in !important;
+    }
+
     @page {
         size: A4 portrait;
         margin: 0;

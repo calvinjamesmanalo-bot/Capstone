@@ -68,6 +68,10 @@
                     <label class="block text-sm font-semibold text-slate-700 mb-2">Issue date</label>
                     <input type="date" name="issue_date" value="{{ $form['issue_date'] }}" required class="w-full rounded-lg border-slate-300">
                 </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Valid until <span class="font-normal text-slate-500">(optional)</span></label>
+                    <input type="date" name="expires_at" value="{{ $form['expires_at'] }}" class="w-full rounded-lg border-slate-300">
+                </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-semibold text-slate-700 mb-2">Purpose <span class="font-normal text-slate-500">(optional)</span></label>
                     <input name="purpose" value="{{ $form['purpose'] }}" placeholder="e.g. scholarship application" class="w-full rounded-lg border-slate-300">

@@ -87,5 +87,48 @@
     <div class="mt-6">
         {{ $logs->links() }}
     </div>
+
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="p-8 border-b border-slate-50 bg-slate-50/50">
+            <h3 class="font-black text-slate-800 text-lg">Document Verification Audit</h3>
+            <p class="text-xs font-medium text-slate-400 mt-1">Who checked an issued document, when, and the verification result</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="bg-slate-50 text-[10px] uppercase tracking-[0.3em] font-black text-slate-400 border-b border-slate-100">
+                        <th class="px-8 py-6">Timestamp</th>
+                        <th class="px-8 py-6">Verifier</th>
+                        <th class="px-8 py-6">Control Number</th>
+                        <th class="px-8 py-6">Document</th>
+                        <th class="px-8 py-6 text-right">Result</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                    @forelse($verificationAudits as $audit)
+                        <tr class="hover:bg-slate-50/50 transition-all">
+                            <td class="px-8 py-6 text-xs font-bold text-slate-500">{{ $audit->verified_at->format('Y-m-d H:i:s') }}</td>
+                            <td class="px-8 py-6">
+                                <div class="text-sm font-bold text-slate-800">{{ $audit->user?->name ?? $audit->ip_address ?? 'Public visitor' }}</div>
+                                <div class="max-w-xs truncate text-[10px] text-slate-400" title="{{ $audit->user_agent }}">{{ $audit->user_agent }}</div>
+                            </td>
+                            <td class="px-8 py-6 text-xs font-black text-slate-700">{{ $audit->control_number ?? 'Unknown token' }}</td>
+                            <td class="px-8 py-6 text-sm font-medium text-slate-600">{{ $audit->documentAuthenticity?->document_type ?? 'Not found' }}</td>
+                            <td class="px-8 py-6 text-right">
+                                <span class="px-3 py-1 {{ in_array($audit->result, ['authentic', 'file_match'], true) ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600' }} text-[10px] font-black uppercase tracking-widest rounded-lg">
+                                    {{ str_replace('_', ' ', $audit->result) }}
+                                </span>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="px-8 py-12 text-center text-slate-400 font-bold">No document verifications recorded</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="mt-6">
+        {{ $verificationAudits->links() }}
+    </div>
 </div>
 @endsection

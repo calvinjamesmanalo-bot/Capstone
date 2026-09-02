@@ -44,6 +44,17 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
+        'school_forms' => [
+            'driver' => 'sqlite',
+            'database' => env('SCHOOL_FORMS_DB_DATABASE', base_path('generator/database/database.sqlite')),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+            'busy_timeout' => 5000,
+            'journal_mode' => null,
+            'synchronous' => null,
+            'transaction_mode' => 'DEFERRED',
+        ],
+
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),
