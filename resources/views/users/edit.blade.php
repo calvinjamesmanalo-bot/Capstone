@@ -79,10 +79,13 @@
                 <!-- Email -->
                 <div class="space-y-2">
                     <label for="email" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email Address</label>
-                    <input type="email" name="email" id="email" value="{{ old('email', $user->email) }}" required
+                    <input type="email" name="email" id="email" value="{{ old('email', $user->email) }}" required @readonly($user->role === 'student')
                         class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
                         placeholder="e.g. juan@example.com">
                     @error('email') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
+                    @if ($user->role === 'student')
+                        <p class="text-xs text-slate-400">Student email changes require the student's current password and verification through Account Security.</p>
+                    @endif
                 </div>
 
                 <!-- Role -->
@@ -129,16 +132,17 @@
                 <!-- Password -->
                 <div class="space-y-2">
                     <label for="password" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">New Password</label>
-                    <input type="password" name="password" id="password"
+                    <input type="password" name="password" id="password" minlength="12" maxlength="64" autocomplete="new-password"
                         class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
                         placeholder="••••••••">
                     @error('password') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
+                    @include('auth.partials.password-requirements')
                 </div>
 
                 <!-- Confirm Password -->
                 <div class="space-y-2">
                     <label for="password_confirmation" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Confirm New Password</label>
-                    <input type="password" name="password_confirmation" id="password_confirmation"
+                    <input type="password" name="password_confirmation" id="password_confirmation" minlength="12" maxlength="64" autocomplete="new-password"
                         class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
                         placeholder="••••••••">
                 </div>

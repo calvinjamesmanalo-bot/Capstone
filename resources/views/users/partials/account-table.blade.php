@@ -55,10 +55,24 @@
                             @endif
                         </td>
                         <td class="px-6 py-5">
-                            <span class="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
-                                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                                Active
-                            </span>
+                            @if ($user->hasVerifiedEmail())
+                                <span class="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
+                                    <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                                    Email verified
+                                </span>
+                            @else
+                                <span class="inline-flex items-center gap-2 text-sm font-medium text-amber-700">
+                                    <span class="h-2 w-2 rounded-full bg-amber-500"></span>
+                                    Awaiting verification
+                                </span>
+                            @endif
+                            @if($isStudentTable)
+                                @if($user->hasMatchingOfficialStudentRecord())
+                                    <span class="mt-2 block text-xs font-semibold text-emerald-700">Official roster matched</span>
+                                @else
+                                    <span class="mt-2 block text-xs font-semibold text-red-700">Official roster mismatch</span>
+                                @endif
+                            @endif
                         </td>
                         <td class="px-6 py-5 text-sm text-slate-500">
                             {{ $user->updated_at?->diffForHumans() ?? '—' }}

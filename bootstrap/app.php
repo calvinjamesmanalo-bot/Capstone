@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsureStudentAccountIsVerified;
+use App\Http\Middleware\RequireRole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,12 +14,19 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->alias([
+            'role' => RequireRole::class,
+            'student.verified' => EnsureStudentAccountIsVerified::class,
+        ]);
+
         $middleware->redirectTo(
             guests: '/login',
             users: '/'
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->dontFlash('cf-turnstile-response');
+
         $exceptions->respond(function (Response $response) {
             if ($response->getStatusCode() === 419) {
                 return redirect('/login?session_expired=1');

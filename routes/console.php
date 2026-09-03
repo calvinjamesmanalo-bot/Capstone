@@ -1,12 +1,91 @@
 <?php
 
+use App\Models\LoginAttemptLog;
+use App\Models\StudentAccountActivation;
+use App\Models\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rules\Password;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('admin:create', function () {
+    $name = trim((string) $this->ask('Administrator name'));
+    $email = strtolower(trim((string) $this->ask('Administrator email')));
+    $password = (string) $this->secret('Administrator password (minimum 12 characters)');
+    $confirmation = (string) $this->secret('Confirm the administrator password');
+
+    $validator = Validator::make(compact('name', 'email', 'password', 'confirmation'), [
+        'name' => ['required', 'string', 'max:255'],
+        'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+        'password' => ['required', 'same:confirmation', Password::min(12)->max(64)->mixedCase()->numbers(), 'regex:/[^\pL\pN\s]/u'],
+    ], [
+        'password.min' => 'The password is too short. Use at least 12 characters.',
+        'password.mixed' => 'The password is too weak. Include uppercase and lowercase letters.',
+        'password.numbers' => 'The password is too weak. Include at least one number.',
+        'password.regex' => 'The password is too weak. Include at least one symbol.',
+        'password.same' => 'The password confirmation does not match.',
+    ]);
+
+    if ($validator->fails()) {
+        foreach ($validator->errors()->all() as $error) {
+            $this->error($error);
+        }
+
+        return self::FAILURE;
+    }
+
+    User::create([
+        'name' => $name,
+        'email' => $email,
+        'email_verified_at' => now(),
+        'password' => Hash::make($password),
+        'role' => 'admin',
+    ]);
+
+    $this->info('Administrator account created. No plain-text password was stored or displayed.');
+
+    return self::SUCCESS;
+})->purpose('Securely create an administrator account using hidden password prompts');
+
+Artisan::command('security:prune-login-attempts {--days=90}', function () {
+    $days = max(1, (int) $this->option('days'));
+    $deleted = LoginAttemptLog::query()
+        ->where('created_at', '<', now()->subDays($days))
+        ->delete();
+
+    $this->info("Deleted {$deleted} expired login audit records.");
+
+    return self::SUCCESS;
+})->purpose('Delete login audit records older than the retention period');
+
+Schedule::command('security:prune-login-attempts --days=90')
+    ->daily()
+    ->withoutOverlapping();
+
+Artisan::command('security:prune-student-activations', function () {
+    $deleted = StudentAccountActivation::query()
+        ->where('expires_at', '<', now())
+        ->orWhere(function ($query): void {
+            $query->whereNotNull('used_at')
+                ->where('used_at', '<', now()->subDay());
+        })
+        ->delete();
+
+    $this->info("Deleted {$deleted} expired or used student activation records.");
+
+    return self::SUCCESS;
+})->purpose('Delete expired and previously used student account activation records');
+
+Schedule::command('security:prune-student-activations')
+    ->daily()
+    ->withoutOverlapping();
 
 Artisan::command('documents:generate-signing-certificate {--force}', function () {
     $certificatePath = (string) config('pdf_signing.certificate_path');

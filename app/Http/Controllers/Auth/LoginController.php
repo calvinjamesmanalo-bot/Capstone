@@ -3,8 +3,15 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Student;
+use App\Models\User;
+use App\Support\AuthenticationSecurity;
+use App\Support\TurnstileVerifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class LoginController extends Controller
 {
@@ -13,25 +20,145 @@ class LoginController extends Controller
         if (Auth::check()) {
             return redirect()->route('dashboard');
         }
+
         return view('auth.login');
     }
 
-    public function login(Request $request)
-    {
+    public function login(
+        Request $request,
+        AuthenticationSecurity $security,
+        TurnstileVerifier $turnstile
+    ) {
         $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required'],
+            'identifier' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::when(
+                    $request->input('account_type') === 'student',
+                    ['max:50', 'regex:/^[A-Za-z0-9][A-Za-z0-9._-]*$/'],
+                    ['email:rfc']
+                ),
+            ],
+            'password' => ['required', 'string', 'max:1024'],
+            'account_type' => ['required', Rule::in(['student', 'staff', 'admin'])],
+            'cf-turnstile-response' => ['nullable', 'string', 'max:2048'],
+        ], [
+            'identifier.regex' => 'Enter a valid student number.',
+            'identifier.email' => 'Enter a valid email address.',
         ]);
 
-        if (Auth::attempt($credentials, $request->boolean('remember'))) {
+        $identifier = trim($credentials['identifier']);
+        if ($credentials['account_type'] === 'student') {
+            $identifier = Str::upper($identifier);
+        } else {
+            $identifier = Str::lower($identifier);
+        }
+
+        $ipAddress = $request->ip();
+        $userAgent = $request->userAgent();
+        $seconds = $security->secondsUntilAvailable($identifier, $ipAddress);
+
+        if ($seconds > 0) {
+            $security->recordBlockedAttempt(
+                $identifier,
+                $ipAddress,
+                $userAgent,
+                $credentials['account_type']
+            );
+
+            return $this->lockoutResponse($seconds);
+        }
+
+        if (! $turnstile->verify($credentials['cf-turnstile-response'] ?? null, $ipAddress)) {
+            $security->recordFailure(
+                $identifier,
+                $ipAddress,
+                $userAgent,
+                $credentials['account_type'],
+                'captcha_failed'
+            );
+
+            return $this->failedLoginResponse();
+        }
+
+        $loginCredentials = [
+            $credentials['account_type'] === 'student' ? 'student_number' : 'email' => $identifier,
+            'password' => $credentials['password'],
+        ];
+        $remember = $credentials['account_type'] !== 'admin' && $request->boolean('remember');
+
+        try {
+            $authenticated = Auth::attempt($loginCredentials, $remember);
+        } catch (\RuntimeException) {
+            // Strict Argon2id verification rejects legacy hashes. The same public
+            // response is used; affected users can securely reset their password.
+            $authenticated = false;
+        }
+
+        if ($authenticated) {
+            $user = $request->user();
+
+            if (! $this->roleMatchesAccountType($user, $credentials['account_type'])
+                || ! $user->hasMatchingOfficialStudentRecord()) {
+                Auth::logout();
+                $security->recordFailure(
+                    $identifier,
+                    $ipAddress,
+                    $userAgent,
+                    $credentials['account_type'],
+                    'account_policy_mismatch'
+                );
+
+                return $this->failedLoginResponse();
+            }
+
+            $security->clearAccount($identifier);
             $request->session()->regenerate();
+
+            if ($user->role === 'student' && ! $user->hasVerifiedEmail()) {
+                return redirect()->route('verification.notice');
+            }
 
             return redirect()->intended(route('dashboard'));
         }
 
+        $security->recordFailure(
+            $identifier,
+            $ipAddress,
+            $userAgent,
+            $credentials['account_type'],
+            'invalid_credentials'
+        );
+
+        return $this->failedLoginResponse();
+    }
+
+    private function roleMatchesAccountType(User $user, string $accountType): bool
+    {
+        return match ($accountType) {
+            'student' => $user->role === 'student',
+            'staff' => in_array($user->role, ['registrar', 'records_officer'], true),
+            'admin' => $user->role === 'admin',
+            default => false,
+        };
+    }
+
+    private function failedLoginResponse()
+    {
         return back()->withErrors([
-            'email' => 'The provided credentials do not match our records.',
-        ])->onlyInput('email');
+            'identifier' => 'Unable to sign in with the provided credentials. Please try again later.',
+        ])->onlyInput('identifier', 'account_type');
+    }
+
+    private function lockoutResponse(int $seconds)
+    {
+        $minutes = max(1, (int) ceil($seconds / 60));
+        $unit = $minutes === 1 ? 'minute' : 'minutes';
+
+        return back()->withErrors([
+            'identifier' => "Too many login attempts. Please try again after {$minutes} {$unit}.",
+        ])->onlyInput('identifier', 'account_type');
     }
 
     public function logout(Request $request)
@@ -44,16 +171,44 @@ class LoginController extends Controller
         return redirect()->route('login');
     }
 
-    public function loginAsRole($role)
+    public function loginAsRole(string $role)
     {
-        $user = \App\Models\User::where('role', $role)->first();
-        
-        if ($user) {
-            Auth::login($user);
-            session()->regenerate();
-            return redirect()->route('dashboard')->with('success', "Logged in as {$role}");
+        abort_unless(app()->environment(['local', 'testing']), 404);
+
+        $accounts = [
+            'student' => ['name' => 'Chua,,Louisse,', 'email' => 'student@example.com', 'student_number' => '2023-0001'],
+            'registrar' => ['name' => 'Registrar,,Test,', 'email' => 'registrar@example.com'],
+            'records_officer' => ['name' => 'Records Officer,,Test,', 'email' => 'records_officer@example.com'],
+            'admin' => ['name' => 'Administrator,,Test,', 'email' => 'admin@example.com'],
+        ];
+
+        abort_unless(array_key_exists($role, $accounts), 404);
+
+        $account = $accounts[$role];
+        if ($role === 'student') {
+            Student::updateOrCreate(
+                ['student_number' => $account['student_number']],
+                ['name' => 'Louisse Chua', 'official_email' => $account['email']]
+            );
         }
 
-        return back()->with('error', "No user found with role: {$role}");
+        $user = User::firstOrCreate(
+            ['email' => $account['email']],
+            [
+                'name' => $account['name'],
+                'password' => Hash::make(Str::random(40)),
+                'role' => $role,
+                'student_number' => $account['student_number'] ?? null,
+            ]
+        );
+
+        if (! $user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+        }
+
+        Auth::login($user);
+        session()->regenerate();
+
+        return redirect()->route('dashboard')->with('success', "Logged in as {$role}");
     }
 }
