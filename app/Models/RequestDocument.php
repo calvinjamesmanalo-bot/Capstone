@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Database\Factories\RequestDocumentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class RequestDocument extends Model
 {
-    /** @use HasFactory<\Database\Factories\RequestDocumentFactory> */
+    /** @use HasFactory<RequestDocumentFactory> */
     use HasFactory;
 
     protected $fillable = [

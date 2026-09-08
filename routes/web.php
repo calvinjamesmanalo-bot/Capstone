@@ -2,7 +2,11 @@
 
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\Auth\StudentEmailController;
+use App\Http\Controllers\Auth\StudentRegistrationController;
 use App\Http\Controllers\CertificationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiplomaController;
@@ -22,9 +26,49 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
-Route::post('/login', [LoginController::class, 'login']);
+Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:login');
+Route::get('/staff/login', [LoginController::class, 'showStaffLoginForm'])->name('login.staff');
+Route::post('/staff/login', [LoginController::class, 'loginStaff'])->middleware('throttle:login')->name('login.staff.submit');
+Route::get('/admin/login', [LoginController::class, 'showAdminLoginForm'])->name('login.admin');
+Route::post('/admin/login', [LoginController::class, 'loginAdmin'])->middleware('throttle:login')->name('login.admin.submit');
 Route::get('/login/as/{role}', [LoginController::class, 'loginAsRole'])->name('login.as');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+
+Route::middleware('guest')->group(function () {
+    Route::get('/create-student-account', [StudentRegistrationController::class, 'create'])
+        ->name('student.registration.request');
+    Route::post('/create-student-account', [StudentRegistrationController::class, 'store'])
+        ->middleware('throttle:5,1')
+        ->name('student.registration.store');
+    Route::get('/create-student-account/verify/{token}', [StudentRegistrationController::class, 'codeForm'])
+        ->middleware('throttle:10,1')
+        ->name('student.registration.code');
+    Route::post('/create-student-account/verify', [StudentRegistrationController::class, 'verify'])
+        ->middleware('throttle:10,1')
+        ->name('student.registration.verify');
+
+    Route::get('/forgot-password', [PasswordResetController::class, 'requestForm'])
+        ->name('password.request');
+    Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink'])
+        ->middleware('throttle:5,1')
+        ->name('password.email');
+    Route::get('/reset-password/{token}', [PasswordResetController::class, 'resetForm'])
+        ->name('password.reset');
+    Route::post('/reset-password', [PasswordResetController::class, 'reset'])
+        ->middleware('throttle:5,1')
+        ->name('password.update');
+});
+
+Route::middleware('auth')->group(function () {
+    Route::get('/email/verify', [EmailVerificationController::class, 'notice'])
+        ->name('verification.notice');
+    Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+        ->middleware(['signed', 'throttle:6,1'])
+        ->name('verification.verify');
+    Route::post('/email/verification-notification', [EmailVerificationController::class, 'send'])
+        ->middleware('throttle:6,1')
+        ->name('verification.send');
+});
 
 // Public, signed document verification endpoints used by printed QR codes.
 Route::get('/verify', [DocumentVerificationController::class, 'lookup'])->name('documents.lookup');
@@ -35,17 +79,29 @@ Route::post('/verify/{identifier}/file', [DocumentVerificationController::class,
     ->where('identifier', '[A-Za-z0-9-]+')
     ->name('documents.verify-file');
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'student.verified'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
     // User Management
-    Route::get('/users', [UserController::class, 'index'])->name('users.index');
-    Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
-    Route::post('/users', [UserController::class, 'store'])->name('users.store');
-    Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
-    Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
-    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
-    Route::post('/users/{user}/toggle-bypass', [UserController::class, 'toggleBypass'])->name('users.toggle-bypass');
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+        Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+        Route::post('/users/{user}/toggle-bypass', [UserController::class, 'toggleBypass'])->name('users.toggle-bypass');
+    });
+
+    Route::middleware('role:student')->group(function () {
+        Route::get('/account/email', [StudentEmailController::class, 'edit'])->name('student.email.edit');
+        Route::post('/account/email', [StudentEmailController::class, 'requestChange'])
+            ->middleware('throttle:3,10')
+            ->name('student.email.request');
+        Route::get('/account/email/verify/{user}/{hash}', [StudentEmailController::class, 'verify'])
+            ->middleware(['signed', 'throttle:6,1'])
+            ->name('student.email.verify');
+    });
 
     // Student Requests
     Route::get('/student/request', [RequestController::class, 'studentIndex'])->name('student.request');

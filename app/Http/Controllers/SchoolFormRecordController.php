@@ -23,7 +23,7 @@ class SchoolFormRecordController extends Controller
         $levels = GradeSheetUpload::distinct()->orderBy('level')->pluck('level');
         $sections = GradeSheetUpload::distinct()->orderBy('section')->pluck('section');
         $uploads = GradeSheetUpload::query()
-            ->when(!$hasSearch, fn ($query) => $query->whereRaw('1 = 0'))
+            ->when(! $hasSearch, fn ($query) => $query->whereRaw('1 = 0'))
             ->when($hasSearch, fn ($query) => $query->where('school_year', $schoolYear)
                 ->where('level', $level)->where('section', $section))
             ->orderBy('grading_period')->orderBy('file_type')->get();

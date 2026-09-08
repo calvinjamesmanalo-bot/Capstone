@@ -2,14 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Student;
-use App\Models\Grade;
-use Illuminate\Http\Request;
-
 use App\Models\Form138Upload;
+use App\Models\Student;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use PhpOffice\PhpSpreadsheet\IOFactory;
-use PhpOffice\PhpSpreadsheet\Writer\Pdf\Dompdf;
 
 class GradeController extends Controller
 {
@@ -25,13 +21,14 @@ class GradeController extends Controller
                     ->get();
             }
         }
+
         return view('grade-portal.index', compact('student', 'uploads'));
     }
 
     public function deleteUpload($id)
     {
         $upload = Form138Upload::findOrFail($id);
-        
+
         // Delete the actual files from storage
         if (Storage::disk('public')->exists($upload->file_path)) {
             Storage::disk('public')->delete($upload->file_path);
@@ -39,11 +36,11 @@ class GradeController extends Controller
         if ($upload->pdf_path && Storage::disk('public')->exists($upload->pdf_path)) {
             Storage::disk('public')->delete($upload->pdf_path);
         }
-        
+
         $upload->delete();
-        
+
         record_log('Deleted Grade Sheet', 'Grades', "Deleted Form 138 for {$upload->student_number} (SY: {$upload->school_year})", 'warning');
-        
+
         return redirect()->back()->with('success', 'Form 138 record and associated PDF deleted successfully.');
     }
 
@@ -67,8 +64,8 @@ class GradeController extends Controller
 
         foreach ($files as $index => $file) {
             $schoolYear = $schoolYears[$index];
-            $filename = time() . '_' . $file->getClientOriginalName();
-            $path = $file->storeAs('form138_uploads/' . $student->student_number, $filename, 'public');
+            $filename = time().'_'.$file->getClientOriginalName();
+            $path = $file->storeAs('form138_uploads/'.$student->student_number, $filename, 'public');
 
             // Determine if it's a PDF for the pdf_path field
             $pdfPath = null;
@@ -87,6 +84,6 @@ class GradeController extends Controller
             record_log('Uploaded Reference File', 'Grades', "Uploaded reference Form 138 for {$student->student_number} (SY: {$schoolYear})");
         }
 
-        return redirect()->back()->with('success', count($files) . ' reference file(s) uploaded successfully.');
+        return redirect()->back()->with('success', count($files).' reference file(s) uploaded successfully.');
     }
 }

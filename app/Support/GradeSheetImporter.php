@@ -66,7 +66,9 @@ class GradeSheetImporter
             $cells = $this->cellsByColumn($row);
             $studentNumber = $this->normalizeStudentNumber($cells['B'] ?? '');
 
-            if (!$this->isStudentNumber($studentNumber)) continue;
+            if (! $this->isStudentNumber($studentNumber)) {
+                continue;
+            }
 
             $records[] = [
                 'student_number' => $studentNumber,
@@ -81,7 +83,9 @@ class GradeSheetImporter
             ];
         }
 
-        if ($records === []) throw new RuntimeException('No student grade records with a student number were found in the summary sheet.');
+        if ($records === []) {
+            throw new RuntimeException('No student grade records with a student number were found in the summary sheet.');
+        }
 
         return $records;
     }
@@ -90,12 +94,14 @@ class GradeSheetImporter
     {
         $rows = $this->firstSheetRows($path);
         $schoolDays = [];
-        $monthColumns = ['D'=>'September','E'=>'October','F'=>'November','G'=>'December','H'=>'January','I'=>'February','J'=>'March','K'=>'April','L'=>'May','M'=>'June'];
+        $monthColumns = ['D' => 'September', 'E' => 'October', 'F' => 'November', 'G' => 'December', 'H' => 'January', 'I' => 'February', 'J' => 'March', 'K' => 'April', 'L' => 'May', 'M' => 'June'];
 
         foreach ($rows as $row) {
             if (($row['index'] ?? 0) === 7) {
                 $cells = $this->cellsByColumn($row);
-                foreach ($monthColumns as $column => $month) $schoolDays[$month] = $this->integer($cells[$column] ?? null);
+                foreach ($monthColumns as $column => $month) {
+                    $schoolDays[$month] = $this->integer($cells[$column] ?? null);
+                }
             }
         }
 
@@ -103,16 +109,20 @@ class GradeSheetImporter
         foreach ($rows as $row) {
             $cells = $this->cellsByColumn($row);
             $lrn = $this->normalizeLrn($cells['B'] ?? '');
-            if ($lrn === '' || strlen($lrn) < 10) continue;
+            if ($lrn === '' || strlen($lrn) < 10) {
+                continue;
+            }
 
             $months = [];
             foreach ($monthColumns as $column => $month) {
                 $months[$month] = ['school_days' => $schoolDays[$month] ?? null, 'days_present' => $this->integer($cells[$column] ?? null)];
             }
-            $records[] = ['lrn'=>$lrn, 'name'=>trim($cells['C'] ?? ''), 'months'=>$months];
+            $records[] = ['lrn' => $lrn, 'name' => trim($cells['C'] ?? ''), 'months' => $months];
         }
 
-        if ($records === []) throw new RuntimeException('No student attendance records with a student number were found in the attendance sheet.');
+        if ($records === []) {
+            throw new RuntimeException('No student attendance records with a student number were found in the attendance sheet.');
+        }
 
         return $records;
     }
@@ -126,12 +136,12 @@ class GradeSheetImporter
             ));
 
             foreach ($values as $index => $value) {
-                if (!preg_match('/\b(teacher(?:-in-charge)?|adviser|advisor)\b/i', $value)) {
+                if (! preg_match('/\b(teacher(?:-in-charge)?|adviser|advisor)\b/i', $value)) {
                     continue;
                 }
 
                 foreach (array_slice($values, $index + 1) as $candidate) {
-                    if (!preg_match('/teacher|adviser|advisor|signature/i', $candidate)) {
+                    if (! preg_match('/teacher|adviser|advisor|signature/i', $candidate)) {
                         return $candidate;
                     }
                 }
@@ -144,14 +154,20 @@ class GradeSheetImporter
     private function firstSheetRows(string $path): array
     {
         $sheets = $this->reader->read($path);
-        if ($sheets === []) throw new RuntimeException('The uploaded workbook does not contain a readable worksheet.');
+        if ($sheets === []) {
+            throw new RuntimeException('The uploaded workbook does not contain a readable worksheet.');
+        }
+
         return $sheets[0]['rows'];
     }
 
     private function cellsByColumn(array $row): array
     {
         $cells = [];
-        foreach ($row['cells'] as $cell) $cells[$cell['column']] = $cell['value'];
+        foreach ($row['cells'] as $cell) {
+            $cells[$cell['column']] = $cell['value'];
+        }
+
         return $cells;
     }
 

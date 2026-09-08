@@ -2,27 +2,53 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
-use App\Models\User;
 use App\Models\Student;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $staffUsers = User::where('role', '!=', 'student')
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
+        $search = trim($validated['search'] ?? '');
+
+        $matching = function ($query) use ($search): void {
+            if ($search === '') {
+                return;
+            }
+
+            $query->where(function ($query) use ($search): void {
+                $query->whereLike('email', "%{$search}%")
+                    ->orWhereLike('student_number', "%{$search}%")
+                    ->orWhereLike('name', "%{$search}%");
+            });
+        };
+
+        $staffUsers = User::query()
+            ->where('role', '!=', 'student')
+            ->when($search !== '', $matching)
             ->orderBy('role')
             ->orderBy('name')
             ->get();
 
-        $studentUsers = User::where('role', 'student')
+        $studentUsers = User::query()
+            ->where('role', 'student')
+            ->when($search !== '', $matching)
+            ->with('student')
             ->orderBy('name')
             ->orderBy('student_number')
             ->get();
 
-        return view('users.index', compact('staffUsers', 'studentUsers'));
+        return view('users.index', compact('staffUsers', 'studentUsers', 'search'));
     }
 
     public function create()
@@ -37,35 +63,45 @@ class UserController extends Controller
             'first_name' => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
             'suffix' => 'nullable|string|max:10',
-            'student_number' => 'nullable|string|max:50|unique:users',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
+            'student_number' => [
+                Rule::requiredIf(fn (): bool => $request->input('role') === 'student'),
+                'nullable',
+                'string',
+                'max:50',
+                'unique:users,student_number',
+                Rule::exists('students', 'student_number'),
+            ],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'confirmed', Password::min(12)->max(64)->mixedCase()->numbers(), 'regex:/[^\pL\pN\s]/u'],
             'role' => 'required|string|in:admin,registrar,records_officer,student',
-        ]);
+        ], $this->passwordValidationMessages());
+
+        $validated['email'] = Str::lower(trim($validated['email']));
+        $student = $this->officialStudentFor($validated);
 
         // Internal Storage Format: Last, Middle, First, Suffix
-        // We use a pipe or specific delimiter if comma is risky, 
+        // We use a pipe or specific delimiter if comma is risky,
         // but since we already started with comma, let's make it consistent
-        $name = trim($validated['last_name']) . ',' . 
-                trim($validated['middle_name'] ?? '') . ',' . 
-                trim($validated['first_name']) . ',' . 
+        $name = trim($validated['last_name']).','.
+                trim($validated['middle_name'] ?? '').','.
+                trim($validated['first_name']).','.
                 trim($validated['suffix'] ?? '');
 
-        $user = User::create([
-            'name' => $name,
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role' => $validated['role'],
-            'student_number' => $validated['role'] === 'student' ? $validated['student_number'] : null,
-        ]);
+        $user = DB::transaction(function () use ($validated, $student, $name): User {
+            if ($student && $student->official_email === null) {
+                $student->update(['official_email' => $validated['email']]);
+            }
 
-        // If student, ensure the students table is also updated/created
-        if ($user->role === 'student' && $user->student_number) {
-            Student::updateOrCreate(
-                ['student_number' => $user->student_number],
-                ['name' => $user->display_name] // Use First Middle Last for display
-            );
-        }
+            return User::create([
+                'name' => $name,
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'role' => $validated['role'],
+                'student_number' => $validated['role'] === 'student' ? $validated['student_number'] : null,
+            ]);
+        });
+
+        $user->sendEmailVerificationNotification();
 
         record_log('Created User', 'User Management', "Created account for {$user->display_name} ({$user->role})");
 
@@ -80,7 +116,7 @@ class UserController extends Controller
         $user->middle_name = $parts[1] ?? '';
         $user->first_name = $parts[2] ?? '';
         $user->suffix = $parts[3] ?? '';
-        
+
         return view('users.edit', compact('user'));
     }
 
@@ -91,19 +127,33 @@ class UserController extends Controller
             'first_name' => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
             'suffix' => 'nullable|string|max:10',
-            'student_number' => 'nullable|string|max:50|unique:users,student_number,' . $user->id,
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'password' => 'nullable|string|min:8|confirmed',
+            'student_number' => [
+                Rule::requiredIf(fn (): bool => $request->input('role') === 'student'),
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('users', 'student_number')->ignore($user->id),
+                Rule::exists('students', 'student_number'),
+            ],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'password' => ['nullable', 'confirmed', Password::min(12)->max(64)->mixedCase()->numbers(), 'regex:/[^\pL\pN\s]/u'],
             'role' => 'required|string|in:admin,registrar,records_officer,student',
-        ]);
+        ], $this->passwordValidationMessages());
+
+        $validated['email'] = Str::lower(trim($validated['email']));
+        $this->officialStudentFor($validated);
+
+        if ($user->role === 'student' && ! hash_equals(Str::lower($user->email), $validated['email'])) {
+            throw ValidationException::withMessages([
+                'email' => 'Students must change their email through the verified Account Security process.',
+            ]);
+        }
 
         // Internal Format: Last, Middle, First, Suffix
-        $name = trim($validated['last_name']) . ',' . 
-                trim($validated['middle_name'] ?? '') . ',' . 
-                trim($validated['first_name']) . ',' . 
+        $name = trim($validated['last_name']).','.
+                trim($validated['middle_name'] ?? '').','.
+                trim($validated['first_name']).','.
                 trim($validated['suffix'] ?? '');
-
-        $oldStudentNumber = $user->student_number;
 
         $data = [
             'name' => $name,
@@ -112,38 +162,11 @@ class UserController extends Controller
             'student_number' => $validated['role'] === 'student' ? $validated['student_number'] : null,
         ];
 
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $data['password'] = Hash::make($validated['password']);
         }
 
         $user->update($data);
-
-        // If student, sync with students table
-        if ($user->role === 'student' && $user->student_number) {
-            // If the student number itself was changed, we must update the existing record 
-            // matching the old student number to avoid creating a duplicate or failing unique constraint
-            if ($oldStudentNumber && $oldStudentNumber !== $user->student_number) {
-                $existingStudent = Student::where('student_number', $oldStudentNumber)->first();
-                if ($existingStudent) {
-                    $existingStudent->update([
-                        'student_number' => $user->student_number,
-                        'name' => $user->display_name
-                    ]);
-                } else {
-                    // Fallback if no old record found (should not happen if data is consistent)
-                    Student::updateOrCreate(
-                        ['student_number' => $user->student_number],
-                        ['name' => $user->display_name]
-                    );
-                }
-            } else {
-                // If student number didn't change, just update the name
-                Student::updateOrCreate(
-                    ['student_number' => $user->student_number],
-                    ['name' => $user->display_name]
-                );
-            }
-        }
 
         record_log('Updated User', 'User Management', "Updated account details for {$user->display_name}");
 
@@ -163,12 +186,41 @@ class UserController extends Controller
     public function toggleBypass(User $user)
     {
         $user->update([
-            'can_bypass_request_limit' => !$user->can_bypass_request_limit
+            'can_bypass_request_limit' => ! $user->can_bypass_request_limit,
         ]);
 
         $status = $user->can_bypass_request_limit ? 'enabled' : 'disabled';
         record_log('Toggled Request Bypass', 'User Management', "{$status} re-request bypass for {$user->display_name}");
 
-        return redirect()->back()->with('success', "Re-request capability has been " . ($user->can_bypass_request_limit ? 'enabled' : 'disabled') . " for this student.");
+        return redirect()->back()->with('success', 'Re-request capability has been '.($user->can_bypass_request_limit ? 'enabled' : 'disabled').' for this student.');
+    }
+
+    private function officialStudentFor(array $validated): ?Student
+    {
+        if ($validated['role'] !== 'student') {
+            return null;
+        }
+
+        $student = Student::findOrFail($validated['student_number']);
+        if ($student->official_email !== null
+            && ! hash_equals(Str::lower(trim($student->official_email)), $validated['email'])) {
+            throw ValidationException::withMessages([
+                'email' => 'The email must match the official email stored for this student number.',
+            ]);
+        }
+
+        return $student;
+    }
+
+    private function passwordValidationMessages(): array
+    {
+        return [
+            'password.min' => 'The password is too short. Use at least 12 characters.',
+            'password.max' => 'The password is too long. Use no more than 64 characters.',
+            'password.mixed' => 'The password is too weak. Include uppercase and lowercase letters.',
+            'password.numbers' => 'The password is too weak. Include at least one number.',
+            'password.regex' => 'The password is too weak. Include at least one symbol.',
+            'password.confirmed' => 'The password confirmation does not match.',
+        ];
     }
 }

@@ -217,6 +217,15 @@
                     </div>
                     <span class="text-base font-semibold">My Requests</span>
                 </a>
+
+                <a href="{{ route('student.email.edit') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('student.email.*') ? 'active' : 'hover:bg-slate-800/50' }}">
+                    <div class="w-5 h-5 flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-3.3 7" />
+                        </svg>
+                    </div>
+                    <span class="text-base font-semibold">Account Security</span>
+                </a>
                 @endif
 
                 @if(in_array($role, ['admin', 'registrar']))

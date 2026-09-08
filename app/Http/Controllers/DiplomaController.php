@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\RequestDocument;
 use App\Models\Student;
-use Illuminate\Http\Request;
+use App\Support\DocumentQrCode;
 use Dompdf\Dompdf;
 use Dompdf\Options;
-use App\Support\DocumentQrCode;
+use Illuminate\Http\Request;
 
 class DiplomaController extends Controller
 {
@@ -57,7 +57,7 @@ class DiplomaController extends Controller
 
         $html = view('diploma.pdf-template', compact('name', 'course', 'date', 'qrContext', 'documentQr'))->render();
 
-        $options = new Options();
+        $options = new Options;
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
 
@@ -90,15 +90,15 @@ class DiplomaController extends Controller
         ]);
 
         $docRequest = RequestDocument::findOrFail($request->request_id);
-        
-        $remarks = "Mode: " . strtoupper($request->delivery_mode);
+
+        $remarks = 'Mode: '.strtoupper($request->delivery_mode);
         if ($request->delivery_mode === 'generator') {
             $remarks .= " | Course: {$request->course} | Grad Date: {$request->graduation_date}";
         }
 
         $docRequest->update([
             'status' => 'processed',
-            'remarks' => $remarks
+            'remarks' => $remarks,
         ]);
 
         record_log('Submitted Diploma to Registrar', 'Requests', "Request #{$docRequest->id} submitted for approval ({$request->delivery_mode})");
@@ -109,8 +109,8 @@ class DiplomaController extends Controller
     public function previewFromRequest($id)
     {
         $docRequest = RequestDocument::with('student')->findOrFail($id);
-        
-        if (!$docRequest->student) {
+
+        if (! $docRequest->student) {
             return redirect()->back()->with('error', 'Student record not found.');
         }
 
@@ -120,7 +120,7 @@ class DiplomaController extends Controller
         }
 
         $name = strtoupper($docRequest->student->name);
-        
+
         // Parse course and date from remarks
         $course = 'GENERAL SECONDARY EDUCATION';
         $date = $docRequest->created_at->format('F d, Y');
@@ -145,7 +145,7 @@ class DiplomaController extends Controller
         ]);
         $html = view('diploma.pdf-template', compact('name', 'course', 'date', 'qrContext', 'documentQr'))->render();
 
-        $options = new Options();
+        $options = new Options;
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
 

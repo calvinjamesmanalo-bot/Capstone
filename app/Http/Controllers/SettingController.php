@@ -12,6 +12,7 @@ class SettingController extends Controller
         abort_unless(auth()->user()?->role === 'admin', 403);
 
         $settings = Setting::all()->pluck('value', 'key');
+
         return view('settings.index', compact('settings'));
     }
 

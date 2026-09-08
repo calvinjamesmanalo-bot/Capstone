@@ -1,0 +1,41 @@
+<?php
+
+return [
+
+    'https' => [
+        // Local HTTP remains available. Production enables HTTPS enforcement
+        // unless FORCE_HTTPS is explicitly overridden by the deployment.
+        'force' => (bool) env('FORCE_HTTPS', env('APP_ENV', 'production') === 'production'),
+        'hsts' => [
+            'enabled' => (bool) env('HTTPS_HSTS_ENABLED', true),
+            'max_age' => (int) env('HTTPS_HSTS_MAX_AGE', 31536000),
+            // Enable only when every subdomain is served exclusively by HTTPS.
+            'include_subdomains' => (bool) env('HTTPS_HSTS_INCLUDE_SUBDOMAINS', false),
+        ],
+    ],
+
+    'student_registration' => [
+        // Temporarily false while the school has no official student roster.
+        // Set true after importing student numbers, names, and official emails.
+        'require_roster' => (bool) env('STUDENT_REGISTRATION_REQUIRE_ROSTER', false),
+    ],
+
+    'authentication' => [
+        // Redis is recommended in production. Leave this null to use CACHE_STORE.
+        'cache_store' => env('AUTH_SECURITY_CACHE_STORE'),
+        'endpoint_attempts_per_minute' => (int) env('AUTH_ENDPOINT_ATTEMPTS_PER_MINUTE', 30),
+        'minimum_form_fill_seconds' => (int) env('AUTH_MINIMUM_FORM_FILL_SECONDS', 2),
+        'maximum_form_age_seconds' => (int) env('AUTH_MAXIMUM_FORM_AGE_SECONDS', 3600),
+        'max_attempts' => (int) env('AUTH_MAX_ATTEMPTS', 5),
+        'attempt_window_seconds' => (int) env('AUTH_ATTEMPT_WINDOW_SECONDS', 900),
+        'lockout_minutes' => array_map(
+            'intval',
+            explode(',', (string) env('AUTH_LOCKOUT_MINUTES', '15,30,60'))
+        ),
+        'anomaly_window_minutes' => (int) env('AUTH_ANOMALY_WINDOW_MINUTES', 15),
+        'distinct_ip_threshold' => (int) env('AUTH_DISTINCT_IP_THRESHOLD', 3),
+        'distinct_account_threshold' => (int) env('AUTH_DISTINCT_ACCOUNT_THRESHOLD', 10),
+        'alert_channel' => env('AUTH_ALERT_LOG_CHANNEL', 'security'),
+    ],
+
+];

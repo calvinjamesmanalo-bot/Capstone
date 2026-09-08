@@ -2,13 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Student;
 use App\Models\RequestDocument;
-use Illuminate\Http\Request;
+use App\Models\Student;
+use App\Support\DocumentQrCode;
 use Dompdf\Dompdf;
 use Dompdf\Options;
-use Illuminate\Support\Facades\View;
-use App\Support\DocumentQrCode;
+use Illuminate\Http\Request;
 
 class GoodMoralController extends Controller
 {
@@ -22,7 +21,7 @@ class GoodMoralController extends Controller
             $docRequest = RequestDocument::find($request->request_id);
             if ($docRequest && $docRequest->student) {
                 $selectedStudent = $docRequest->student->name;
-                
+
                 // Extract purpose from remarks if it starts with "Purpose: "
                 if (str_starts_with($docRequest->remarks, 'Purpose: ')) {
                     $selectedPurpose = substr($docRequest->remarks, 9);
@@ -42,10 +41,10 @@ class GoodMoralController extends Controller
         ]);
 
         $docRequest = RequestDocument::findOrFail($request->request_id);
-        
+
         $docRequest->update([
             'status' => 'processed',
-            'remarks' => $request->purpose ? "Purpose: {$request->purpose}" : $docRequest->remarks
+            'remarks' => $request->purpose ? "Purpose: {$request->purpose}" : $docRequest->remarks,
         ]);
 
         record_log('Submitted Good Moral to Registrar', 'Requests', "Request #{$docRequest->id} submitted for approval");
@@ -56,14 +55,14 @@ class GoodMoralController extends Controller
     public function previewFromRequest($id)
     {
         $docRequest = RequestDocument::with('student')->findOrFail($id);
-        
-        if (!$docRequest->student) {
+
+        if (! $docRequest->student) {
             return redirect()->back()->with('error', 'Student record not found.');
         }
 
         $name = $docRequest->student->name;
         $date = $docRequest->created_at->format('jS \d\a\y \o\f F, Y');
-        
+
         // Extract purpose from remarks
         $purpose = 'any legal purpose it may serve';
         if (str_starts_with($docRequest->remarks, 'Purpose: ')) {
@@ -83,7 +82,7 @@ class GoodMoralController extends Controller
         ]);
         $html = view('good-moral.pdf-template', compact('name', 'date', 'purpose', 'qrContext', 'documentQr'))->render();
 
-        $options = new Options();
+        $options = new Options;
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
 
@@ -134,7 +133,7 @@ class GoodMoralController extends Controller
 
         $html = view('good-moral.pdf-template', compact('name', 'date', 'purpose', 'qrContext', 'documentQr'))->render();
 
-        $options = new Options();
+        $options = new Options;
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
 
