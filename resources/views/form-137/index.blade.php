@@ -177,7 +177,7 @@
                                                 </svg>
                                             </button>
                                             @endif
-                                            <a href="{{ Storage::url($upload->file_path) }}" target="_blank" class="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-emerald-600 bg-white rounded-xl shadow-sm transition-all" title="View/Download">
+                                            <a href="{{ route('grade-portal.uploads.view', $upload) }}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-emerald-600 bg-white rounded-xl shadow-sm transition-all" title="View/Download">
                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                                 </svg>

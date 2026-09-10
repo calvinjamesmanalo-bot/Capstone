@@ -218,7 +218,7 @@
                         $isImage = in_array(strtolower($extension), ['jpg', 'jpeg', 'png']);
                     @endphp
                     <div class="group">
-                        <a href="{{ Storage::url($file->file_path) }}" target="_blank" 
+                        <a href="{{ route('grade-portal.uploads.view', $file) }}" target="_blank" rel="noopener noreferrer"
                            class="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/5 transition-all">
                             <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 {{ $isPdf ? 'bg-red-50 text-red-500' : ($isImage ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500') }}">
                                 @if($isPdf)

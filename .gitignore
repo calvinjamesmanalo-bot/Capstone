@@ -2,6 +2,9 @@
 .DS_Store
 .env
 .env.backup
+/storage/app/backups/
+/storage/app/backup-staging-*/
+/storage/app/restore-test-*/
 .env.production
 .phpactor.json
 .phpunit.result.cache

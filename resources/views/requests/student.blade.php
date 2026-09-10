@@ -76,11 +76,25 @@
                 <select name="school_year" id="school_year"
                     class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 appearance-none text-base">
                     <option value="">Choose school year</option>
-                    @foreach (['2020-2021', '2021-2022', '2022-2023'] as $year)
+                    @foreach (config('academics.school_years', []) as $year)
                         <option value="{{ $year }}" @selected(old('school_year') === $year)>{{ $year }}</option>
                     @endforeach
                 </select>
                 <p class="text-[11px] text-slate-500 font-medium">The records officer will use this school year when preparing your Form 138.</p>
+            </div>
+
+            <div class="space-y-3" id="school_level_field" style="display: none;">
+                <label for="school_level" class="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+                    School Level for Form 137
+                </label>
+                <select name="school_level" id="school_level"
+                    class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 appearance-none text-base">
+                    <option value="">Choose school level</option>
+                    <option value="elementary" @selected(in_array(old('school_level'), ['kinder', 'elementary'], true))>Kinder and Elementary</option>
+                    <option value="jhs" @selected(old('school_level') === 'jhs')>Junior High School (JHS)</option>
+                    <option value="shs" @selected(old('school_level') === 'shs')>Senior High School (SHS)</option>
+                </select>
+                <p class="text-[11px] text-slate-500 font-medium">Select the school level whose permanent record you are requesting.</p>
             </div>
 
             <div class="space-y-3">
@@ -184,13 +198,19 @@ function updateSelectedDocumentPrice() {
 
 const schoolYearField = document.getElementById('school_year_field');
 const schoolYearSelect = document.getElementById('school_year');
+const schoolLevelField = document.getElementById('school_level_field');
+const schoolLevelSelect = document.getElementById('school_level');
 
 function updateDocumentFields() {
     updateSelectedDocumentPrice();
     const needsSchoolYear = documentTypeSelect.value === 'Form 138';
+    const needsSchoolLevel = documentTypeSelect.value === 'Form 137';
     schoolYearField.style.display = needsSchoolYear ? 'block' : 'none';
     schoolYearSelect.required = needsSchoolYear;
     if (!needsSchoolYear) schoolYearSelect.value = '';
+    schoolLevelField.style.display = needsSchoolLevel ? 'block' : 'none';
+    schoolLevelSelect.required = needsSchoolLevel;
+    if (!needsSchoolLevel) schoolLevelSelect.value = '';
 }
 
 updateDocumentFields();

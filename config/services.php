@@ -1,5 +1,8 @@
 <?php
 
+$useTurnstileTestKeys = env('APP_ENV', 'production') !== 'production'
+    && filter_var(env('TURNSTILE_USE_TEST_KEYS', true), FILTER_VALIDATE_BOOL);
+
 return [
 
     /*
@@ -33,6 +36,23 @@ return [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
+    ],
+
+    'turnstile' => [
+        'enabled' => filter_var(env('TURNSTILE_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'using_test_keys' => $useTurnstileTestKeys,
+        'site_key' => $useTurnstileTestKeys
+            ? env('TURNSTILE_TEST_SITE_KEY', '1x00000000000000000000AA')
+            : env('TURNSTILE_SITE_KEY'),
+        'secret_key' => $useTurnstileTestKeys
+            ? env('TURNSTILE_TEST_SECRET_KEY', '1x0000000000000000000000000000000AA')
+            : env('TURNSTILE_SECRET_KEY'),
+        'verify_url' => env('TURNSTILE_VERIFY_URL', 'https://challenges.cloudflare.com/turnstile/v0/siteverify'),
+        'expected_action' => $useTurnstileTestKeys ? 'test' : env('TURNSTILE_EXPECTED_ACTION', 'login'),
+        'allowed_hostnames' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('TURNSTILE_ALLOWED_HOSTNAMES', ''))
+        ))),
     ],
 
 ];

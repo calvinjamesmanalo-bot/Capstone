@@ -2,17 +2,17 @@
 
 namespace App\Support;
 
+use DOMDocument;
+use DOMXPath;
 use RuntimeException;
 use SimpleXMLElement;
 use ZipArchive;
-use DOMDocument;
-use DOMXPath;
 
 class XlsxWorkbookReader
 {
     public function read(string $filePath): array
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
 
         if ($zip->open($filePath) !== true) {
             throw new RuntimeException('Unable to open the uploaded Excel file.');
@@ -68,10 +68,10 @@ class XlsxWorkbookReader
 
     private function resolveSheetPaths(SimpleXMLElement $workbook, SimpleXMLElement $relationships): array
     {
-        $workbookDocument = new DOMDocument();
+        $workbookDocument = new DOMDocument;
         $workbookDocument->loadXML($workbook->asXML());
         $workbookXPath = new DOMXPath($workbookDocument);
-        $relationshipDocument = new DOMDocument();
+        $relationshipDocument = new DOMDocument;
         $relationshipDocument->loadXML($relationships->asXML());
         $relationshipXPath = new DOMXPath($relationshipDocument);
         $relationshipMap = [];
@@ -187,7 +187,7 @@ class XlsxWorkbookReader
             return ltrim($target, '/');
         }
 
-        return 'xl/' . ltrim($target, './');
+        return 'xl/'.ltrim($target, './');
     }
 
     private function readXml(ZipArchive $zip, string $path): SimpleXMLElement

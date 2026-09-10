@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\RequestDocument;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 class AnalyticsController extends Controller
 {
@@ -16,10 +15,10 @@ class AnalyticsController extends Controller
 
         // 1. Most Requested Documents (Filtered by Year/Month)
         $requestCounts = RequestDocument::select('document_type', DB::raw('count(*) as total'))
-            ->when($year, function($query) use ($year) {
+            ->when($year, function ($query) use ($year) {
                 return $query->whereYear('created_at', $year);
             })
-            ->when($month && $month != 'all', function($query) use ($month) {
+            ->when($month && $month != 'all', function ($query) use ($month) {
                 return $query->whereMonth('created_at', $month);
             })
             ->groupBy('document_type')
@@ -28,13 +27,13 @@ class AnalyticsController extends Controller
 
         // 2. Request Trends (Monthly for the selected year)
         $isSqlite = DB::connection()->getDriverName() === 'sqlite';
-        $monthField = $isSqlite ? "CAST(strftime('%m', created_at) AS INTEGER)" : "MONTH(created_at)";
-        $yearField = $isSqlite ? "CAST(strftime('%Y', created_at) AS INTEGER)" : "YEAR(created_at)";
+        $monthField = $isSqlite ? "CAST(strftime('%m', created_at) AS INTEGER)" : 'MONTH(created_at)';
+        $yearField = $isSqlite ? "CAST(strftime('%Y', created_at) AS INTEGER)" : 'YEAR(created_at)';
 
         $trends = RequestDocument::select(
-                DB::raw("$monthField as month"),
-                DB::raw('count(*) as total')
-            )
+            DB::raw("$monthField as month"),
+            DB::raw('count(*) as total')
+        )
             ->whereYear('created_at', $year)
             ->groupBy('month')
             ->orderBy('month')
@@ -50,7 +49,7 @@ class AnalyticsController extends Controller
 
         // 3. Status Distribution
         $statusCounts = RequestDocument::select('status', DB::raw('count(*) as total'))
-            ->when($year, function($query) use ($year) {
+            ->when($year, function ($query) use ($year) {
                 return $query->whereYear('created_at', $year);
             })
             ->groupBy('status')

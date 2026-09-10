@@ -76,6 +76,15 @@
                     @error('student_number') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
                 </div>
 
+                <!-- LRN (Conditional) -->
+                <div id="lrn_field" class="space-y-2 {{ old('role', $user->role) == 'student' ? '' : 'hidden' }}">
+                    <label for="lrn" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Learner Reference Number (LRN)</label>
+                    <input type="text" name="lrn" id="lrn" value="{{ old('lrn', $user->student?->resolvedLrn()) }}" inputmode="numeric" pattern="\d{12}" minlength="12" maxlength="12"
+                        class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
+                        placeholder="12-digit LRN">
+                    @error('lrn') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
+                </div>
+
                 <!-- Email -->
                 <div class="space-y-2">
                     <label for="email" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email Address</label>
@@ -83,6 +92,7 @@
                         class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
                         placeholder="e.g. juan@example.com">
                     @error('email') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
+                    <p class="text-xs text-slate-400">Administrators can update this email as long as it is not already used by another account.</p>
                 </div>
 
                 <!-- Role -->
@@ -101,12 +111,17 @@
                 <script>
                     function toggleStudentNumber(role) {
                         const field = document.getElementById('student_number_field');
+                        const lrnField = document.getElementById('lrn_field');
                         if (role === 'student') {
                             field.classList.remove('hidden');
+                            lrnField.classList.remove('hidden');
                             document.getElementById('student_number').setAttribute('required', 'required');
+                            document.getElementById('lrn').setAttribute('required', 'required');
                         } else {
                             field.classList.add('hidden');
+                            lrnField.classList.add('hidden');
                             document.getElementById('student_number').removeAttribute('required');
+                            document.getElementById('lrn').removeAttribute('required');
                         }
                     }
                     // Initial check
@@ -129,16 +144,17 @@
                 <!-- Password -->
                 <div class="space-y-2">
                     <label for="password" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">New Password</label>
-                    <input type="password" name="password" id="password"
+                    <input type="password" name="password" id="password" minlength="12" maxlength="64" autocomplete="new-password"
                         class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
                         placeholder="••••••••">
                     @error('password') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
+                    @include('auth.partials.password-requirements')
                 </div>
 
                 <!-- Confirm Password -->
                 <div class="space-y-2">
                     <label for="password_confirmation" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Confirm New Password</label>
-                    <input type="password" name="password_confirmation" id="password_confirmation"
+                    <input type="password" name="password_confirmation" id="password_confirmation" minlength="12" maxlength="64" autocomplete="new-password"
                         class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
                         placeholder="••••••••">
                 </div>
@@ -147,15 +163,13 @@
             <div class="mt-12 flex flex-col md:flex-row justify-between items-center gap-6">
                 @if($user->role === 'student')
                 <div class="flex-1 w-full">
-                    <form action="{{ route('users.toggle-bypass', $user) }}" method="POST">
-                        @csrf
-                        <button type="submit" class="w-full md:w-auto px-8 py-4 {{ $user->can_bypass_request_limit ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-100' }} border text-xs font-black rounded-2xl hover:shadow-lg transition-all uppercase tracking-widest flex items-center justify-center gap-3">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {{ $user->can_bypass_request_limit ? 'Disable Re-request' : 'Enable Re-request' }}
-                        </button>
-                    </form>
+                    <button type="submit" form="toggleBypassForm" class="w-full md:w-auto px-8 py-4 {{ $user->can_bypass_request_limit ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-100' }} border text-xs font-black rounded-2xl hover:shadow-lg transition-all uppercase tracking-widest flex items-center justify-center gap-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {{ $user->can_bypass_request_limit ? 'Disable Re-request' : 'Enable Re-request' }}
+                    </button>
+                    <p class="mt-2 text-xs font-semibold text-slate-500">Allows one additional request for a document that is still active.</p>
                 </div>
                 @endif
                 
@@ -166,6 +180,13 @@
                     Update Account
                 </button>
             </div>
+        </form>
+
+        @if($user->role === 'student')
+            <form id="toggleBypassForm" action="{{ route('users.toggle-bypass', $user) }}" method="POST" class="hidden">
+                @csrf
+            </form>
+        @endif
         </div>
     </div>
 </div>

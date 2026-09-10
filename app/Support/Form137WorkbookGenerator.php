@@ -19,31 +19,11 @@ class Form137WorkbookGenerator
         ['start_row' => 52, 'label_col' => 'Q', 'grade_col' => 'S', 'year_col' => 'AC', 'adviser_col' => 'Q', 'quarter_cols' => ['X', 'Z', 'AA', 'AB'], 'final_col' => 'AC', 'remarks_col' => 'AD'],
     ];
 
-    private const SUBJECT_ROWS = [
-        'mother tongue' => 30,
-        'filipino' => 31,
-        'english' => 32,
-        'mathematics' => 33,
-        'science' => 34,
-        'araling panlipunan' => 35,
-        'epp / tle' => 36,
-        'epp/tle' => 36,
-        'mapeh' => 37,
-        'music' => 38,
-        'arts' => 39,
-        'physical education' => 40,
-        'health' => 41,
-        'eduk. sa pagpapakatao' => 42,
-        'edukasyon sa pagpapakatao' => 42,
-        'arabic language' => 43,
-        'islamic values education' => 44,
-    ];
-
     public function generate(array $student, array $records, array $schoolProfile = []): string
     {
         $template = base_path('generator/F137.xlsx');
 
-        if (!is_file($template)) {
+        if (! is_file($template)) {
             throw new RuntimeException('The F137 Excel template is missing.');
         }
 
@@ -55,11 +35,11 @@ class Form137WorkbookGenerator
         $xlsxPath = $output.'.xlsx';
         @unlink($output);
 
-        if (!copy($template, $xlsxPath)) {
+        if (! copy($template, $xlsxPath)) {
             throw new RuntimeException('Unable to copy the F137 Excel template.');
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($xlsxPath) !== true) {
             @unlink($xlsxPath);
             throw new RuntimeException('Unable to open the F137 Excel template.');
@@ -73,14 +53,14 @@ class Form137WorkbookGenerator
             throw new RuntimeException('The F137 template worksheet is missing.');
         }
 
-        $document = new DOMDocument();
+        $document = new DOMDocument;
         $document->preserveWhiteSpace = false;
         $document->formatOutput = false;
         $document->loadXML($worksheetXml);
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
 
-        $stylesDocument = new DOMDocument();
+        $stylesDocument = new DOMDocument;
         $stylesDocument->preserveWhiteSpace = false;
         $stylesDocument->formatOutput = false;
         $stylesDocument->loadXML($stylesXml);
@@ -111,7 +91,7 @@ class Form137WorkbookGenerator
 
         $backXml = $zip->getFromName('xl/worksheets/sheet2.xml');
         if ($backXml !== false) {
-            $backDocument = new DOMDocument();
+            $backDocument = new DOMDocument;
             $backDocument->preserveWhiteSpace = false;
             $backDocument->formatOutput = false;
             $backDocument->loadXML($backXml);
@@ -162,6 +142,7 @@ class Form137WorkbookGenerator
             $this->setText($document, $xpath, 'L24', 'Region:');
             $this->setText($document, $xpath, 'N24', $region);
             $this->setStyle($document, $xpath, 'N24', $valueStyles['region_left']);
+
             return;
         }
 
@@ -172,6 +153,7 @@ class Form137WorkbookGenerator
             $this->setText($document, $xpath, 'AB24', 'Region:');
             $this->setText($document, $xpath, 'AD24', $region);
             $this->setStyle($document, $xpath, 'AD24', $valueStyles['region_right']);
+
             return;
         }
 
@@ -196,9 +178,13 @@ class Form137WorkbookGenerator
     private function replaceMerge(DOMDocument $document, DOMXPath $xpath, string $old, array $replacements): void
     {
         $mergeCells = $xpath->query('//x:mergeCells')->item(0);
-        if (!$mergeCells instanceof DOMElement) return;
+        if (! $mergeCells instanceof DOMElement) {
+            return;
+        }
         foreach (iterator_to_array($mergeCells->childNodes) as $merge) {
-            if ($merge instanceof DOMElement && $merge->getAttribute('ref') === $old) $mergeCells->removeChild($merge);
+            if ($merge instanceof DOMElement && $merge->getAttribute('ref') === $old) {
+                $mergeCells->removeChild($merge);
+            }
         }
         foreach ($replacements as $reference) {
             $merge = $document->createElementNS($document->documentElement->namespaceURI, 'mergeCell');
@@ -210,16 +196,20 @@ class Form137WorkbookGenerator
 
     private function emphasizedStyle(DOMDocument $document, DOMXPath $xpath, int $baseStyle): int
     {
-        if (isset($this->emphasizedStyles[$baseStyle])) return $this->emphasizedStyles[$baseStyle];
+        if (isset($this->emphasizedStyles[$baseStyle])) {
+            return $this->emphasizedStyles[$baseStyle];
+        }
         $fonts = $xpath->query('//x:fonts')->item(0);
         $cellXfs = $xpath->query('//x:cellXfs')->item(0);
         $baseXf = $xpath->query('//x:cellXfs/x:xf')->item($baseStyle);
-        if (!$fonts instanceof DOMElement || !$cellXfs instanceof DOMElement || !$baseXf instanceof DOMElement) {
+        if (! $fonts instanceof DOMElement || ! $cellXfs instanceof DOMElement || ! $baseXf instanceof DOMElement) {
             throw new RuntimeException('The F137 template styles are incomplete.');
         }
         $fontId = (int) $baseXf->getAttribute('fontId');
         $baseFont = $xpath->query('//x:fonts/x:font')->item($fontId);
-        if (!$baseFont instanceof DOMElement) throw new RuntimeException('The F137 template font is missing.');
+        if (! $baseFont instanceof DOMElement) {
+            throw new RuntimeException('The F137 template font is missing.');
+        }
         $font = $baseFont->cloneNode(true);
         foreach (['b', 'i'] as $tag) {
             if ($font->getElementsByTagNameNS($document->documentElement->namespaceURI, $tag)->length === 0) {
@@ -235,6 +225,7 @@ class Form137WorkbookGenerator
         $cellXfs->appendChild($xf);
         $newStyle = $cellXfs->getElementsByTagNameNS($document->documentElement->namespaceURI, 'xf')->length - 1;
         $cellXfs->setAttribute('count', (string) ($newStyle + 1));
+
         return $this->emphasizedStyles[$baseStyle] = $newStyle;
     }
 
@@ -253,16 +244,17 @@ class Form137WorkbookGenerator
         $this->setText($document, $xpath, $slot['year_col'].($start + 2), $record['school_year']);
         $this->setText($document, $xpath, $slot['adviser_col'].($start + 3), 'Name of Adviser/Teacher: '.($record['adviser_name'] ?? ''));
 
-        $usedRows = [];
-        foreach ($record['areas'] as $areaIndex => $area) {
-            $subjectRow = $this->subjectRow((string) $area['name']);
-            if ($subjectRow === null || in_array($subjectRow, $usedRows, true)) {
-                $subjectRow = 30 + $areaIndex;
-            }
-            if ($subjectRow > 44) continue;
-            $usedRows[] = $subjectRow;
+        if (count($record['areas']) > 15) {
+            throw new RuntimeException(
+                "The F137 template has 15 learning-area rows, but {$record['school_year']} contains ".count($record['areas']).' subjects.'
+            );
+        }
 
-            $row = $subjectRow + $offset;
+        foreach ($record['areas'] as $areaIndex => $area) {
+            // F137 uses the same dynamic matrix as F138. Write every stored
+            // learning area sequentially instead of forcing old subject names
+            // into hard-coded rows that can collide and overwrite each other.
+            $row = 30 + $areaIndex + $offset;
             $this->setText($document, $xpath, $label.$row, (string) $area['name']);
             foreach ($slot['quarter_cols'] as $periodIndex => $column) {
                 $grade = $area['quarters'][$periodIndex + 1] ?? null;
@@ -284,13 +276,6 @@ class Form137WorkbookGenerator
         $this->setText($document, $xpath, $slot['remarks_col'].$generalAverageRow, $record['remarks']);
     }
 
-    private function subjectRow(string $subject): ?int
-    {
-        $normalized = mb_strtolower(trim(preg_replace('/\s+/', ' ', ltrim($subject, '*'))));
-
-        return self::SUBJECT_ROWS[$normalized] ?? null;
-    }
-
     private function clearTemplateRecordValues(DOMDocument $document, DOMXPath $xpath): void
     {
         foreach (self::RECORD_SLOTS as $slot) {
@@ -301,6 +286,9 @@ class Form137WorkbookGenerator
 
             for ($baseRow = 30; $baseRow <= 45; $baseRow++) {
                 $row = $baseRow + $offset;
+                if ($baseRow <= 44) {
+                    $this->setText($document, $xpath, $slot['label_col'].$row, '');
+                }
                 foreach ($slot['quarter_cols'] as $column) {
                     $this->clearLiteralValue($document, $xpath, $column.$row);
                 }
@@ -358,7 +346,9 @@ class Form137WorkbookGenerator
     {
         $cell = $this->cell($document, $xpath, $reference);
         foreach ($cell->childNodes as $child) {
-            if ($child->localName === 'f') return;
+            if ($child->localName === 'f') {
+                return;
+            }
         }
         $this->clearCellValue($cell);
         $cell->removeAttribute('t');
@@ -369,15 +359,20 @@ class Form137WorkbookGenerator
         $cell = $this->cell($document, $xpath, $reference);
         $hasFormula = false;
         foreach ($cell->childNodes as $child) {
-            if ($child->localName === 'f') $hasFormula = true;
+            if ($child->localName === 'f') {
+                $hasFormula = true;
+            }
         }
-        if (!$hasFormula) {
+        if (! $hasFormula) {
             $this->clearCellValue($cell);
             $cell->removeAttribute('t');
+
             return;
         }
         foreach (iterator_to_array($cell->childNodes) as $child) {
-            if ($child->localName === 'v') $cell->removeChild($child);
+            if ($child->localName === 'v') {
+                $cell->removeChild($child);
+            }
         }
     }
 

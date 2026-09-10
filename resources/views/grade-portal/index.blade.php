@@ -55,7 +55,12 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div class="space-y-2">
                                     <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">School Year</label>
-                                    <input type="text" name="school_years[]" class="w-full bg-white border-slate-200 rounded-xl px-5 py-3 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all" placeholder="e.g. 2023-2024" required>
+                                    <select name="school_years[]" class="w-full bg-white border-slate-200 rounded-xl px-5 py-3 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all" required>
+                                        <option value="">Select school year</option>
+                                        @foreach (config('academics.school_years', []) as $year)
+                                            <option value="{{ $year }}">{{ $year }}</option>
+                                        @endforeach
+                                    </select>
                                 </div>
                                 <div class="space-y-2">
                                     <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Reference File (Excel/PDF/Image)</label>
@@ -163,10 +168,10 @@
                                                         $isPdf = strtolower($extension) === 'pdf';
                                                     @endphp
                                                     
-                                                    <a href="{{ Storage::url($upload->file_path) }}" 
+                                                    <a href="{{ route('grade-portal.uploads.view', $upload) }}"
                                                        class="w-10 h-10 flex items-center justify-center {{ $isPdf ? 'text-red-600 bg-red-50 hover:bg-red-600' : ($isImage ? 'text-blue-600 bg-blue-50 hover:bg-blue-600' : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-600') }} hover:text-white rounded-xl transition-all shadow-sm" 
                                                        title="View/Download {{ strtoupper($extension) }}" 
-                                                       target="_blank">
+                                                       target="_blank" rel="noopener noreferrer">
                                                         @if($isPdf)
                                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                                                         @elseif($isImage)
@@ -233,7 +238,12 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="space-y-2">
                     <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">School Year</label>
-                    <input type="text" name="school_years[]" class="w-full bg-white border-slate-200 rounded-xl px-5 py-3 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all" placeholder="e.g. 2023-2024" required>
+                    <select name="school_years[]" class="w-full bg-white border-slate-200 rounded-xl px-5 py-3 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all" required>
+                        <option value="">Select school year</option>
+                        @foreach (config('academics.school_years', []) as $year)
+                            <option value="{{ $year }}">{{ $year }}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div class="flex gap-4">
                     <div class="flex-1 space-y-2">

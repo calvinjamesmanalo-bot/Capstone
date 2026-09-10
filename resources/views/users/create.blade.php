@@ -75,6 +75,15 @@
                     @error('student_number') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
                 </div>
 
+                <!-- LRN (Conditional) -->
+                <div id="lrn_field" class="space-y-2 {{ old('role', 'student') == 'student' ? '' : 'hidden' }}">
+                    <label for="lrn" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Learner Reference Number (LRN)</label>
+                    <input type="text" name="lrn" id="lrn" value="{{ old('lrn') }}" inputmode="numeric" pattern="\d{12}" minlength="12" maxlength="12"
+                        class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
+                        placeholder="12-digit LRN">
+                    @error('lrn') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
+                </div>
+
                 <!-- Email -->
                 <div class="space-y-2">
                     <label for="email" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email Address</label>
@@ -82,6 +91,7 @@
                         class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
                         placeholder="e.g. juan@example.com">
                     @error('email') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
+                    <p class="text-xs text-slate-400">For students, this must match the official roster email. If the roster has no email yet, this becomes its official address and must be verified.</p>
                 </div>
 
                 <!-- Role -->
@@ -102,31 +112,37 @@
                 <!-- Password -->
                 <div class="space-y-2">
                     <label for="password" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Password</label>
-                    <input type="password" name="password" id="password" required
+                    <input type="password" name="password" id="password" required minlength="12" maxlength="64" autocomplete="new-password"
                         class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
                         placeholder="••••••••">
                     @error('password') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
+                    @include('auth.partials.password-requirements')
                 </div>
 
                 <!-- Confirm Password -->
                 <div class="space-y-2">
                     <label for="password_confirmation" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Confirm Password</label>
-                    <input type="password" name="password_confirmation" id="password_confirmation" required
+                    <input type="password" name="password_confirmation" id="password_confirmation" required minlength="12" maxlength="64" autocomplete="new-password"
                         class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
                         placeholder="••••••••">
                 </div>
             </div>
 
             <script>
-                function toggleStudentNumber(role) {
-                    const field = document.getElementById('student_number_field');
-                    if (role === 'student') {
-                        field.classList.remove('hidden');
-                        document.getElementById('student_number').setAttribute('required', 'required');
-                    } else {
-                        field.classList.add('hidden');
-                        document.getElementById('student_number').removeAttribute('required');
-                    }
+                    function toggleStudentNumber(role) {
+                        const field = document.getElementById('student_number_field');
+                        const lrnField = document.getElementById('lrn_field');
+                        if (role === 'student') {
+                            field.classList.remove('hidden');
+                            lrnField.classList.remove('hidden');
+                            document.getElementById('student_number').setAttribute('required', 'required');
+                            document.getElementById('lrn').setAttribute('required', 'required');
+                        } else {
+                            field.classList.add('hidden');
+                            lrnField.classList.add('hidden');
+                            document.getElementById('student_number').removeAttribute('required');
+                            document.getElementById('lrn').removeAttribute('required');
+                        }
                 }
                 // Initial check
                 toggleStudentNumber(document.getElementById('role').value);

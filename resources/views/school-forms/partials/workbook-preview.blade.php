@@ -2,7 +2,7 @@
     <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
         <span class="rounded-full bg-[#000638] px-3 py-1.5 text-white">{{ $upload->school_year }}</span>
         <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">{{ $upload->level }} &middot; {{ $upload->section }}</span>
-        <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-900">{{ ['First', 'Second', 'Third', 'Fourth'][$upload->grading_period - 1] ?? "Period {$upload->grading_period}" }} grading</span>
+        <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-900">{{ \App\Support\AcademicPeriod::label($upload->school_year, $upload->grading_period) }}</span>
     </div>
 
     @if(count($sheets) > 1)

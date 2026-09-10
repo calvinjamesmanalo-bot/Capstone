@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Database\Factories\RequestDocumentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class RequestDocument extends Model
 {
-    /** @use HasFactory<\Database\Factories\RequestDocumentFactory> */
+    /** @use HasFactory<RequestDocumentFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -15,6 +16,7 @@ class RequestDocument extends Model
         'student_number',
         'document_type',
         'school_year',
+        'school_level',
         'document_price',
         'status',
         'remarks',
@@ -24,6 +26,11 @@ class RequestDocument extends Model
         'clearance_status',
         'financial_balance',
         'payment_proof_path',
+        'payment_proof_disk',
+        'payment_proof_original_name',
+        'payment_proof_mime_type',
+        'payment_proof_size',
+        'payment_proof_sha256',
         'release_location',
     ];
 

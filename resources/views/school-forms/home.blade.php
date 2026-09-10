@@ -24,7 +24,7 @@
                 <div class="mb-5"><h3 class="font-bold">Create F138 for a student</h3><p class="mt-1 text-sm text-slate-500">Choose the exact school year that the F138 will be made from.</p></div>
                 <div class="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-5 sm:grid-cols-2">
                     <label><span class="mb-2 block text-xs font-bold uppercase text-slate-500">Student number or LRN</span><input name="student" value="{{ request('student', '2020-0001') }}" maxlength="40" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 font-semibold" required></label>
-                    <label><span class="mb-2 block text-xs font-bold uppercase text-slate-500">School year</span><select name="school_year" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-3" required><option value="">Choose school year</option>@foreach (['2020-2021','2021-2022','2022-2023'] as $year)<option value="{{ $year }}" @selected(request('school_year') === $year)>{{ $year }}</option>@endforeach</select></label>
+                    <label><span class="mb-2 block text-xs font-bold uppercase text-slate-500">School year</span><select name="school_year" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-3" required><option value="">Choose school year</option>@foreach (config('academics.school_years', []) as $year)<option value="{{ $year }}" @selected(request('school_year') === $year)>{{ $year }}</option>@endforeach</select></label>
                 </div>
                 <div class="mt-5 flex justify-end"><button class="rounded-lg bg-blue-600 px-6 py-3 text-sm font-bold text-white">Generate F138</button></div>
             </form>

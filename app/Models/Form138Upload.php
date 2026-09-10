@@ -15,6 +15,10 @@ class Form138Upload extends Model
         'file_path',
         'pdf_path',
         'original_filename',
+        'storage_disk',
+        'mime_type',
+        'file_size',
+        'sha256',
     ];
 
     public function student()

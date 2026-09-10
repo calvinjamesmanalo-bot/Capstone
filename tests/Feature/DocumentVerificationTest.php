@@ -30,7 +30,7 @@ class DocumentVerificationTest extends TestCase
             ->assertSee('Juan Dela Cruz')
             ->assertSee($qr['reference'])
             ->assertSee(strtoupper($qr['document']->content_hash))
-            ->assertSee('Valid · HMAC-SHA256');
+            ->assertSee('Valid &middot; HMAC-SHA256', false);
 
         $this->assertDatabaseHas('document_verification_audits', [
             'document_authenticity_id' => $qr['document']->id,

@@ -3,10 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\SchoolFormUpload as GradeSheetUpload;
+use App\Support\AcademicPeriod;
 use App\Support\XlsxWorkbookReader;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use RuntimeException;
 
 class SchoolFormRecordController extends Controller
@@ -19,11 +26,16 @@ class SchoolFormRecordController extends Controller
         $section = trim((string) $request->query('section'));
         $hasSearch = $schoolYear !== '' && $level !== '' && $section !== '';
 
-        $schoolYears = GradeSheetUpload::distinct()->orderByDesc('school_year')->pluck('school_year');
+        $schoolYears = collect(config('academics.school_years', []))
+            ->merge(GradeSheetUpload::distinct()->pluck('school_year'))
+            ->filter()
+            ->unique()
+            ->sortDesc()
+            ->values();
         $levels = GradeSheetUpload::distinct()->orderBy('level')->pluck('level');
         $sections = GradeSheetUpload::distinct()->orderBy('section')->pluck('section');
         $uploads = GradeSheetUpload::query()
-            ->when(!$hasSearch, fn ($query) => $query->whereRaw('1 = 0'))
+            ->when(! $hasSearch, fn ($query) => $query->whereRaw('1 = 0'))
             ->when($hasSearch, fn ($query) => $query->where('school_year', $schoolYear)
                 ->where('level', $level)->where('section', $section))
             ->orderBy('grading_period')->orderBy('file_type')->get();
@@ -52,6 +64,57 @@ class SchoolFormRecordController extends Controller
         });
 
         return back()->with('status', 'Uploaded sheet and its imported records were deleted.');
+    }
+
+    public function status(Request $request)
+    {
+        $this->authorizeRecordsStaff();
+        $validated = $request->validate([
+            'school_year' => ['required', Rule::in(config('academics.school_years', []))],
+            'level' => ['required', Rule::in(config('academics.grade_levels', []))],
+            'section' => ['required', Rule::in(['Bambi'])],
+        ]);
+
+        $uploads = GradeSheetUpload::query()
+            ->where('school_year', $validated['school_year'])
+            ->where('level', $validated['level'])
+            ->where('section', $validated['section'])
+            ->whereIn('grading_period', AcademicPeriod::numbers($validated['school_year']))
+            ->get();
+        $slots = [];
+        foreach ($uploads as $upload) {
+            $slots["{$upload->grading_period}:{$upload->file_type}"] = [
+                'name' => $upload->original_name,
+                'updated_at' => optional($upload->updated_at)->toIso8601String(),
+            ];
+        }
+
+        return response()->json([
+            'slots' => $slots,
+            'completed' => count($slots),
+            'total' => AcademicPeriod::count($validated['school_year']) * 2,
+        ]);
+    }
+
+    public function template(Request $request, string $type)
+    {
+        $this->authorizeRecordsStaff();
+        abort_unless(in_array($type, ['summary', 'attendance'], true), 404);
+        $validated = $request->validate([
+            'school_year' => ['required', Rule::in(config('academics.school_years', []))],
+            'level' => ['required', Rule::in(config('academics.grade_levels', []))],
+            'section' => ['required', Rule::in(['Bambi'])],
+            'period' => ['required', 'integer', Rule::in([1, 2, 3, 4])],
+        ]);
+
+        $spreadsheet = $this->makeTemplate($type, $validated);
+        $periodName = ['First', 'Second', 'Third', 'Fourth'][(int) $validated['period'] - 1];
+        $filename = str_replace(' ', '-', strtolower("{$validated['level']}-{$validated['section']}-{$periodName}-{$type}.xlsx"));
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            (new Xlsx($spreadsheet))->save('php://output');
+            $spreadsheet->disconnectWorksheets();
+        }, $filename, ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
     }
 
     public function download(GradeSheetUpload $upload)
@@ -118,6 +181,69 @@ class SchoolFormRecordController extends Controller
             'rows' => $previewRows,
             'truncated' => count($allRows) > count($rows),
         ];
+    }
+
+    private function makeTemplate(string $type, array $details): Spreadsheet
+    {
+        $period = (int) $details['period'];
+        $periodName = strtoupper(['First', 'Second', 'Third', 'Fourth'][$period - 1]);
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle($type === 'summary' ? 'Summary Sheet' : 'Attendance Sheet');
+        $sheet->setCellValue('A1', strtoupper("{$details['level']} {$details['section']} {$type} sheet - {$periodName} grading - Academic Year {$details['school_year']}"));
+        $sheet->setCellValue('A2', 'Adviser / Teacher:');
+
+        if ($type === 'summary') {
+            $headers = ['No.', 'Student No.', 'Learner name', 'Language', 'Reading and Literacy', 'Mathematics', 'Makabansa', 'Good Manners and Right Conduct', 'MAPE', 'Music', 'P.E.', 'Art', 'Mother Tongue I', 'General Average'];
+            $sheet->fromArray($headers, null, 'A3');
+            $sheet->freezePane('D4');
+            $sheet->getColumnDimension('B')->setWidth(18);
+            $sheet->getColumnDimension('C')->setWidth(32);
+            foreach (range('D', 'N') as $column) {
+                $sheet->getColumnDimension($column)->setWidth(18);
+            }
+        } else {
+            $months = [
+                1 => ['June', 'July', 'August'],
+                2 => ['September', 'October', 'November'],
+                3 => ['December', 'January', 'February'],
+                4 => ['March', 'April', 'May'],
+            ][$period];
+            $headers = array_merge(['No.', 'LRN', 'Learner name'], $months);
+            $sheet->fromArray($headers, null, 'A3');
+            $sheet->setCellValue('C4', 'Days of School');
+            $sheet->freezePane('D5');
+            $sheet->getColumnDimension('B')->setWidth(20);
+            $sheet->getColumnDimension('C')->setWidth(32);
+            foreach (range('D', chr(67 + count($months))) as $column) {
+                $sheet->getColumnDimension($column)->setWidth(16);
+            }
+        }
+
+        $lastColumn = $type === 'summary' ? 'N' : chr(67 + count($months));
+        $sheet->mergeCells("A1:{$lastColumn}1");
+        $sheet->getRowDimension(1)->setRowHeight(28);
+        $sheet->getStyle("A1:{$lastColumn}1")->getFont()->setBold(true)->setSize(12)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle("A1:{$lastColumn}1")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('000638');
+        $sheet->getStyle("A1:{$lastColumn}1")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle("A3:{$lastColumn}3")->getFont()->setBold(true);
+        $sheet->getStyle("A3:{$lastColumn}3")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFD22D');
+        $sheet->getStyle("A3:{$lastColumn}100")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('CBD5E1');
+        $sheet->getColumnDimension('A')->setWidth(8);
+
+        $instructions = $spreadsheet->createSheet();
+        $instructions->setTitle('Instructions');
+        $instructions->fromArray([
+            ['How to use this template'],
+            ['1. Keep the title row; it is used to validate school year, grade, and grading period.'],
+            ['2. Enter one learner per row. Do not merge learner rows.'],
+            [$type === 'summary' ? '3. Subject columns are dynamic: rename, add, or remove subject columns as needed.' : '3. Enter school days on row 4 and each learner’s days present below it.'],
+            ['4. Save as .xlsx, then upload it to the matching slot.'],
+        ], null, 'A1');
+        $instructions->getColumnDimension('A')->setWidth(110);
+        $instructions->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+
+        return $spreadsheet;
     }
 
     private function columnNumber(string $column): int

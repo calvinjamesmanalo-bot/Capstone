@@ -1,8 +1,11 @@
 <?php
 
-if (!function_exists('record_log')) {
-    function record_log($action, $module, $description = null, $status = 'success') {
-        \App\Models\ActivityLog::create([
+use App\Models\ActivityLog;
+
+if (! function_exists('record_log')) {
+    function record_log($action, $module, $description = null, $status = 'success')
+    {
+        ActivityLog::create([
             'user_id' => auth()->id(),
             'action' => $action,
             'module' => $module,

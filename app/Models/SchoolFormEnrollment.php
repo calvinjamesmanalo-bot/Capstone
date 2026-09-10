@@ -1,15 +1,32 @@
 <?php
+
 namespace App\Models;
+
 use Illuminate\Database\Eloquent\Model;
 use RuntimeException;
+
 class SchoolFormEnrollment extends Model
 {
     protected $connection = 'school_forms';
+
     protected $table = 'student_enrollments';
+
     protected $fillable = ['student_id', 'school_year', 'level', 'section', 'adviser_name'];
-    public function student() { return $this->belongsTo(SchoolFormStudent::class, 'student_id'); }
-    public function grades() { return $this->hasMany(SchoolFormGrade::class, 'student_enrollment_id'); }
-    public function attendance() { return $this->hasMany(SchoolFormAttendance::class, 'student_enrollment_id'); }
+
+    public function student()
+    {
+        return $this->belongsTo(SchoolFormStudent::class, 'student_id');
+    }
+
+    public function grades()
+    {
+        return $this->hasMany(SchoolFormGrade::class, 'student_enrollment_id');
+    }
+
+    public function attendance()
+    {
+        return $this->hasMany(SchoolFormAttendance::class, 'student_enrollment_id');
+    }
 
     public static function resolveForImport(
         SchoolFormStudent $student,

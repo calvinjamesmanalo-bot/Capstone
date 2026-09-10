@@ -7,6 +7,9 @@ use App\Models\Setting;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class RequestController extends Controller
 {
@@ -101,7 +104,8 @@ class RequestController extends Controller
         // Validation changes based on user role and payment method
         $rules = [
             'document_type' => 'required|string|in:Form 137,Form 138,Certificate of Enrollment,Certificate of Completion,Certificate of Good Moral Character,Certificate of Recognition,Diploma',
-            'school_year' => 'required_if:document_type,Form 138|nullable|regex:/^\d{4}-\d{4}$/',
+            'school_year' => ['required_if:document_type,Form 138', 'nullable', Rule::in(config('academics.school_years', []))],
+            'school_level' => ['required_if:document_type,Form 137', 'nullable', Rule::in(['kinder', 'elementary', 'jhs', 'shs'])],
             'delivery_method' => 'required|string|in:pickup,delivery',
             'payment_method' => 'required|string|in:cash,gcash,bank_transfer',
             'release_location' => 'nullable|string',
@@ -176,27 +180,43 @@ class RequestController extends Controller
             $ticketNumber = 'REQ-'.date('Y').'-'.strtoupper(bin2hex(random_bytes(3)));
         }
 
-        // Keep using the existing database column for compatibility with prior requests.
-        $transcriptReceiptPath = $request->file('transcript_receipt')
-            ->store('transcript_receipts', 'public');
+        $receipt = $request->file('transcript_receipt');
+        $receiptExtension = $receipt->extension();
+        $transcriptReceiptPath = $receipt->storeAs(
+            'transcript_receipts/'.now()->format('Y/m'),
+            Str::uuid().'.'.$receiptExtension,
+            'local'
+        );
 
         $documentPrice = $this->documentPrices()[$request->document_type];
 
-        RequestDocument::create([
+        $createdRequest = RequestDocument::create([
             'ticket_number' => $ticketNumber,
             'student_number' => $studentNumber,
             'document_type' => $request->document_type,
             'school_year' => $request->document_type === 'Form 138' ? $request->school_year : null,
+            'school_level' => $request->document_type === 'Form 137' ? $request->school_level : null,
             'document_price' => $documentPrice,
             'delivery_method' => $request->delivery_method,
             'payment_method' => $request->payment_method,
             'release_location' => $request->release_location,
             'payment_proof_path' => $transcriptReceiptPath,
+            'payment_proof_disk' => 'local',
+            'payment_proof_original_name' => $receipt->getClientOriginalName(),
+            'payment_proof_mime_type' => $receipt->getMimeType(),
+            'payment_proof_size' => $receipt->getSize(),
+            'payment_proof_sha256' => hash_file('sha256', $receipt->getRealPath()),
             'clearance_status' => $clearanceStatus,
             'financial_balance' => $financialBalance,
             'payment_confirmed' => false,
             'status' => 'pending',
         ]);
+
+        record_log(
+            'Uploaded Payment Receipt',
+            'File Security',
+            "Uploaded receipt for request #{$createdRequest->id}; student: {$studentNumber}; MIME: {$createdRequest->payment_proof_mime_type}; size: {$createdRequest->payment_proof_size} bytes; role: ".($user?->role ?? 'unknown')
+        );
 
         // Reset the bypass flag after one successful bypass
         if ($canBypass) {
@@ -218,6 +238,56 @@ class RequestController extends Controller
         }
 
         return redirect()->back()->with('success', $message);
+    }
+
+    public function receipt(Request $request, RequestDocument $requestDocument)
+    {
+        $user = $request->user();
+        $isOwner = $user?->role === 'student'
+            && filled($user->student_number)
+            && hash_equals((string) $requestDocument->student_number, (string) $user->student_number);
+        $isStaff = in_array($user?->role, ['admin', 'registrar', 'records_officer'], true);
+
+        if (! $isOwner && ! $isStaff) {
+            record_log(
+                'Receipt Access Denied',
+                'File Security',
+                "Denied receipt access for request #{$requestDocument->id}; role: ".($user?->role ?? 'unknown'),
+                'denied'
+            );
+            abort(403);
+        }
+        if (blank($requestDocument->payment_proof_path)) {
+            record_log('Receipt File Missing', 'File Security', "Receipt unavailable for request #{$requestDocument->id}", 'missing');
+            abort(404);
+        }
+
+        // Rows created before private receipt storage used the public disk.
+        $disk = $requestDocument->payment_proof_disk ?: 'public';
+        if (! in_array($disk, ['local', 'public'], true) || ! Storage::disk($disk)->exists($requestDocument->payment_proof_path)) {
+            record_log('Receipt File Missing', 'File Security', "Receipt unavailable for request #{$requestDocument->id}", 'missing');
+            abort(404);
+        }
+
+        $downloadName = $requestDocument->payment_proof_original_name
+            ?: basename($requestDocument->payment_proof_path);
+
+        record_log(
+            'Viewed Payment Receipt',
+            'File Security',
+            "Viewed receipt for request #{$requestDocument->id}; student: {$requestDocument->student_number}; role: {$user->role}"
+        );
+
+        return Storage::disk($disk)->response(
+            $requestDocument->payment_proof_path,
+            $downloadName,
+            [
+                'Cache-Control' => 'private, no-store, max-age=0',
+                'Pragma' => 'no-cache',
+                'X-Content-Type-Options' => 'nosniff',
+                'Content-Security-Policy' => "default-src 'none'; sandbox",
+            ]
+        );
     }
 
     private function documentPrices(): array
@@ -255,9 +325,7 @@ class RequestController extends Controller
     {
         $user = auth()->user();
 
-        if (! in_array($user->role, ['registrar', 'admin', 'records_officer'])) {
-            return redirect()->back()->with('error', 'Unauthorized access.');
-        }
+        abort_unless(in_array($user?->role, ['registrar', 'admin', 'records_officer'], true), 403);
 
         $requestDoc = RequestDocument::findOrFail($request_id);
 
@@ -275,9 +343,7 @@ class RequestController extends Controller
     {
         $user = auth()->user();
 
-        if (! in_array($user->role, ['registrar', 'admin'])) {
-            return redirect()->back()->with('error', 'Only Registrar or Admin can update clearance status.');
-        }
+        abort_unless(in_array($user?->role, ['registrar', 'admin'], true), 403);
 
         $request->validate([
             'clearance_status' => 'required|string|in:cleared,pending_clearance,has_balance',
@@ -299,6 +365,8 @@ class RequestController extends Controller
     public function updateStatus(Request $request, $request_id)
     {
         $user = auth()->user();
+        abort_unless(in_array($user?->role, ['registrar', 'admin', 'records_officer'], true), 403);
+
         $request->validate([
             'status' => 'required|string|in:pending,processing,processed,ready_to_release,completed,rejected',
             'remarks' => 'nullable|string',
@@ -348,6 +416,8 @@ class RequestController extends Controller
 
     public function clearHistory(Request $request)
     {
+        abort_unless($request->user()?->role === 'admin', 403);
+
         $validated = $request->validate([
             'action' => 'required|string|in:completed,rejected,all',
         ]);
@@ -370,9 +440,7 @@ class RequestController extends Controller
 
     public function resetAll()
     {
-        if (auth()->user()->role !== 'admin') {
-            return redirect()->back()->with('error', 'Only Admins can perform a full system reset of requests.');
-        }
+        abort_unless(auth()->user()?->role === 'admin', 403);
 
         $count = RequestDocument::count();
         RequestDocument::truncate();

@@ -2,12 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
-use App\Models\User;
-use App\Models\RequestDocument;
 use App\Models\ActivityLog;
 use App\Models\Grade;
+use App\Models\RequestDocument;
+use App\Models\User;
 
 class DashboardController extends Controller
 {
@@ -26,9 +24,9 @@ class DashboardController extends Controller
             $data['recent_logs'] = ActivityLog::with('user')->latest()->limit(5)->get();
             $data['recent_requests'] = RequestDocument::with('student')->latest()->limit(5)->get();
             $data['total_grades'] = Grade::count();
-        } else if ($role === 'student') {
+        } elseif ($role === 'student') {
             $student_number = $user->student_number ?? session('student_number');
-            
+
             if ($student_number) {
                 // Active Requests: Pending, Processing, Processed (Registrar Approval), Ready to Release
                 $data['active_requests'] = RequestDocument::where('student_number', $student_number)

@@ -34,7 +34,7 @@ class DocumentWorkbookVerification
 
     private function normalizeBooleanStyleTags(string $path): void
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($path) !== true) {
             return;
         }
@@ -69,7 +69,7 @@ class DocumentWorkbookVerification
         $sheet->getStyle('B3:F3')->getFont()->setBold(true)->getColor()->setRGB('667085');
         $sheet->getStyle('B2:F3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        $drawing = new Drawing();
+        $drawing = new Drawing;
         $drawing->setName('Signed verification QR');
         $drawing->setDescription('Scan to verify this document');
         $drawing->setPath($temporaryQr);

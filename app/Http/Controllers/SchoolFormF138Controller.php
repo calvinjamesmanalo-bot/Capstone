@@ -3,18 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\RequestDocument;
-use App\Models\SchoolFormAttendance as StudentAttendance;
 use App\Models\SchoolFormEnrollment as StudentEnrollment;
-use App\Models\SchoolFormGrade as StudentGrade;
 use App\Models\SchoolFormStudent as Student;
 use App\Models\SchoolFormUpload as GradeSheetUpload;
+use App\Models\Student as RequestStudent;
 use App\Support\DocumentIssuanceService;
+use App\Support\AcademicPeriod;
 use App\Support\GradeSheetImporter;
+use App\Support\GradeSheetRecordImporter;
+use App\Support\LearningAreaNormalizer;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -22,46 +25,171 @@ use Throwable;
 
 class SchoolFormF138Controller extends Controller
 {
-    public function storeGradeSheets(Request $request, GradeSheetImporter $importer)
+    public function storeGradeSheets(Request $request, GradeSheetImporter $importer, GradeSheetRecordImporter $recordImporter)
     {
         $this->authorizeGradeStaff();
         $validated = $request->validate([
-            'grade_school_year' => ['required', Rule::in(['2020-2021', '2021-2022', '2022-2023'])],
-            'grade_level' => ['required', Rule::in(['Grade 1', 'Grade 2', 'Grade 3'])],
-            'grade_section' => ['required', Rule::in(['Amity'])],
-            'grading_period' => ['required', 'integer', Rule::in([1, 2, 3, 4])],
-            'attendance_file' => ['required', 'file', 'mimes:xlsx', 'max:20480'],
-            'summary_file' => ['required', 'file', 'mimes:xlsx', 'max:20480'],
+            'grade_school_year' => ['required', Rule::in(config('academics.school_years', []))],
+            'grade_level' => ['required', Rule::in(config('academics.grade_levels', []))],
+            'grade_section' => ['required', Rule::in(['Bambi'])],
+            'summary_files' => ['nullable', 'array'],
+            'summary_files.*' => ['nullable', 'file', 'mimes:xlsx', 'max:20480'],
+            'attendance_files' => ['nullable', 'array'],
+            'attendance_files.*' => ['nullable', 'file', 'mimes:xlsx', 'max:20480'],
+            // Legacy fields remain accepted for old links and integrations.
+            'grading_period' => ['nullable', 'integer', Rule::in([1, 2, 3, 4])],
+            'attendance_file' => ['nullable', 'file', 'mimes:xlsx', 'max:20480'],
+            'summary_file' => ['nullable', 'file', 'mimes:xlsx', 'max:20480'],
+            'replace_existing' => ['nullable', 'boolean'],
         ], [], [
             'grade_school_year' => 'school year',
             'grade_level' => 'grade level',
             'grade_section' => 'section',
             'grading_period' => 'grading period',
-            'attendance_file' => 'attendance sheet',
-            'summary_file' => 'summary sheet',
+            'attendance_files.*' => 'attendance sheet',
+            'summary_files.*' => 'summary sheet',
         ]);
 
         $schoolYear = $validated['grade_school_year'];
         $level = $validated['grade_level'];
         $section = $validated['grade_section'];
-        $period = (int) $validated['grading_period'];
+        $periodNumbers = AcademicPeriod::numbers($schoolYear);
+        $files = [];
+
+        foreach (['summary_files', 'attendance_files'] as $field) {
+            foreach (array_keys($request->file($field, [])) as $period) {
+                if (! in_array((int) $period, $periodNumbers, true)) {
+                    throw ValidationException::withMessages([
+                        'grade_sheets' => "{$schoolYear} uses three terms. Fourth-period uploads are not accepted.",
+                    ]);
+                }
+            }
+        }
+
+        foreach ($periodNumbers as $period) {
+            foreach (['summary', 'attendance'] as $type) {
+                $file = $request->file("{$type}_files.{$period}");
+                if ($file) {
+                    $files[] = compact('file', 'type', 'period');
+                }
+            }
+        }
+
+        $legacyUpload = $request->hasFile('summary_file') || $request->hasFile('attendance_file');
+        if ($legacyUpload) {
+            $period = (int) ($validated['grading_period'] ?? 0);
+            if (! in_array($period, $periodNumbers, true) || ! $request->hasFile('summary_file') || ! $request->hasFile('attendance_file')) {
+                throw ValidationException::withMessages([
+                    'grade_sheets' => 'Legacy uploads require a valid period plus both attendance and summary sheets.',
+                ]);
+            }
+            foreach (['summary', 'attendance'] as $type) {
+                $file = $request->file("{$type}_file");
+                $files[] = compact('file', 'type', 'period');
+            }
+        }
+
+        if ($files === []) {
+            throw ValidationException::withMessages([
+                'grade_sheets' => 'Choose at least one summary or attendance workbook to upload.',
+            ]);
+        }
 
         try {
-            $importer->assertMatchesSelection($request->file('summary_file')->getRealPath(), $schoolYear, $level, $period);
-            $importer->assertMatchesSelection($request->file('attendance_file')->getRealPath(), $schoolYear, $level, $period);
-
-            DB::connection('school_forms')->transaction(function () use ($request, $importer, $schoolYear, $level, $section, $period) {
-                $this->importFile($request->file('summary_file'), 'summary', $period, $schoolYear, $level, $section, $importer);
-                $this->importFile($request->file('attendance_file'), 'attendance', $period, $schoolYear, $level, $section, $importer);
-            });
+            // Validate every workbook before writing anything. A bad file cannot
+            // leave the class with a half-imported grading period.
+            foreach ($files as $item) {
+                try {
+                    $importer->assertMatchesSelection(
+                        $item['file']->getRealPath(),
+                        $schoolYear,
+                        $level,
+                        $item['period'],
+                    );
+                } catch (RuntimeException $exception) {
+                    throw new RuntimeException($this->uploadSlotLabel($schoolYear, $item['period'], $item['type']).': '.$exception->getMessage());
+                }
+            }
         } catch (RuntimeException $exception) {
             throw ValidationException::withMessages(['grade_sheets' => $exception->getMessage()]);
         }
 
-        $periodName = ['First', 'Second', 'Third', 'Fourth'][$period - 1];
+        $existingUploads = GradeSheetUpload::query()
+            ->where('school_year', $schoolYear)
+            ->where('level', $level)
+            ->where('section', $section)
+            ->get()
+            ->keyBy(fn (GradeSheetUpload $upload) => "{$upload->grading_period}:{$upload->file_type}");
+        $replacements = collect($files)->filter(
+            fn (array $item) => $existingUploads->has("{$item['period']}:{$item['type']}")
+        );
 
-        return redirect()->route('school-forms.records')
-            ->with('status', "{$periodName} grading attendance and summary sheets were uploaded.");
+        if ($replacements->isNotEmpty() && ! $legacyUpload && ! $request->boolean('replace_existing')) {
+            $labels = $replacements->map(fn (array $item) => $this->uploadSlotLabel($schoolYear, $item['period'], $item['type']))->join(', ');
+            throw ValidationException::withMessages([
+                'replace_existing' => "These slots already contain files: {$labels}. Check the replacement confirmation before uploading.",
+            ]);
+        }
+
+        $newPaths = [];
+        $oldPaths = [];
+        try {
+            DB::connection('school_forms')->transaction(function () use ($files, $recordImporter, $schoolYear, $level, $section, &$newPaths, &$oldPaths) {
+                foreach ($files as $item) {
+                    [$newPath, $oldPath] = $this->importFile(
+                        $item['file'],
+                        $item['type'],
+                        $item['period'],
+                        $schoolYear,
+                        $level,
+                        $section,
+                        $recordImporter,
+                    );
+                    $newPaths[] = $newPath;
+                    if ($oldPath && $oldPath !== $newPath) {
+                        $oldPaths[] = $oldPath;
+                    }
+                }
+            });
+        } catch (RuntimeException $exception) {
+            Storage::disk('school_forms_local')->delete($newPaths);
+            throw ValidationException::withMessages(['grade_sheets' => $exception->getMessage()]);
+        } catch (Throwable $exception) {
+            Storage::disk('school_forms_local')->delete($newPaths);
+            throw $exception;
+        }
+
+        Storage::disk('school_forms_local')->delete(array_unique($oldPaths));
+        $periods = collect($files)->pluck('period')->unique()->sort()->map(
+            fn (int $period) => AcademicPeriod::label($schoolYear, $period)
+        )->join(', ');
+        $uploadedCount = count($files);
+        $replacementCount = $replacements->count();
+        $sampleEnrollment = StudentEnrollment::query()
+            ->with('student')
+            ->where('school_year', $schoolYear)
+            ->where('level', $level)
+            ->where('section', $section)
+            ->first();
+        $previewUrl = null;
+        if ($sampleEnrollment?->student && in_array(auth()->user()->role, ['admin', 'records_officer'], true)) {
+            $previewUrl = route('school-forms.f138.preview', [
+                'student' => $sampleEnrollment->student->student_number ?: $sampleEnrollment->student->lrn,
+                'school_year' => $schoolYear,
+            ]);
+        }
+
+        $redirect = $legacyUpload
+            ? redirect()->route('school-forms.records')
+            : redirect()->route('school-forms.records', ['school_year' => $schoolYear, 'level' => $level, 'section' => $section]);
+
+        return $redirect->with('status', "{$uploadedCount} workbook(s) imported for {$periods}. {$replacementCount} existing slot(s) replaced.")
+            ->with('grade_sheet_import_result', [
+                'uploaded' => $uploadedCount,
+                'replaced' => $replacementCount,
+                'periods' => $periods,
+                'preview_url' => $previewUrl,
+            ]);
     }
 
     public function preview(Request $request)
@@ -156,13 +284,36 @@ class SchoolFormF138Controller extends Controller
     {
         $validated = $request->validate([
             'student' => ['required', 'string', 'max:40'],
-            'school_year' => ['required', Rule::in(['2020-2021', '2021-2022', '2022-2023'])],
+            'school_year' => ['required', Rule::in(config('academics.school_years', []))],
             'request_id' => ['nullable', 'integer', 'exists:request_documents,id'],
         ]);
 
-        $student = Student::findByIdentifier($validated['student']);
+        $identifier = trim($validated['student']);
+        $numericIdentifier = preg_replace('/\D/', '', $identifier) ?: '';
+        $rosterStudent = RequestStudent::query()
+            ->where(function ($query) use ($identifier, $numericIdentifier) {
+                $query->where('student_number', $identifier);
+                if (strlen($numericIdentifier) >= 10) {
+                    $query->orWhere('lrn', $numericIdentifier);
+                }
+            })
+            ->first();
+
+        $student = Student::findByIdentifier($identifier);
+        if (! $student && $rosterStudent?->lrn) {
+            $student = Student::findByIdentifier($rosterStudent->lrn);
+        }
+
         if (! $student) {
             throw ValidationException::withMessages(['student' => 'No student record was found for this student number or LRN.']);
+        }
+
+        // Grade sheets may identify a learner by LRN while requests use the
+        // official student number. Keep the imported record unchanged while
+        // presenting and validating it with the roster's official identifiers.
+        if ($rosterStudent) {
+            $student->setAttribute('student_number', $rosterStudent->student_number);
+            $student->setAttribute('lrn', $rosterStudent->lrn ?: $student->lrn);
         }
 
         $enrollmentQuery = $student->enrollments()->with(['grades', 'attendance']);
@@ -173,14 +324,18 @@ class SchoolFormF138Controller extends Controller
         }
         $this->ensureTeacherName($enrollment);
 
-        $gradeMatrix = [];
-        foreach ($enrollment->grades as $grade) {
-            $gradeMatrix[$grade->learning_area][$grade->grading_period] = $grade->grade;
-        }
+        $gradeMatrix = LearningAreaNormalizer::matrix($enrollment->grades);
 
         $attendance = [];
         foreach ($enrollment->attendance->sortBy('grading_period') as $record) {
-            $attendance[$record->month] = ['school_days' => $record->school_days, 'days_present' => $record->days_present];
+            if ($record->school_days === null && $record->days_present === null) {
+                continue;
+            }
+
+            $attendance[$record->month] = [
+                'school_days' => $record->school_days ?? ($attendance[$record->month]['school_days'] ?? null),
+                'days_present' => $record->days_present ?? ($attendance[$record->month]['days_present'] ?? null),
+            ];
         }
 
         return [$student, $enrollment, $gradeMatrix, $attendance];
@@ -212,56 +367,45 @@ class SchoolFormF138Controller extends Controller
         ];
     }
 
-    private function importFile($file, string $type, int $period, string $schoolYear, string $level, string $section, GradeSheetImporter $importer): void
+    private function importFile($file, string $type, int $period, string $schoolYear, string $level, string $section, GradeSheetRecordImporter $importer): array
     {
         if (! $file) {
             throw new RuntimeException("Missing {$type} file for grading period {$period}.");
         }
 
         $folder = "grade-sheets/{$schoolYear}/".str_replace(' ', '-', strtolower("{$level}-{$section}"));
-        $name = "{$period}-{$type}-".now()->format('YmdHis').'.xlsx';
+        $name = "{$period}-{$type}-".Str::uuid().'.xlsx';
         $path = $file->storeAs($folder, $name, 'school_forms_local');
-
-        GradeSheetUpload::updateOrCreate([
-            'school_year' => $schoolYear, 'level' => $level, 'section' => $section, 'grading_period' => $period, 'file_type' => $type,
-        ], ['original_name' => $file->getClientOriginalName(), 'stored_path' => $path]);
-
-        $storedFile = Storage::disk('school_forms_local')->path($path);
-        $teacherName = $importer->teacherName($storedFile);
-        $records = $type === 'summary' ? $importer->summaries($storedFile) : $importer->attendance($storedFile);
-        foreach ($records as $record) {
-            $identifierColumn = $type === 'summary' ? 'student_number' : 'lrn';
-            $identifier = $record[$identifierColumn];
-            $student = Student::findByIdentifier($identifier);
-            if (! $student && $record['name'] !== '') {
-                $student = Student::findByName($record['name']);
-            }
-            if (! $student) {
-                $student = Student::create([
-                    $identifierColumn => $identifier,
-                    'name' => $record['name'] ?: $identifier,
-                ]);
-            } elseif (! $student->{$identifierColumn}) {
-                $student->update([$identifierColumn => $identifier]);
-            }
-            if ($record['name'] !== '') {
-                $student->update(['name' => $record['name']]);
-            }
-            $enrollment = StudentEnrollment::resolveForImport($student, $schoolYear, $level, $section, $teacherName);
-            if ($type === 'summary') {
-                foreach ($record['grades'] as $area => $grade) {
-                    StudentGrade::updateOrCreate(
-                        ['student_enrollment_id' => $enrollment->id, 'grading_period' => $period, 'learning_area' => $area], ['grade' => $grade]
-                    );
-                }
-            } else {
-                foreach ($record['months'] as $month => $values) {
-                    StudentAttendance::updateOrCreate(
-                        ['student_enrollment_id' => $enrollment->id, 'grading_period' => $period, 'month' => $month], $values
-                    );
-                }
-            }
+        if (! $path) {
+            throw new RuntimeException("The {$type} workbook for grading period {$period} could not be stored.");
         }
+
+        $upload = GradeSheetUpload::firstOrNew([
+            'school_year' => $schoolYear, 'level' => $level, 'section' => $section, 'grading_period' => $period, 'file_type' => $type,
+        ]);
+        $oldPath = $upload->exists ? $upload->stored_path : null;
+        $upload->fill(['original_name' => $file->getClientOriginalName(), 'stored_path' => $path])->save();
+
+        try {
+            $importer->import(
+                Storage::disk('school_forms_local')->path($path),
+                $type,
+                $period,
+                $schoolYear,
+                $level,
+                $section,
+            );
+        } catch (Throwable $exception) {
+            Storage::disk('school_forms_local')->delete($path);
+            throw $exception;
+        }
+
+        return [$path, $oldPath];
+    }
+
+    private function uploadSlotLabel(string $schoolYear, int $period, string $type): string
+    {
+        return AcademicPeriod::label($schoolYear, $period).' '.ucfirst($type);
     }
 
     private function ensureTeacherName(StudentEnrollment $enrollment): void

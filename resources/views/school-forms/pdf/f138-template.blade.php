@@ -56,8 +56,10 @@
     <div class="draft-watermark">DRAFT<br><span>NOT YET OFFICIALLY ISSUED</span></div>
 @endif
 @php
-    $areas = ['Language', 'Reading and Literacy', 'Mathematics', 'Makabansa', 'Good Manners and Right Conduct'];
     $gradeMatrix = $gradeMatrix ?? [];
+    $areas = array_keys(array_filter($gradeMatrix, fn ($quarters) => collect($quarters)->contains(fn ($grade) => $grade !== null)));
+    natcasesort($areas);
+    $areas = array_values($areas);
     $attendance = $attendance ?? [];
     $finalRatings = [];
     foreach ($areas as $area) {
@@ -67,6 +69,18 @@
     $availableFinals = array_values(array_filter($finalRatings, fn ($grade) => $grade !== null));
     $generalAverage = $availableFinals ? round(array_sum($availableFinals) / count($availableFinals)) : null;
     $nextLevel = isset($enrollment) ? ((int) filter_var($enrollment->level, FILTER_SANITIZE_NUMBER_INT)) + 1 : null;
+    $academicMonthOrder = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March', 'April', 'May'];
+    $attendanceMonths = array_values(array_filter(
+        $academicMonthOrder,
+        fn ($month) => isset($attendance[$month])
+            && (($attendance[$month]['school_days'] ?? null) !== null || ($attendance[$month]['days_present'] ?? null) !== null)
+    ));
+    foreach (array_keys($attendance) as $month) {
+        if (!in_array($month, $attendanceMonths, true)) {
+            $attendanceMonths[] = $month;
+        }
+    }
+    $monthLabels = ['January'=>'Jan','February'=>'Feb','March'=>'Mar','April'=>'Apr','May'=>'May','June'=>'Jun','July'=>'Jul','August'=>'Aug','September'=>'Sept','October'=>'Oct','November'=>'Nov','December'=>'Dec'];
 @endphp
 <div class="page">
     <div class="school-header">
@@ -98,7 +112,7 @@
                 <td>{{ $finalRatings[$area] !== null ? number_format($finalRatings[$area], 0) : '' }}</td>
             </tr>
         @endforeach
-        @for ($row = 0; $row < 5; $row++)<tr class="blank-row"><td class="learning"></td><td></td><td></td><td></td><td></td><td></td></tr>@endfor
+        @for ($row = count($areas); $row < 10; $row++)<tr class="blank-row"><td class="learning"></td><td></td><td></td><td></td><td></td><td></td></tr>@endfor
         </tbody>
     </table>
     <table class="summary"><tr><td class="summary-label">GENERAL AVERAGE</td><td class="summary-value">{{ $generalAverage !== null ? number_format($generalAverage, 0) : '' }}</td></tr></table>
@@ -106,11 +120,10 @@
 
     <div class="section-title">ATTENDANCE REPORT</div>
     <table class="attendance">
-        @php($pdfMonths = ['Aug'=>'August','Sept'=>'September','Oct'=>'October','Nov'=>'November','Dec'=>'December','Jan'=>'January','Feb'=>'February','Mar'=>'March','Apr'=>'April','May'=>'May','Jun'=>'June'])
-        <thead><tr><th class="row-label"></th>@foreach ($pdfMonths as $label=>$month)<th>{{ $label }}</th>@endforeach<th class="total">TOTAL</th></tr></thead>
+        <thead><tr><th class="row-label"></th>@foreach ($attendanceMonths as $month)<th>{{ $monthLabels[$month] ?? $month }}</th>@endforeach<th class="total">TOTAL</th></tr></thead>
         <tbody>
-            <tr><td class="row-label">Days of School</td>@foreach ($pdfMonths as $month)<td>{{ $attendance[$month]['school_days'] ?? '' }}</td>@endforeach<td>{{ collect($pdfMonths)->sum(fn ($month) => $attendance[$month]['school_days'] ?? 0) ?: '' }}</td></tr>
-            <tr><td class="row-label">Days Present</td>@foreach ($pdfMonths as $month)<td>{{ $attendance[$month]['days_present'] ?? '' }}</td>@endforeach<td>{{ collect($pdfMonths)->sum(fn ($month) => $attendance[$month]['days_present'] ?? 0) ?: '' }}</td></tr>
+            <tr><td class="row-label">Days of School</td>@foreach ($attendanceMonths as $month)<td>{{ $attendance[$month]['school_days'] ?? '' }}</td>@endforeach<td>{{ collect($attendanceMonths)->sum(fn ($month) => $attendance[$month]['school_days'] ?? 0) ?: '' }}</td></tr>
+            <tr><td class="row-label">Days Present</td>@foreach ($attendanceMonths as $month)<td>{{ $attendance[$month]['days_present'] ?? '' }}</td>@endforeach<td>{{ collect($attendanceMonths)->sum(fn ($month) => $attendance[$month]['days_present'] ?? 0) ?: '' }}</td></tr>
         </tbody>
     </table>
 

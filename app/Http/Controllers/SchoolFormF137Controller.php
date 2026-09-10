@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\RequestDocument;
 use App\Models\SchoolFormStudent as Student;
 use App\Models\SchoolFormUpload as GradeSheetUpload;
-use App\Support\GradeSheetImporter;
-use App\Support\Form137WorkbookGenerator;
-use App\Support\SchoolProfile;
-use App\Support\XlsxWorkbookReader;
+use App\Models\Student as RequestStudent;
 use App\Support\DocumentQrCode;
 use App\Support\DocumentWorkbookVerification;
-use App\Models\RequestDocument;
+use App\Support\Form137WorkbookGenerator;
+use App\Support\GradeSheetImporter;
+use App\Support\LearningAreaNormalizer;
+use App\Support\SchoolProfile;
+use App\Support\XlsxWorkbookReader;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,12 +23,15 @@ use RuntimeException;
 
 class SchoolFormF137Controller extends Controller
 {
-    public function preview(Request $request)
+    public function preview(Request $request, SchoolProfile $schoolProfile)
     {
         $this->authorizeRecordsStaff();
         [$student, $records] = $this->studentRecords($request);
+        $profile = $schoolProfile->values();
+        $nameParts = $this->splitName($student->name);
+        $requestId = $request->integer('request_id') ?: null;
 
-        return view('school-forms.f137-preview', compact('student', 'records'));
+        return view('school-forms.f137-preview', compact('student', 'records', 'profile', 'nameParts', 'requestId'));
     }
 
     public function download(
@@ -35,8 +40,7 @@ class SchoolFormF137Controller extends Controller
         SchoolProfile $schoolProfile,
         DocumentQrCode $qrCodes,
         DocumentWorkbookVerification $workbookVerification
-    )
-    {
+    ) {
         $this->authorizeRecordsStaff();
         [$student, $records] = $this->studentRecords($request);
 
@@ -86,12 +90,34 @@ class SchoolFormF137Controller extends Controller
             'student' => ['required', 'string', 'max:40'],
         ]);
 
-        $student = Student::findByIdentifier($validated['student']);
+        $identifier = trim($validated['student']);
+        $numericIdentifier = preg_replace('/\D/', '', $identifier) ?: '';
+        $rosterStudent = RequestStudent::query()
+            ->where(function ($query) use ($identifier, $numericIdentifier) {
+                $query->where('student_number', $identifier);
+                if (strlen($numericIdentifier) >= 10) {
+                    $query->orWhere('lrn', $numericIdentifier);
+                }
+            })
+            ->first();
 
-        if (!$student) {
+        $student = Student::findByIdentifier($identifier);
+        if (! $student && $rosterStudent?->lrn) {
+            $student = Student::findByIdentifier($rosterStudent->lrn);
+        }
+
+        if (! $student) {
             throw ValidationException::withMessages([
                 'student' => 'No student record was found for this student number or LRN.',
             ]);
+        }
+
+        // Uploaded sheets can identify a learner by LRN while the request uses
+        // the official student number. Resolve through the main roster and use
+        // its identifiers for the preview, download, and request association.
+        if ($rosterStudent) {
+            $student->setAttribute('student_number', $rosterStudent->student_number);
+            $student->setAttribute('lrn', $rosterStudent->resolvedLrn() ?: $student->lrn);
         }
 
         $enrollments = $student->enrollments()
@@ -115,6 +141,7 @@ class SchoolFormF137Controller extends Controller
     public function template()
     {
         $this->authorizeRecordsStaff();
+
         return response()->download(
             base_path('generator/F137.xlsx'),
             'F137-Blank-Template.xlsx',
@@ -124,7 +151,7 @@ class SchoolFormF137Controller extends Controller
 
     private function formatEnrollment($enrollment): array
     {
-        if (!$enrollment->adviser_name) {
+        if (! $enrollment->adviser_name) {
             $upload = GradeSheetUpload::where([
                 'school_year' => $enrollment->school_year,
                 'level' => $enrollment->level,
@@ -132,19 +159,13 @@ class SchoolFormF137Controller extends Controller
             ])->orderByRaw("CASE WHEN file_type = 'attendance' THEN 0 ELSE 1 END")->latest()->first();
             if ($upload && Storage::disk('school_forms_local')->exists($upload->stored_path)) {
                 $teacher = app(GradeSheetImporter::class)->teacherName(Storage::disk('school_forms_local')->path($upload->stored_path));
-                if ($teacher) $enrollment->update(['adviser_name' => $teacher]);
+                if ($teacher) {
+                    $enrollment->update(['adviser_name' => $teacher]);
+                }
             }
         }
 
-        $gradeMatrix = [];
-
-        foreach ($enrollment->grades as $grade) {
-            $gradeMatrix[$grade->learning_area][(int) $grade->grading_period] = $grade->grade === null
-                ? null
-                : (float) $grade->grade;
-        }
-
-        ksort($gradeMatrix, SORT_NATURAL | SORT_FLAG_CASE);
+        $gradeMatrix = LearningAreaNormalizer::matrix($enrollment->grades);
 
         $areas = [];
         foreach ($gradeMatrix as $learningArea => $quarters) {
@@ -184,7 +205,9 @@ class SchoolFormF137Controller extends Controller
         } else {
             $tokens = preg_split('/\s+/', $name) ?: [];
             $parts['last'] = count($tokens) > 1 ? (string) array_pop($tokens) : ($tokens[0] ?? '');
-            if (count($tokens) === 1 && $parts['last'] === $tokens[0]) $tokens = [];
+            if (count($tokens) === 1 && $parts['last'] === $tokens[0]) {
+                $tokens = [];
+            }
         }
 
         foreach ($tokens as $index => $token) {
@@ -195,7 +218,9 @@ class SchoolFormF137Controller extends Controller
         }
 
         $tokens = array_values($tokens);
-        if (count($tokens) > 1) $parts['middle'] = (string) array_pop($tokens);
+        if (count($tokens) > 1) {
+            $parts['middle'] = (string) array_pop($tokens);
+        }
         $parts['first'] = implode(' ', $tokens);
 
         return $parts;
@@ -274,7 +299,7 @@ class SchoolFormF137Controller extends Controller
                 $sheets = $reader->read($uploadedFile->getRealPath());
             } catch (RuntimeException $exception) {
                 throw ValidationException::withMessages([
-                    'f138_files.' . $index => $exception->getMessage(),
+                    'f138_files.'.$index => $exception->getMessage(),
                 ]);
             }
 

@@ -75,6 +75,16 @@
                         </td>
                         <td class="px-5 py-6 align-top text-sm font-bold leading-6 text-slate-700">
                             {{ $req->document_type }}
+                            @if(in_array(strtolower($req->document_type), ['form 137', 'f137']) && $req->school_level)
+                                <div class="mt-2 text-xs font-black uppercase tracking-wider text-blue-700">
+                                    School level: {{ match($req->school_level) {
+                                        'kinder', 'elementary' => 'Kinder and Elementary',
+                                        'jhs' => 'Junior High School (JHS)',
+                                        'shs' => 'Senior High School (SHS)',
+                                        default => strtoupper($req->school_level),
+                                    } }}
+                                </div>
+                            @endif
                             @if(in_array(strtolower($req->document_type), ['form 138', 'f138']) && $req->school_year)
                                 <div class="mt-2 text-xs font-black uppercase tracking-wider text-blue-700">
                                     School year: {{ $req->school_year }}
@@ -188,7 +198,7 @@
                                         <!-- Payment & Clearance Actions -->
                                         <div class="flex flex-col gap-2">
                                             @if($req->payment_proof_path)
-                                                <a href="{{ asset('storage/' . $req->payment_proof_path) }}" target="_blank" class="px-3 py-2 bg-indigo-600 text-white text-xs font-black rounded-xl hover:bg-indigo-700 transition-all uppercase tracking-widest text-center">
+                                                <a href="{{ route('requests.receipt', $req) }}" target="_blank" rel="noopener noreferrer" class="px-3 py-2 bg-indigo-600 text-white text-xs font-black rounded-xl hover:bg-indigo-700 transition-all uppercase tracking-widest text-center">
                                                     View Transcript Receipt
                                                 </a>
                                             @endif

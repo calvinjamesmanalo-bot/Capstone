@@ -8,10 +8,10 @@ use App\Models\SchoolFormEnrollment;
 use App\Models\SchoolFormGrade;
 use App\Models\SchoolFormStudent;
 use App\Models\SchoolFormUpload;
-use App\Support\GradeSheetImporter;
-use App\Support\XlsxWorkbookReader;
 use App\Models\Student as RequestStudent;
 use App\Models\User;
+use App\Support\GradeSheetImporter;
+use App\Support\XlsxWorkbookReader;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -114,7 +114,10 @@ class SchoolFormsIntegrationTest extends TestCase
 
         $this->get(route('school-forms.f137.preview', $parameters))
             ->assertOk()
-            ->assertSee('F137 Preview')
+            ->assertSee('F137 Draft Preview')
+            ->assertSee('Learner Permanent Record for Elementary School')
+            ->assertSee('Print preview')
+            ->assertSee('SCHOLASTIC RECORD')
             ->assertSee('Mathematics');
 
         $f137 = $this->get(route('school-forms.f137.download', $parameters));
@@ -133,6 +136,145 @@ class SchoolFormsIntegrationTest extends TestCase
 
         $this->assertStringNotContainsString(':8001', route('school-forms.f137.preview', $parameters));
         $this->assertStringNotContainsString(':8001', route('school-forms.f138.preview', $f138Parameters));
+    }
+
+    public function test_f137_excel_uses_dynamic_database_subjects_without_fixed_row_collisions(): void
+    {
+        $enrollment = SchoolFormEnrollment::where('school_year', '2020-2021')->sole();
+        foreach ([
+            ['period' => 1, 'area' => 'Art', 'grade' => 91],
+            ['period' => 1, 'area' => 'Robotics', 'grade' => 93],
+            ['period' => 2, 'area' => 'Robotics', 'grade' => 94],
+        ] as $grade) {
+            SchoolFormGrade::create([
+                'student_enrollment_id' => $enrollment->id,
+                'grading_period' => $grade['period'],
+                'learning_area' => $grade['area'],
+                'grade' => $grade['grade'],
+            ]);
+        }
+
+        $staff = User::factory()->create(['role' => 'records_officer']);
+        $response = $this->actingAs($staff)->get(route('school-forms.f137.download', ['student' => '2020-0001']));
+        $response->assertOk();
+
+        $path = tempnam(sys_get_temp_dir(), 'dynamic-f137-');
+        file_put_contents($path, $response->streamedContent());
+
+        try {
+            $sheet = app(XlsxWorkbookReader::class)->read($path)[0];
+            $rows = collect($sheet['rows'])->keyBy('index');
+            $cells = fn (int $row): array => collect($rows->get($row)['cells'] ?? [])->pluck('value', 'column')->all();
+
+            $this->assertSame('Art', $cells(30)['B']);
+            $this->assertSame('91', (string) $cells(30)['G']);
+            $this->assertSame('Mathematics', $cells(31)['B']);
+            $this->assertSame('90', (string) $cells(31)['G']);
+            $this->assertSame('Robotics', $cells(32)['B']);
+            $this->assertSame('93', (string) $cells(32)['G']);
+            $this->assertSame('94', (string) $cells(32)['H']);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_f137_request_student_number_resolves_the_imported_lrn_and_opens_directly(): void
+    {
+        RequestStudent::create([
+            'student_number' => '2022-0001',
+            'lrn' => '424413240015',
+            'name' => 'Dela Cruz, Juan Santos',
+        ]);
+        $documentRequest = RequestDocument::create([
+            'student_number' => '2022-0001',
+            'document_type' => 'Form 137',
+            'status' => 'processing',
+        ]);
+        $staff = User::factory()->create(['role' => 'records_officer']);
+        $previewParameters = [
+            'student' => '2022-0001',
+            'request_id' => $documentRequest->id,
+        ];
+
+        $response = $this->actingAs($staff)->get(route('generator.maker', [
+            'documentRequest' => $documentRequest,
+            'form' => 'f137',
+        ]));
+        $response->assertRedirect(route('school-forms.f137.preview', $previewParameters));
+
+        $this->get($response->headers->get('Location'))
+            ->assertOk()
+            ->assertSee('F137 Draft Preview')
+            ->assertSee('2022-0001')
+            ->assertSee('Mathematics');
+
+        $this->get(route('school-forms.f137.download', ['student' => '2022-0001']))
+            ->assertOk()
+            ->assertDownload('F137-2022-0001.xlsx');
+    }
+
+    public function test_f138_request_student_number_resolves_the_imported_lrn_and_opens_the_preview_directly(): void
+    {
+        $staff = User::factory()->create(['role' => 'records_officer']);
+        $enrollment = SchoolFormEnrollment::where('school_year', '2020-2021')->sole();
+        SchoolFormGrade::create([
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 2,
+            'learning_area' => 'MATHEMATICS',
+            'grade' => 88,
+        ]);
+        SchoolFormGrade::create([
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 1,
+            'learning_area' => 'Good Manners and Right Conduct',
+            'grade' => 85,
+        ]);
+        SchoolFormGrade::create([
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 3,
+            'learning_area' => 'GMRC',
+            'grade' => 91,
+        ]);
+        SchoolFormGrade::create([
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 3,
+            'learning_area' => 'GEN. AVE.',
+            'grade' => 90,
+        ]);
+        RequestStudent::create([
+            'student_number' => '2022-0001',
+            'lrn' => '424413240015',
+            'name' => 'Test Student',
+        ]);
+        $documentRequest = RequestDocument::create([
+            'student_number' => '2022-0001',
+            'document_type' => 'Form 138',
+            'school_year' => '2020-2021',
+            'status' => 'processing',
+        ]);
+        $previewParameters = [
+            'student' => '2022-0001',
+            'school_year' => '2020-2021',
+            'request_id' => $documentRequest->id,
+        ];
+
+        $response = $this->actingAs($staff)->get(route('generator.maker', [
+            'documentRequest' => $documentRequest,
+            'form' => 'f138',
+        ]));
+        $response->assertRedirect(route('school-forms.f138.preview', $previewParameters));
+
+        $preview = $this->get($response->headers->get('Location'));
+        $preview
+            ->assertOk()
+            ->assertSee('F138 Draft Preview')
+            ->assertSee('2022-0001')
+            ->assertSeeInOrder(['Mathematics', '90', '88'])
+            ->assertSeeInOrder(['Good Manners and Right Conduct', '85', '91'])
+            ->assertDontSee('GEN. AVE.');
+
+        $this->assertSame(1, substr_count($preview->getContent(), '>Mathematics<'));
+        $this->assertSame(1, substr_count($preview->getContent(), '>Good Manners and Right Conduct<'));
     }
 
     public function test_existing_f138_preview_finalizes_into_a_signed_immutable_official_pdf(): void
@@ -212,7 +354,7 @@ class SchoolFormsIntegrationTest extends TestCase
                         'index' => 3,
                         'cells' => [
                             ['column' => 'A', 'value' => 'Academic Year 2021-2022'],
-                            ['column' => 'B', 'value' => 'Grade 2 - Amity'],
+                            ['column' => 'B', 'value' => 'Grade Four - Bambi'],
                             ['column' => 'C', 'value' => 'THIRD GRADING'],
                         ],
                     ]],
@@ -221,10 +363,138 @@ class SchoolFormsIntegrationTest extends TestCase
         };
         $importer = new GradeSheetImporter($reader);
 
-        $importer->assertMatchesSelection('unused.xlsx', '2021-2022', 'Grade 2', 3);
+        $importer->assertMatchesSelection('unused.xlsx', '2021-2022', 'Grade 4', 3);
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Workbook metadata mismatch');
-        $importer->assertMatchesSelection('unused.xlsx', '2020-2021', 'Grade 1', 3);
+        $importer->assertMatchesSelection('unused.xlsx', '2020-2021', 'Grade 5', 3);
+    }
+
+    public function test_import_recognizes_terms_starting_with_school_year_2026_2027(): void
+    {
+        $reader = new class extends XlsxWorkbookReader
+        {
+            public function read(string $filePath): array
+            {
+                return [[
+                    'name' => 'Sheet 1',
+                    'rows' => [[
+                        'index' => 3,
+                        'cells' => [
+                            ['column' => 'A', 'value' => 'Academic Year 2026-2027'],
+                            ['column' => 'B', 'value' => 'Grade Four - Bambi'],
+                            ['column' => 'C', 'value' => 'TERM 3'],
+                        ],
+                    ]],
+                ]];
+            }
+        };
+
+        (new GradeSheetImporter($reader))->assertMatchesSelection('unused.xlsx', '2026-2027', 'Grade 4', 3);
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_2026_2027_uploader_uses_three_terms_and_rejects_a_fourth_period(): void
+    {
+        Storage::fake('school_forms_local');
+        $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
+        $query = ['school_year' => '2026-2027', 'level' => 'Grade 4', 'section' => 'Bambi'];
+
+        $this->actingAs($recordsOfficer)
+            ->get(route('school-forms.records', $query))
+            ->assertOk()
+            ->assertSee('Single-term upload')
+            ->assertSee('Term to upload')
+            ->assertSee('First term')
+            ->assertSee('Third term')
+            ->assertSee('0/6');
+
+        $this->getJson(route('school-forms.grade-sheets.status', $query))
+            ->assertOk()
+            ->assertJsonPath('total', 6);
+
+        $this->from(route('school-forms.records', $query))
+            ->post(route('school-forms.grade-sheets.store'), [
+                'grade_school_year' => '2026-2027',
+                'grade_level' => 'Grade 4',
+                'grade_section' => 'Bambi',
+                'summary_files' => [
+                    4 => UploadedFile::fake()->create('fourth-term.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                ],
+            ])
+            ->assertRedirect(route('school-forms.records', $query))
+            ->assertSessionHasErrors('grade_sheets');
+
+        $this->assertDatabaseCount('grade_sheet_uploads', 0, 'school_forms');
+    }
+
+    public function test_summary_subjects_and_grades_are_read_from_the_uploaded_sheet(): void
+    {
+        $reader = new class extends XlsxWorkbookReader
+        {
+            public function read(string $filePath): array
+            {
+                return [['name' => 'Summary', 'rows' => [
+                    ['index' => 6, 'cells' => [
+                        ['column' => 'B', 'value' => 'Student Number'],
+                        ['column' => 'C', 'value' => 'Name'],
+                        ['column' => 'D', 'value' => 'Science'],
+                        ['column' => 'E', 'value' => 'Filipino'],
+                        ['column' => 'F', 'value' => 'General Average'],
+                    ]],
+                    ['index' => 7, 'cells' => [
+                        ['column' => 'B', 'value' => '2026-001'],
+                        ['column' => 'C', 'value' => 'Test Student'],
+                        ['column' => 'D', 'value' => '91'],
+                        ['column' => 'E', 'value' => '88'],
+                        ['column' => 'F', 'value' => '89.5'],
+                    ]],
+                ]]];
+            }
+        };
+
+        $records = (new GradeSheetImporter($reader))->summaries('unused.xlsx');
+
+        $this->assertSame(['Science' => 91.0, 'Filipino' => 88.0], $records[0]['grades']);
+    }
+
+    public function test_attendance_months_are_read_from_each_workbooks_actual_headings(): void
+    {
+        $reader = new class extends XlsxWorkbookReader
+        {
+            public function read(string $filePath): array
+            {
+                return [['name' => 'Attendance', 'rows' => [
+                    ['index' => 6, 'cells' => [
+                        ['column' => 'D', 'value' => 'JUNE'],
+                        ['column' => 'E', 'value' => 'JULY'],
+                        ['column' => 'F', 'value' => 'AUGUST'],
+                        ['column' => 'G', 'value' => 'Total'],
+                    ]],
+                    ['index' => 7, 'cells' => [
+                        ['column' => 'D', 'value' => 12],
+                        ['column' => 'E', 'value' => 25],
+                        ['column' => 'F', 'value' => 19],
+                    ]],
+                    ['index' => 8, 'cells' => [
+                        ['column' => 'B', 'value' => '424413240015'],
+                        ['column' => 'C', 'value' => 'Test Student'],
+                        ['column' => 'D', 'value' => 10],
+                        ['column' => 'E', 'value' => 25],
+                        ['column' => 'F', 'value' => 18],
+                        ['column' => 'G', 'value' => 53],
+                    ]],
+                ]]];
+            }
+        };
+
+        $records = (new GradeSheetImporter($reader))->attendance('unused.xlsx');
+
+        $this->assertSame([
+            'June' => ['school_days' => 12, 'days_present' => 10],
+            'July' => ['school_days' => 25, 'days_present' => 25],
+            'August' => ['school_days' => 19, 'days_present' => 18],
+        ], $records[0]['months']);
     }
 
     public function test_registrar_can_quickly_preview_a_private_excel_sheet_without_downloading_it(): void
@@ -305,10 +575,25 @@ class SchoolFormsIntegrationTest extends TestCase
         $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
 
         $this->actingAs($recordsOfficer)
+            ->get(route('school-forms.records'))
+            ->assertOk()
+            ->assertSee('2010-2011')
+            ->assertSee('2026-2027')
+            ->assertSee('Elementary (Kinder to Grade 6)')
+            ->assertSee('Junior High School (Grade 7 to Grade 10)')
+            ->assertSee('Kinder')
+            ->assertSee('Grade 6')
+            ->assertSee('Grade 7')
+            ->assertSee('Grade 10')
+            ->assertSee('Quarterly upload')
+            ->assertSee('Whole school year / bulk')
+            ->assertSee('Grading period to upload');
+
+        $this->actingAs($recordsOfficer)
             ->post(route('school-forms.grade-sheets.store'), [
-                'grade_school_year' => '2021-2022',
+                'grade_school_year' => '2010-2011',
                 'grade_level' => 'Grade 2',
-                'grade_section' => 'Amity',
+                'grade_section' => 'Bambi',
                 'grading_period' => 2,
                 'attendance_file' => UploadedFile::fake()->create('attendance.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
                 'summary_file' => UploadedFile::fake()->create('summary.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
@@ -320,6 +605,95 @@ class SchoolFormsIntegrationTest extends TestCase
         $this->actingAs($recordsOfficer)
             ->delete(route('school-forms.uploads.destroy', $upload))
             ->assertForbidden();
+    }
+
+    public function test_staff_can_upload_multiple_optional_workbook_slots_in_one_batch(): void
+    {
+        Storage::fake('school_forms_local');
+        $importer = $this->mock(GradeSheetImporter::class);
+        $importer->shouldReceive('assertMatchesSelection')->twice();
+        $importer->shouldReceive('teacherName')->twice()->andReturn('Test Adviser');
+        $importer->shouldReceive('summaries')->twice()->andReturn([]);
+        $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
+
+        $this->actingAs($recordsOfficer)
+            ->post(route('school-forms.grade-sheets.store'), [
+                'grade_school_year' => '2010-2011',
+                'grade_level' => 'Grade 10',
+                'grade_section' => 'Bambi',
+                'summary_files' => [
+                    1 => UploadedFile::fake()->create('first-summary.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                    3 => UploadedFile::fake()->create('third-summary.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                ],
+            ])
+            ->assertRedirect(route('school-forms.records', [
+                'school_year' => '2010-2011',
+                'level' => 'Grade 10',
+                'section' => 'Bambi',
+            ]))
+            ->assertSessionHas('grade_sheet_import_result', fn (array $result) => $result['uploaded'] === 2 && $result['replaced'] === 0);
+
+        $this->assertDatabaseCount('grade_sheet_uploads', 2, 'school_forms');
+        $this->assertDatabaseHas('grade_sheet_uploads', ['grading_period' => 1, 'file_type' => 'summary'], 'school_forms');
+        $this->assertDatabaseHas('grade_sheet_uploads', ['grading_period' => 3, 'file_type' => 'summary'], 'school_forms');
+    }
+
+    public function test_bulk_upload_requires_confirmation_before_replacing_a_stored_slot(): void
+    {
+        Storage::fake('school_forms_local');
+        SchoolFormUpload::create([
+            'school_year' => '2010-2011',
+            'level' => 'Grade 2',
+            'section' => 'Bambi',
+            'grading_period' => 1,
+            'file_type' => 'summary',
+            'original_name' => 'original.xlsx',
+            'stored_path' => 'grade-sheets/original.xlsx',
+        ]);
+        $importer = $this->mock(GradeSheetImporter::class);
+        $importer->shouldReceive('assertMatchesSelection')->once();
+        $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
+
+        $this->actingAs($recordsOfficer)
+            ->from(route('school-forms.records'))
+            ->post(route('school-forms.grade-sheets.store'), [
+                'grade_school_year' => '2010-2011',
+                'grade_level' => 'Grade 2',
+                'grade_section' => 'Bambi',
+                'summary_files' => [
+                    1 => UploadedFile::fake()->create('replacement.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                ],
+            ])
+            ->assertRedirect(route('school-forms.records'))
+            ->assertSessionHasErrors('replace_existing');
+
+        $this->assertDatabaseHas('grade_sheet_uploads', ['original_name' => 'original.xlsx'], 'school_forms');
+    }
+
+    public function test_upload_status_and_dynamic_templates_are_available_to_staff(): void
+    {
+        SchoolFormUpload::create([
+            'school_year' => '2010-2011',
+            'level' => 'Grade 10',
+            'section' => 'Bambi',
+            'grading_period' => 2,
+            'file_type' => 'attendance',
+            'original_name' => 'attendance.xlsx',
+            'stored_path' => 'grade-sheets/attendance.xlsx',
+        ]);
+        $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
+        $query = ['school_year' => '2010-2011', 'level' => 'Grade 10', 'section' => 'Bambi'];
+
+        $this->actingAs($recordsOfficer)
+            ->getJson(route('school-forms.grade-sheets.status', $query))
+            ->assertOk()
+            ->assertJsonPath('completed', 1)
+            ->assertJsonPath('slots.2:attendance.name', 'attendance.xlsx');
+
+        $this->actingAs($recordsOfficer)
+            ->get(route('school-forms.grade-sheets.template', ['type' => 'summary'] + $query + ['period' => 3]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }
 
     private function assertReadableF137Layout(string $workbook): void
