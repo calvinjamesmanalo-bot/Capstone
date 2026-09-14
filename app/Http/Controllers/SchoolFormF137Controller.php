@@ -6,6 +6,7 @@ use App\Models\RequestDocument;
 use App\Models\SchoolFormStudent as Student;
 use App\Models\SchoolFormUpload as GradeSheetUpload;
 use App\Models\Student as RequestStudent;
+use App\Support\AcademicPeriod;
 use App\Support\DocumentQrCode;
 use App\Support\DocumentWorkbookVerification;
 use App\Support\Form137WorkbookGenerator;
@@ -14,6 +15,8 @@ use App\Support\LearningAreaNormalizer;
 use App\Support\SchoolProfile;
 use App\Support\XlsxWorkbookReader;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
@@ -26,12 +29,41 @@ class SchoolFormF137Controller extends Controller
     public function preview(Request $request, SchoolProfile $schoolProfile)
     {
         $this->authorizeRecordsStaff();
-        [$student, $records] = $this->studentRecords($request);
+        [$student, $records, $schoolLevel, $requestId] = $this->requestedStudentRecords($request);
         $profile = $schoolProfile->values();
         $nameParts = $this->splitName($student->name);
-        $requestId = $request->integer('request_id') ?: null;
 
-        return view('school-forms.f137-preview', compact('student', 'records', 'profile', 'nameParts', 'requestId'));
+        return view('school-forms.f137-preview', compact('student', 'records', 'profile', 'nameParts', 'requestId', 'schoolLevel'));
+    }
+
+    public function pdf(Request $request, SchoolProfile $schoolProfile)
+    {
+        $this->authorizeRecordsStaff();
+        [$student, $records, $schoolLevel, $requestId] = $this->requestedStudentRecords($request);
+        $profile = $schoolProfile->values();
+        $nameParts = $this->splitName($student->name);
+        $fileIdentifier = $student->student_number ?: $student->lrn;
+
+        $html = view('school-forms.pdf.f137-template', compact(
+            'student',
+            'records',
+            'profile',
+            'nameParts',
+            'requestId',
+            'schoolLevel',
+        ))->render();
+        $options = new Options;
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+        $pdf = new Dompdf($options);
+        $pdf->loadHtml($html);
+        $pdf->setPaper('a4', 'portrait');
+        $pdf->render();
+
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="F137-'.$fileIdentifier.'.pdf"',
+        ]);
     }
 
     public function download(
@@ -42,14 +74,14 @@ class SchoolFormF137Controller extends Controller
         DocumentWorkbookVerification $workbookVerification
     ) {
         $this->authorizeRecordsStaff();
-        [$student, $records] = $this->studentRecords($request);
+        [$student, $records, $schoolLevel, $requestedId] = $this->requestedStudentRecords($request);
 
         $path = $generator->generate([
             'lrn' => $student->lrn,
             'name_parts' => $this->splitName($student->name),
-        ], $records->all(), $schoolProfile->values());
+        ], $records->all(), $schoolProfile->values(), $schoolLevel);
         $fileIdentifier = $student->student_number ?: $student->lrn;
-        $requestId = RequestDocument::query()
+        $requestId = $requestedId ?: RequestDocument::query()
             ->where('student_number', $student->student_number)
             ->whereIn('document_type', ['Form 137', 'F137'])
             ->latest('id')
@@ -82,6 +114,33 @@ class SchoolFormF137Controller extends Controller
                 'Expires' => '0',
             ]
         )->deleteFileAfterSend(true);
+    }
+
+    private function requestedStudentRecords(Request $request): array
+    {
+        [$student, $records] = $this->studentRecords($request);
+        $requestId = $request->integer('request_id') ?: null;
+        $documentRequest = $requestId ? $this->documentRequest($requestId, $student) : null;
+        $schoolLevel = match ($documentRequest?->school_level) {
+            'kinder', 'elementary' => 'elementary',
+            'jhs' => 'jhs',
+            'shs' => 'shs',
+            default => 'elementary',
+        };
+
+        if ($documentRequest && in_array($schoolLevel, ['elementary', 'jhs'], true)) {
+            $records = $records->filter(
+                fn (array $record): bool => $this->recordMatchesSchoolLevel($record, $schoolLevel)
+            )->values();
+
+            if ($records->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'student' => "This student does not have any uploaded {$schoolLevel} records.",
+                ]);
+            }
+        }
+
+        return [$student, $records, $schoolLevel, $requestId];
     }
 
     private function studentRecords(Request $request): array
@@ -166,6 +225,11 @@ class SchoolFormF137Controller extends Controller
         }
 
         $gradeMatrix = LearningAreaNormalizer::matrix($enrollment->grades);
+        $validPeriods = array_flip(AcademicPeriod::numbers($enrollment->school_year));
+        $gradeMatrix = array_map(
+            fn (array $grades): array => array_intersect_key($grades, $validPeriods),
+            $gradeMatrix,
+        );
 
         $areas = [];
         foreach ($gradeMatrix as $learningArea => $quarters) {
@@ -224,6 +288,28 @@ class SchoolFormF137Controller extends Controller
         $parts['first'] = implode(' ', $tokens);
 
         return $parts;
+    }
+
+    private function documentRequest(int $requestId, $student): RequestDocument
+    {
+        $documentRequest = RequestDocument::findOrFail($requestId);
+        abort_unless(in_array(strtolower($documentRequest->document_type), ['form 137', 'f137'], true), 422, 'The selected request is not for Form 137.');
+        abort_unless($documentRequest->student_number === $student->student_number, 422, 'The request student does not match this Form 137.');
+
+        return $documentRequest;
+    }
+
+    private function recordMatchesSchoolLevel(array $record, string $schoolLevel): bool
+    {
+        if (strcasecmp($record['level'], 'Kinder') === 0) {
+            return $schoolLevel === 'elementary';
+        }
+
+        $grade = (int) filter_var($record['level'], FILTER_SANITIZE_NUMBER_INT);
+
+        return $schoolLevel === 'jhs'
+            ? $grade >= 7 && $grade <= 10
+            : $grade >= 1 && $grade <= 6;
     }
 
     private function authorizeRecordsStaff(): void
