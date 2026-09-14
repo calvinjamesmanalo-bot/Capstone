@@ -1,3 +1,7 @@
+@php
+    $periodNumbers = \App\Support\AcademicPeriod::numbers($record['school_year']);
+    $usesTerms = \App\Support\AcademicPeriod::usesTerms($record['school_year']);
+@endphp
 <article class="record-card">
     <table class="record-meta">
         <tr>
@@ -21,30 +25,30 @@
         <thead>
             <tr>
                 <th rowspan="2" class="area">LEARNING AREAS</th>
-                <th colspan="4">Quarterly Rating</th>
+                <th colspan="{{ count($periodNumbers) }}">{{ $usesTerms ? 'Term Rating' : 'Quarterly Rating' }}</th>
                 <th rowspan="2" class="final">Final<br>Rating</th>
                 <th rowspan="2" class="remarks">Remarks</th>
             </tr>
             <tr>
-                @foreach([1,2,3,4] as $quarter)<th class="quarter">{{ $quarter }}</th>@endforeach
+                @foreach($periodNumbers as $period)<th class="quarter">{{ $period }}</th>@endforeach
             </tr>
         </thead>
         <tbody>
             @forelse($record['areas'] as $area)
                 <tr>
                     <th class="area" title="{{ $area['name'] }}">{{ $area['name'] }}</th>
-                    @foreach([1,2,3,4] as $quarter)
-                        <td>{{ $area['quarters'][$quarter] ?? '' }}</td>
+                    @foreach($periodNumbers as $period)
+                        <td>{{ $area['quarters'][$period] ?? '' }}</td>
                     @endforeach
                     <td><strong>{{ $area['final'] ?? '' }}</strong></td>
                     <td>{{ $area['remarks'] }}</td>
                 </tr>
             @empty
-                <tr><td colspan="7">No grades uploaded</td></tr>
+                <tr><td colspan="{{ count($periodNumbers) + 3 }}">No grades uploaded</td></tr>
             @endforelse
             <tr class="general">
                 <th class="area">General Average</th>
-                <td colspan="4"></td>
+                <td colspan="{{ count($periodNumbers) }}"></td>
                 <td>{{ $record['general_average'] ?? '' }}</td>
                 <td>{{ $record['remarks'] }}</td>
             </tr>

@@ -7,6 +7,10 @@
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot'))) @vite(['resources/css/app.css', 'resources/js/app.js']) @endif
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-950">
+@php
+    $periodNumbers = \App\Support\AcademicPeriod::numbers($enrollment->school_year);
+    $usesTerms = \App\Support\AcademicPeriod::usesTerms($enrollment->school_year);
+@endphp
 <header class="sticky top-0 z-10 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
     <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-4">
         <div>
@@ -51,7 +55,7 @@
                 <thead>
                     <tr class="bg-slate-100">
                         <th class="border-b border-r border-slate-300 px-4 py-3 text-left">Learning area</th>
-                        @foreach ([1, 2, 3, 4] as $quarter)<th class="border-b border-r border-slate-300 px-3 py-3 text-center">Q{{ $quarter }}</th>@endforeach
+                        @foreach ($periodNumbers as $period)<th class="border-b border-r border-slate-300 px-3 py-3 text-center">{{ $usesTerms ? "Term {$period}" : "Q{$period}" }}</th>@endforeach
                         <th class="border-b border-r border-slate-300 px-3 py-3 text-center">Final rating</th>
                         <th class="border-b border-slate-300 px-4 py-3 text-center">Remarks</th>
                     </tr>
@@ -60,17 +64,17 @@
                     @forelse ($record['areas'] as $area)
                         <tr>
                             <th class="border-b border-r border-slate-200 px-4 py-3 text-left font-semibold">{{ $area['name'] }}</th>
-                            @foreach ([1, 2, 3, 4] as $quarter)<td class="border-b border-r border-slate-200 px-3 py-3 text-center">{{ $area['quarters'][$quarter] ?? '—' }}</td>@endforeach
+                            @foreach ($periodNumbers as $period)<td class="border-b border-r border-slate-200 px-3 py-3 text-center">{{ $area['quarters'][$period] ?? '—' }}</td>@endforeach
                             <td class="border-b border-r border-slate-200 px-3 py-3 text-center font-bold">{{ $area['final'] ?? '—' }}</td>
                             <td class="border-b border-slate-200 px-4 py-3 text-center font-bold {{ $area['remarks'] === 'PASSED' ? 'text-emerald-700' : 'text-red-700' }}">{{ $area['remarks'] }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="px-4 py-8 text-center text-slate-500">No grades are available for this school year.</td></tr>
+                        <tr><td colspan="{{ count($periodNumbers) + 3 }}" class="px-4 py-8 text-center text-slate-500">No grades are available for this school year.</td></tr>
                     @endforelse
                 </tbody>
                 <tfoot>
                     <tr class="bg-slate-900 text-white">
-                        <th colspan="5" class="px-4 py-3 text-left">General Average</th>
+                        <th colspan="{{ count($periodNumbers) + 1 }}" class="px-4 py-3 text-left">General Average</th>
                         <td class="px-3 py-3 text-center font-bold">{{ $record['general_average'] ?? '—' }}</td>
                         <td class="px-4 py-3 text-center font-bold">{{ $record['remarks'] }}</td>
                     </tr>

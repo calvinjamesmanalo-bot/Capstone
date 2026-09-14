@@ -7,8 +7,8 @@ use App\Models\SchoolFormEnrollment as StudentEnrollment;
 use App\Models\SchoolFormStudent as Student;
 use App\Models\SchoolFormUpload as GradeSheetUpload;
 use App\Models\Student as RequestStudent;
-use App\Support\DocumentIssuanceService;
 use App\Support\AcademicPeriod;
+use App\Support\DocumentIssuanceService;
 use App\Support\GradeSheetImporter;
 use App\Support\GradeSheetRecordImporter;
 use App\Support\LearningAreaNormalizer;
@@ -197,6 +197,8 @@ class SchoolFormF138Controller extends Controller
         $this->authorizeRecordsStaff();
         [$student, $enrollment, $gradeMatrix] = $this->studentEnrollment($request);
         $record = $this->previewRecord($enrollment, $gradeMatrix);
+        $periodNumbers = AcademicPeriod::numbers($enrollment->school_year);
+        $usesTerms = AcademicPeriod::usesTerms($enrollment->school_year);
         $requestId = $request->integer('request_id') ?: null;
         $documentRequest = $requestId ? $this->documentRequest($requestId, $student, $enrollment) : null;
         $issuedDocument = $documentRequest?->authenticities()
@@ -208,7 +210,7 @@ class SchoolFormF138Controller extends Controller
             record_log('Draft Generated', 'Document Issuance', "Generated Form 138 draft for request #{$documentRequest->id}");
         }
 
-        return view('school-forms.f138-preview', compact('student', 'enrollment', 'record', 'requestId', 'issuedDocument'));
+        return view('school-forms.f138-preview', compact('student', 'enrollment', 'record', 'periodNumbers', 'usesTerms', 'requestId', 'issuedDocument'));
     }
 
     public function pdf(Request $request)
@@ -325,6 +327,11 @@ class SchoolFormF138Controller extends Controller
         $this->ensureTeacherName($enrollment);
 
         $gradeMatrix = LearningAreaNormalizer::matrix($enrollment->grades);
+        $validPeriods = array_flip(AcademicPeriod::numbers($enrollment->school_year));
+        $gradeMatrix = array_map(
+            fn (array $grades): array => array_intersect_key($grades, $validPeriods),
+            $gradeMatrix,
+        );
 
         $attendance = [];
         foreach ($enrollment->attendance->sortBy('grading_period') as $record) {
@@ -462,7 +469,7 @@ class SchoolFormF138Controller extends Controller
         $options->set('isRemoteEnabled', true);
 
         $pdf = new Dompdf($options);
-        $pdf->loadHtml(view('school-forms.pdf.f138-template', compact(
+        $pdf->loadHtml(view($this->pdfView($enrollment->school_year), compact(
             'student',
             'enrollment',
             'gradeMatrix',
@@ -475,6 +482,13 @@ class SchoolFormF138Controller extends Controller
         $pdf->render();
 
         return $pdf->output();
+    }
+
+    private function pdfView(string $schoolYear): string
+    {
+        return AcademicPeriod::usesTerms($schoolYear)
+            ? 'school-forms.pdf.f138-three-term-template'
+            : 'school-forms.pdf.f138-template';
     }
 
     private function documentRequest(int $requestId, $student, $enrollment): RequestDocument

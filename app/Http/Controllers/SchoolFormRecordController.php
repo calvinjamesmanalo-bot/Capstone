@@ -104,7 +104,7 @@ class SchoolFormRecordController extends Controller
             'school_year' => ['required', Rule::in(config('academics.school_years', []))],
             'level' => ['required', Rule::in(config('academics.grade_levels', []))],
             'section' => ['required', Rule::in(['Bambi'])],
-            'period' => ['required', 'integer', Rule::in([1, 2, 3, 4])],
+            'period' => ['required', 'integer', Rule::in(AcademicPeriod::numbers((string) $request->input('school_year')))],
         ]);
 
         $spreadsheet = $this->makeTemplate($type, $validated);
@@ -187,10 +187,11 @@ class SchoolFormRecordController extends Controller
     {
         $period = (int) $details['period'];
         $periodName = strtoupper(['First', 'Second', 'Third', 'Fourth'][$period - 1]);
+        $periodType = AcademicPeriod::usesTerms($details['school_year']) ? 'term' : 'grading';
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle($type === 'summary' ? 'Summary Sheet' : 'Attendance Sheet');
-        $sheet->setCellValue('A1', strtoupper("{$details['level']} {$details['section']} {$type} sheet - {$periodName} grading - Academic Year {$details['school_year']}"));
+        $sheet->setCellValue('A1', strtoupper("{$details['level']} {$details['section']} {$type} sheet - {$periodName} {$periodType} - Academic Year {$details['school_year']}"));
         $sheet->setCellValue('A2', 'Adviser / Teacher:');
 
         if ($type === 'summary') {
@@ -203,12 +204,18 @@ class SchoolFormRecordController extends Controller
                 $sheet->getColumnDimension($column)->setWidth(18);
             }
         } else {
-            $months = [
-                1 => ['June', 'July', 'August'],
-                2 => ['September', 'October', 'November'],
-                3 => ['December', 'January', 'February'],
-                4 => ['March', 'April', 'May'],
-            ][$period];
+            $months = AcademicPeriod::usesTerms($details['school_year'])
+                ? [
+                    1 => ['June', 'July', 'August', 'September'],
+                    2 => ['October', 'November', 'December', 'January'],
+                    3 => ['February', 'March', 'April'],
+                ][$period]
+                : [
+                    1 => ['June', 'July', 'August'],
+                    2 => ['September', 'October', 'November'],
+                    3 => ['December', 'January', 'February'],
+                    4 => ['March', 'April', 'May'],
+                ][$period];
             $headers = array_merge(['No.', 'LRN', 'Learner name'], $months);
             $sheet->fromArray($headers, null, 'A3');
             $sheet->setCellValue('C4', 'Days of School');
@@ -235,7 +242,7 @@ class SchoolFormRecordController extends Controller
         $instructions->setTitle('Instructions');
         $instructions->fromArray([
             ['How to use this template'],
-            ['1. Keep the title row; it is used to validate school year, grade, and grading period.'],
+            ["1. Keep the title row; it is used to validate school year, grade, and {$periodType} period."],
             ['2. Enter one learner per row. Do not merge learner rows.'],
             [$type === 'summary' ? '3. Subject columns are dynamic: rename, add, or remove subject columns as needed.' : '3. Enter school days on row 4 and each learner’s days present below it.'],
             ['4. Save as .xlsx, then upload it to the matching slot.'],
