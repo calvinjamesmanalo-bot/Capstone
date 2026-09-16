@@ -23,6 +23,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        ini_set('session.use_strict_mode', config('session.strict_mode', true) ? '1' : '0');
+
         if (config('security.https.force', false)) {
             URL::forceScheme('https');
         }

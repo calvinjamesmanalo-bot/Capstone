@@ -33,6 +33,11 @@ class CheckProductionReadiness extends Command
         $add('Separate document signing key', $documentKey !== '' && ! hash_equals($key, $documentKey), 'Set a separate random DOCUMENT_SIGNING_KEY.');
 
         $add('Encrypted sessions', (bool) config('session.encrypt'), 'Set SESSION_ENCRYPT=true.');
+        $add(
+            'Strict session mode',
+            (bool) config('session.strict_mode') && ini_get('session.use_strict_mode') === '1',
+            'Set SESSION_STRICT_MODE=true and ensure PHP session.use_strict_mode is enabled.'
+        );
         $add('Secure session cookie', (bool) config('session.secure'), 'Set SESSION_SECURE_COOKIE=true.');
         $add('HTTP-only session cookie', (bool) config('session.http_only'), 'Set SESSION_HTTP_ONLY=true.');
         $add('SameSite session cookie', in_array(config('session.same_site'), ['lax', 'strict'], true), 'Use SESSION_SAME_SITE=lax or strict.');

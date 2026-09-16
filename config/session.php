@@ -38,6 +38,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Strict Session ID Handling
+    |--------------------------------------------------------------------------
+    |
+    | Reject uninitialized session identifiers instead of accepting a value
+    | supplied by a client. This reduces session fixation risk and is enforced
+    | during application bootstrap before the web session middleware runs.
+    |
+    */
+
+    'strict_mode' => env('SESSION_STRICT_MODE', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Session Encryption
     |--------------------------------------------------------------------------
     |
