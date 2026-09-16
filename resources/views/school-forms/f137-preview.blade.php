@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>F137 Draft Preview - {{ $student->name }}</title>
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot'))) @vite(['resources/css/app.css', 'resources/js/app.js']) @endif
+    @include('partials.responsive-foundation')
     <style>
         :root { color-scheme: light; --blue: #2563eb; }
         * { box-sizing: border-box; }
@@ -38,6 +39,7 @@
         .eligibility { border-right: 1px solid #000; border-left: 1px solid #000; padding: 4px 6px; line-height: 1.55; }
         .checkbox { display: inline-block; width: 8px; height: 8px; margin: 0 4px; border: 1px solid #000; vertical-align: middle; }
         .record-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; margin-top: 5px; }
+        .record-grid.jhs { grid-template-columns: 1fr; }
         .record-card { min-width: 0; border: 1.2px solid #000; background: rgba(255,255,255,.88); }
         .record-meta { width: 100%; border-collapse: collapse; table-layout: fixed; }
         .record-meta td { height: 16px; overflow: hidden; padding: 2px 3px; white-space: nowrap; font-size: 6.6px; }
@@ -59,9 +61,10 @@
         .footer { position: absolute; right: 9mm; bottom: 5mm; font-size: 6px; }
         .limit-warning { margin: 6px 0; border: 1px solid #f59e0b; background: #fffbeb; padding: 6px; color: #92400e; font-size: 8px; }
         @media (max-width: 850px) {
-            .preview-toolbar { align-items: flex-start; padding: 12px 14px; }
+            .preview-toolbar { align-items: flex-start; flex-direction: column; padding: 12px 14px; }
             .preview-toolbar h1 { font-size: 17px; }
-            .toolbar-actions { justify-content: flex-end; }
+            .toolbar-actions { width: 100%; justify-content: flex-start; }
+            .action { flex: 1 1 auto; min-height: 44px; }
             .preview-note { margin-top: 14px; }
             .sheet-wrap { padding: 16px 12px 28px; }
         }
@@ -78,8 +81,13 @@
 <body>
 @php
     $allRecords = collect($records);
-    $frontRecords = $allRecords->take(4);
-    $backRecords = $allRecords->slice(4, 4);
+    $isJhs = $schoolLevel === 'jhs';
+    $frontCapacity = $isJhs ? 2 : 4;
+    $backCapacity = $isJhs ? 3 : 4;
+    $formCode = $isJhs ? 'SF10-JHS' : 'SF10-ES';
+    $schoolStage = $isJhs ? 'Junior High School' : 'Elementary School';
+    $frontRecords = $allRecords->take($frontCapacity);
+    $backRecords = $allRecords->slice($frontCapacity, $backCapacity);
     $identifier = $student->student_number ?: $student->lrn;
     $downloadParameters = array_filter(['student' => $identifier, 'request_id' => $requestId]);
 @endphp
@@ -92,23 +100,24 @@
     <div class="toolbar-actions">
         <a class="action" href="{{ route('school-forms.home', ['student' => $identifier, 'form' => 'f137']) }}">Back</a>
         <button class="action" type="button" onclick="window.print()">Print preview</button>
-        <a class="action primary" href="{{ route('school-forms.f137.download', $downloadParameters) }}">Download F137 Excel</a>
+        <a class="action primary" href="{{ route('school-forms.f137.pdf', $downloadParameters) }}">Download F137 PDF</a>
+        <a class="action" href="{{ route('school-forms.f137.download', $downloadParameters) }}">Download F137 Excel</a>
     </div>
 </header>
 
 <div class="preview-note">
-    <div><strong>Live preview:</strong> subjects and quarterly grades below are read directly from the uploaded grade-sheet records. Use Print preview to inspect the page layout, or download the Excel file for the editable official template.</div>
+    <div><strong>Live preview:</strong> subjects and period grades below are read directly from the uploaded grade-sheet records. Records through 2025-2026 retain four grading periods; records from 2026-2027 onward use three terms.</div>
 </div>
 
 <main class="sheet-wrap">
     <section class="sheet">
         <div class="draft-mark">DRAFT</div>
         <div class="sheet-content">
-            <span class="form-code">SF10-ES</span><span class="page-number">Page 1 of 2</span>
+            <span class="form-code">{{ $formCode }}</span><span class="page-number">Page 1 of 2</span>
             <div class="masthead">
                 <div class="republic">Republic of the Philippines</div>
                 <div class="department">Department of Education</div>
-                <h2>Learner Permanent Record for Elementary School (SF10-ES)</h2>
+                <h2>Learner Permanent Record for {{ $schoolStage }} ({{ $formCode }})</h2>
                 <div class="former">(Formerly Form 137)</div>
             </div>
 
@@ -127,19 +136,28 @@
                 </tr>
             </table>
 
-            <div class="section-bar">ELIGIBILITY FOR ELEMENTARY SCHOOL ENROLMENT</div>
+            <div class="section-bar">ELIGIBILITY FOR {{ strtoupper($schoolStage) }} ENROLMENT</div>
             <div class="eligibility">
-                <em>Credential Presented for Grade 1:</em>
-                <span class="checkbox"></span>Kinder Progress Report
-                <span class="checkbox"></span>ECCD Checklist
-                <span class="checkbox"></span>Kindergarten Certificate of Completion<br>
-                Name of School: <span class="write-line" style="width:31%"></span>
-                School ID: <span class="write-line" style="width:13%"></span>
-                Address of School: <span class="write-line" style="width:28%"></span>
+                @if($isJhs)
+                    <em>Elementary School Completer:</em> <span class="checkbox"></span>
+                    General Average: <span class="write-line" style="width:12%"></span>
+                    Citation: <span class="write-line" style="width:28%"></span><br>
+                    Name of Elementary School: <span class="write-line" style="width:28%"></span>
+                    School ID: <span class="write-line" style="width:13%"></span>
+                    Address: <span class="write-line" style="width:23%"></span>
+                @else
+                    <em>Credential Presented for Grade 1:</em>
+                    <span class="checkbox"></span>Kinder Progress Report
+                    <span class="checkbox"></span>ECCD Checklist
+                    <span class="checkbox"></span>Kindergarten Certificate of Completion<br>
+                    Name of School: <span class="write-line" style="width:31%"></span>
+                    School ID: <span class="write-line" style="width:13%"></span>
+                    Address of School: <span class="write-line" style="width:28%"></span>
+                @endif
             </div>
 
             <div class="section-bar">SCHOLASTIC RECORD</div>
-            <div class="record-grid">
+            <div class="record-grid {{ $isJhs ? 'jhs' : '' }}">
                 @foreach($frontRecords as $record)
                     @include('school-forms.partials.f137-record-preview', ['record' => $record, 'profile' => $profile])
                 @endforeach
@@ -148,16 +166,16 @@
                 <div class="empty-record">No uploaded school-year record is available.</div>
             @endif
         </div>
-        <div class="footer">SFRT Revised 2017</div>
+        <div class="footer">{{ $isJhs ? 'Revised 2025' : 'SFRT Revised 2017' }}</div>
     </section>
 
     <section class="sheet">
         <div class="draft-mark">DRAFT</div>
         <div class="sheet-content">
-            <span class="form-code">SF10-ES</span><span class="page-number">Page 2 of 2</span>
+            <span class="form-code">{{ $formCode }}</span><span class="page-number">Page 2 of 2</span>
             <div class="section-bar" style="margin-top:4mm">SCHOLASTIC RECORD</div>
             @if($backRecords->isNotEmpty())
-                <div class="record-grid">
+                <div class="record-grid {{ $isJhs ? 'jhs' : '' }}">
                     @foreach($backRecords as $record)
                         @include('school-forms.partials.f137-record-preview', ['record' => $record, 'profile' => $profile])
                     @endforeach
@@ -165,11 +183,11 @@
             @else
                 <div class="empty-record">No additional school-year records.</div>
             @endif
-            @if($allRecords->count() > 8)
-                <div class="limit-warning">Only the first eight school-year records fit in the two-page F137 preview.</div>
+            @if($allRecords->count() > ($frontCapacity + $backCapacity))
+                <div class="limit-warning">Only the first {{ $frontCapacity + $backCapacity }} school-year records fit in this two-page F137 preview.</div>
             @endif
 
-            <div class="section-bar">FOR TRANSFER OUT / ELEMENTARY SCHOOL COMPLETER ONLY</div>
+            <div class="section-bar">FOR TRANSFER OUT / {{ strtoupper($schoolStage) }} COMPLETER ONLY</div>
             <div class="certification">
                 <h3>CERTIFICATION</h3>
                 I CERTIFY that this is a true record of
@@ -189,7 +207,7 @@
                 </div>
             </div>
         </div>
-        <div class="footer">SFRT Revised 2017</div>
+        <div class="footer">{{ $isJhs ? 'Revised 2025' : 'SFRT Revised 2017' }}</div>
     </section>
 </main>
 @include('partials.loading-overlay')

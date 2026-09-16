@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\SchoolFormF138Controller;
 use App\Models\DocumentAuthenticity;
 use App\Models\RequestDocument;
 use App\Models\SchoolFormEnrollment;
@@ -22,6 +23,7 @@ use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use RuntimeException;
+use setasign\Fpdi\Tcpdf\Fpdi;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -117,8 +119,15 @@ class SchoolFormsIntegrationTest extends TestCase
             ->assertSee('F137 Draft Preview')
             ->assertSee('Learner Permanent Record for Elementary School')
             ->assertSee('Print preview')
+            ->assertSee('Download F137 PDF')
+            ->assertSee('Download F137 Excel')
             ->assertSee('SCHOLASTIC RECORD')
             ->assertSee('Mathematics');
+
+        $f137Pdf = $this->get(route('school-forms.f137.pdf', $parameters));
+        $f137Pdf->assertOk()->assertDownload('F137-2020-0001.pdf');
+        $this->assertStringStartsWith('%PDF', $f137Pdf->getContent());
+        $this->assertPdfPageCount($f137Pdf->getContent(), 2);
 
         $f137 = $this->get(route('school-forms.f137.download', $parameters));
         $f137->assertOk()->assertDownload('F137-2020-0001.xlsx');
@@ -136,6 +145,29 @@ class SchoolFormsIntegrationTest extends TestCase
 
         $this->assertStringNotContainsString(':8001', route('school-forms.f137.preview', $parameters));
         $this->assertStringNotContainsString(':8001', route('school-forms.f138.preview', $f138Parameters));
+    }
+
+    public function test_certificate_form_uses_the_selected_students_imported_enrollment_options(): void
+    {
+        RequestStudent::create([
+            'student_number' => '2020-0001',
+            'name' => 'Juan Santos Dela Cruz',
+        ]);
+        $staff = User::factory()->create(['role' => 'records_officer']);
+
+        $this->actingAs($staff)
+            ->get(route('certifications.index', ['student_number' => '2020-0001']))
+            ->assertOk()
+            ->assertSee('id="grade_level"', false)
+            ->assertSee('id="school_year"', false)
+            ->assertSee('id="section"', false)
+            ->assertSee('Grade 1')
+            ->assertSee('2020-2021')
+            ->assertSee('Amity')
+            ->assertSee('Options come from the selected student')
+            ->assertDontSee('<input name="grade_level"', false)
+            ->assertDontSee('<input name="school_year"', false)
+            ->assertDontSee('<input name="section"', false);
     }
 
     public function test_f137_excel_uses_dynamic_database_subjects_without_fixed_row_collisions(): void
@@ -173,6 +205,143 @@ class SchoolFormsIntegrationTest extends TestCase
             $this->assertSame('Robotics', $cells(32)['B']);
             $this->assertSame('93', (string) $cells(32)['G']);
             $this->assertSame('94', (string) $cells(32)['H']);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_elementary_f137_keeps_old_quarters_and_uses_three_terms_only_for_2026_records(): void
+    {
+        $this->addEnrollment('2026-2027', 'Grade 2', [1 => 81, 2 => 90, 3 => 99, 4 => 40]);
+        RequestStudent::create(['student_number' => '2020-0001', 'lrn' => '424413240015', 'name' => 'Dela Cruz, Juan Santos']);
+        $request = RequestDocument::create([
+            'student_number' => '2020-0001',
+            'document_type' => 'Form 137',
+            'school_level' => 'elementary',
+            'status' => 'processing',
+        ]);
+        $staff = User::factory()->create(['role' => 'records_officer']);
+        $parameters = ['student' => '2020-0001', 'request_id' => $request->id];
+
+        $preview = $this->actingAs($staff)->get(route('school-forms.f137.preview', $parameters));
+        $preview->assertOk()
+            ->assertSee('Learner Permanent Record for Elementary School')
+            ->assertSeeInOrder(['2020-2021', 'Quarterly Rating', '2026-2027', 'Term Rating']);
+
+        $pdf = $this->get(route('school-forms.f137.pdf', $parameters));
+        $pdf->assertOk()->assertDownload('F137-2020-0001.pdf');
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+
+        $response = $this->get(route('school-forms.f137.download', $parameters));
+        $response->assertOk();
+        $path = tempnam(sys_get_temp_dir(), 'mixed-elementary-f137-');
+        file_put_contents($path, $response->streamedContent());
+
+        try {
+            $front = collect(app(XlsxWorkbookReader::class)->read($path))->firstWhere('name', 'Front');
+            $rows = collect($front['rows'])->keyBy('index');
+            $cells = fn (int $row): array => collect($rows->get($row)['cells'] ?? [])->pluck('value', 'column')->all();
+
+            $this->assertSame('90', (string) $cells(30)['G']);
+            $this->assertSame('81', (string) $cells(30)['Z']);
+            $this->assertSame('90', (string) $cells(30)['AA']);
+            $this->assertSame('99', (string) $cells(30)['AB']);
+            $this->assertArrayNotHasKey('X', $cells(30));
+            $this->assertSame('90', (string) $cells(30)['AC']);
+
+            $zip = new ZipArchive;
+            $this->assertTrue($zip->open($path) === true);
+            $sheetXml = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
+            $zip->close();
+            $this->assertStringContainsString('ref="B28:F29"', $sheetXml);
+            $this->assertStringContainsString('ref="Q28:Y29"', $sheetXml);
+            $this->assertStringContainsString('ref="Z28:AB28"', $sheetXml);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_elementary_f137_populates_a_2026_record_on_the_back_sheet(): void
+    {
+        $this->addEnrollment('2021-2022', 'Grade 2', [1 => 82]);
+        $this->addEnrollment('2022-2023', 'Grade 3', [1 => 83]);
+        $this->addEnrollment('2023-2024', 'Grade 4', [1 => 84]);
+        $this->addEnrollment('2026-2027', 'Grade 5', [1 => 95, 2 => 96, 3 => 97]);
+        RequestStudent::create(['student_number' => '2020-0001', 'lrn' => '424413240015', 'name' => 'Dela Cruz, Juan Santos']);
+        $request = RequestDocument::create([
+            'student_number' => '2020-0001',
+            'document_type' => 'Form 137',
+            'school_level' => 'elementary',
+            'status' => 'processing',
+        ]);
+        $staff = User::factory()->create(['role' => 'records_officer']);
+        $parameters = [
+            'student' => '2020-0001',
+            'request_id' => $request->id,
+        ];
+        $pdf = $this->actingAs($staff)->get(route('school-forms.f137.pdf', $parameters));
+        $pdf->assertOk()->assertDownload('F137-2020-0001.pdf');
+        $this->assertPdfPageCount($pdf->getContent(), 2);
+
+        $response = $this->get(route('school-forms.f137.download', $parameters));
+        $path = tempnam(sys_get_temp_dir(), 'back-elementary-f137-');
+        file_put_contents($path, $response->streamedContent());
+
+        try {
+            $back = collect(app(XlsxWorkbookReader::class)->read($path))->firstWhere('name', 'Back');
+            $rows = collect($back['rows'])->keyBy('index');
+            $cells = fn (int $row): array => collect($rows->get($row)['cells'] ?? [])->pluck('value', 'column')->all();
+
+            $this->assertSame('2026-2027', $cells(5)['N']);
+            $this->assertSame('Mathematics', $cells(10)['B']);
+            $this->assertSame('95', (string) $cells(10)['H']);
+            $this->assertSame('96', (string) $cells(10)['I']);
+            $this->assertSame('97', (string) $cells(10)['J']);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_jhs_f137_request_uses_one_file_with_legacy_quarters_and_2026_terms(): void
+    {
+        $this->addEnrollment('2025-2026', 'Grade 7', [1 => 80, 2 => 81, 3 => 82, 4 => 83]);
+        $this->addEnrollment('2026-2027', 'Grade 8', [1 => 90, 2 => 91, 3 => 92, 4 => 40]);
+        RequestStudent::create(['student_number' => '2020-0001', 'lrn' => '424413240015', 'name' => 'Dela Cruz, Juan Santos']);
+        $request = RequestDocument::create([
+            'student_number' => '2020-0001',
+            'document_type' => 'Form 137',
+            'school_level' => 'jhs',
+            'status' => 'processing',
+        ]);
+        $staff = User::factory()->create(['role' => 'records_officer']);
+        $parameters = ['student' => '2020-0001', 'request_id' => $request->id];
+
+        $this->actingAs($staff)->get(route('school-forms.f137.preview', $parameters))
+            ->assertOk()
+            ->assertSee('Learner Permanent Record for Junior High School')
+            ->assertSeeInOrder(['2025-2026', 'Quarterly Rating', '2026-2027', 'Term Rating'])
+            ->assertDontSee('2020-2021');
+
+        $response = $this->get(route('school-forms.f137.download', $parameters));
+        $response->assertOk()->assertDownload('F137-2020-0001.xlsx');
+        $path = tempnam(sys_get_temp_dir(), 'mixed-jhs-f137-');
+        file_put_contents($path, $response->streamedContent());
+
+        try {
+            $front = collect(app(XlsxWorkbookReader::class)->read($path))->firstWhere('name', 'Front');
+            $rows = collect($front['rows'])->keyBy('index');
+            $cells = fn (int $row): array => collect($rows->get($row)['cells'] ?? [])->pluck('value', 'column')->all();
+
+            $this->assertSame('2025-2026', $cells(22)['V']);
+            $this->assertSame('80', (string) $cells(26)['Y']);
+            $this->assertSame('81', (string) $cells(26)['AB']);
+            $this->assertSame('82', (string) $cells(26)['AE']);
+            $this->assertSame('83', (string) $cells(26)['AH']);
+            $this->assertSame('2026-2027', $cells(50)['V']);
+            $this->assertSame('90', (string) $cells(54)['Y']);
+            $this->assertSame('91', (string) $cells(54)['AC']);
+            $this->assertSame('92', (string) $cells(54)['AG']);
+            $this->assertSame('91', (string) $cells(54)['AJ']);
         } finally {
             @unlink($path);
         }
@@ -275,6 +444,105 @@ class SchoolFormsIntegrationTest extends TestCase
 
         $this->assertSame(1, substr_count($preview->getContent(), '>Mathematics<'));
         $this->assertSame(1, substr_count($preview->getContent(), '>Good Manners and Right Conduct<'));
+    }
+
+    public function test_2020_f138_preview_keeps_four_quarter_columns(): void
+    {
+        $staff = User::factory()->create(['role' => 'records_officer']);
+
+        $this->actingAs($staff)
+            ->get(route('school-forms.f138.preview', [
+                'student' => '2020-0001',
+                'school_year' => '2020-2021',
+            ]))
+            ->assertOk()
+            ->assertSeeInOrder(['Q1', 'Q2', 'Q3', 'Q4'])
+            ->assertDontSee('Term 1');
+
+        $method = new \ReflectionMethod(SchoolFormF138Controller::class, 'pdfView');
+        $this->assertSame(
+            'school-forms.pdf.f138-template',
+            $method->invoke(app(SchoolFormF138Controller::class), '2020-2021'),
+        );
+    }
+
+    public function test_2026_f138_preview_and_pdf_template_use_exactly_three_terms(): void
+    {
+        $student = SchoolFormStudent::where('student_number', '2020-0001')->sole();
+        $enrollment = SchoolFormEnrollment::create([
+            'student_id' => $student->id,
+            'school_year' => '2026-2027',
+            'level' => 'Grade 10',
+            'section' => 'Bambi',
+            'adviser_name' => 'Test Adviser',
+        ]);
+        foreach ([1 => 81, 2 => 90, 3 => 99, 4 => 40] as $period => $grade) {
+            SchoolFormGrade::create([
+                'student_enrollment_id' => $enrollment->id,
+                'grading_period' => $period,
+                'learning_area' => 'Mathematics',
+                'grade' => $grade,
+            ]);
+        }
+        $staff = User::factory()->create(['role' => 'records_officer']);
+
+        $preview = $this->actingAs($staff)->get(route('school-forms.f138.preview', [
+            'student' => '2020-0001',
+            'school_year' => '2026-2027',
+        ]));
+
+        $preview->assertOk()
+            ->assertSeeInOrder(['Term 1', 'Term 2', 'Term 3'])
+            ->assertDontSee('Q4')
+            ->assertDontSee('Term 4')
+            ->assertSeeInOrder(['Mathematics', '81', '90', '99']);
+        $this->assertSame(90, (int) $preview->viewData('record')['general_average']);
+
+        $method = new \ReflectionMethod(SchoolFormF138Controller::class, 'pdfView');
+        $pdfView = $method->invoke(app(SchoolFormF138Controller::class), '2026-2027');
+        $pdfHtml = view($pdfView, [
+            'student' => $student,
+            'enrollment' => $enrollment,
+            'gradeMatrix' => ['Mathematics' => [1 => 81, 2 => 90, 3 => 99]],
+            'attendance' => [],
+            'requestId' => null,
+            'documentMode' => 'draft',
+            'documentQr' => null,
+        ])->render();
+
+        $this->assertSame('school-forms.pdf.f138-three-term-template', $pdfView);
+        $this->assertStringContainsString('TERM 1', $pdfHtml);
+        $this->assertStringContainsString('TERM 3', $pdfHtml);
+        $this->assertStringNotContainsString('TERM 4', $pdfHtml);
+        $this->assertStringContainsString('COMPLETED JUNIOR HIGH SCHOOL', $pdfHtml);
+        $this->assertStringContainsString('DRAFT', $pdfHtml);
+
+        $pdfParameters = ['student' => '2020-0001', 'school_year' => '2026-2027'];
+        $this->get(route('school-forms.f138.pdf', $pdfParameters))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf')
+            ->assertHeader('content-disposition', 'inline; filename="F138-2020-0001-DRAFT.pdf"');
+        $this->get(route('school-forms.f138.download', $pdfParameters))
+            ->assertOk()
+            ->assertDownload('F138-2020-0001-DRAFT.pdf');
+
+        $officialHtml = view($pdfView, [
+            'student' => $student,
+            'enrollment' => $enrollment,
+            'gradeMatrix' => ['Mathematics' => [1 => 81, 2 => 90, 3 => 99]],
+            'attendance' => [],
+            'requestId' => 138,
+            'documentMode' => 'official',
+            'documentQr' => [
+                'data_uri' => 'data:image/png;base64,AA==',
+                'reference' => 'F138-TEST',
+                'document' => (object) ['content_hash' => str_repeat('a', 64)],
+            ],
+        ])->render();
+
+        $this->assertStringContainsString('SCAN TO VERIFY', $officialHtml);
+        $this->assertStringContainsString('PDF DIGITALLY SIGNED', $officialHtml);
+        $this->assertStringNotContainsString('NOT YET OFFICIALLY ISSUED', $officialHtml);
     }
 
     public function test_existing_f138_preview_finalizes_into_a_signed_immutable_official_pdf(): void
@@ -426,6 +694,46 @@ class SchoolFormsIntegrationTest extends TestCase
             ->assertSessionHasErrors('grade_sheets');
 
         $this->assertDatabaseCount('grade_sheet_uploads', 0, 'school_forms');
+    }
+
+    public function test_2026_generated_grade_sheet_templates_use_term_metadata_and_months(): void
+    {
+        $staff = User::factory()->create(['role' => 'records_officer']);
+        $query = ['school_year' => '2026-2027', 'level' => 'Grade 4', 'section' => 'Bambi'];
+
+        $summary = $this->actingAs($staff)->get(route('school-forms.grade-sheets.template', [
+            'type' => 'summary',
+            'period' => 3,
+        ] + $query));
+        $summary->assertOk();
+        $path = tempnam(sys_get_temp_dir(), 'term-summary-');
+        file_put_contents($path, $summary->streamedContent());
+        try {
+            app(GradeSheetImporter::class)->assertMatchesSelection($path, '2026-2027', 'Grade 4', 3);
+        } finally {
+            @unlink($path);
+        }
+
+        $attendance = $this->get(route('school-forms.grade-sheets.template', [
+            'type' => 'attendance',
+            'period' => 1,
+        ] + $query));
+        $attendance->assertOk();
+        $path = tempnam(sys_get_temp_dir(), 'term-attendance-');
+        file_put_contents($path, $attendance->streamedContent());
+        try {
+            $sheet = app(XlsxWorkbookReader::class)->read($path)[0];
+            $heading = collect($sheet['rows'])->firstWhere('index', 3);
+            $months = collect($heading['cells'])->pluck('value')->all();
+            $this->assertSame(['No.', 'LRN', 'Learner name', 'June', 'July', 'August', 'September'], $months);
+        } finally {
+            @unlink($path);
+        }
+
+        $this->get(route('school-forms.grade-sheets.template', [
+            'type' => 'summary',
+            'period' => 4,
+        ] + $query))->assertSessionHasErrors('period');
     }
 
     public function test_summary_subjects_and_grades_are_read_from_the_uploaded_sheet(): void
@@ -694,6 +1002,39 @@ class SchoolFormsIntegrationTest extends TestCase
             ->get(route('school-forms.grade-sheets.template', ['type' => 'summary'] + $query + ['period' => 3]))
             ->assertOk()
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    private function addEnrollment(string $schoolYear, string $level, array $grades): SchoolFormEnrollment
+    {
+        $student = SchoolFormStudent::where('student_number', '2020-0001')->sole();
+        $enrollment = SchoolFormEnrollment::create([
+            'student_id' => $student->id,
+            'school_year' => $schoolYear,
+            'level' => $level,
+            'section' => 'Bambi',
+            'adviser_name' => 'Test Adviser',
+        ]);
+        foreach ($grades as $period => $grade) {
+            SchoolFormGrade::create([
+                'student_enrollment_id' => $enrollment->id,
+                'grading_period' => $period,
+                'learning_area' => 'Mathematics',
+                'grade' => $grade,
+            ]);
+        }
+
+        return $enrollment;
+    }
+
+    private function assertPdfPageCount(string $contents, int $expected): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'f137-pdf-');
+        file_put_contents($path, $contents);
+        try {
+            $this->assertSame($expected, (new Fpdi)->setSourceFile($path));
+        } finally {
+            @unlink($path);
+        }
     }
 
     private function assertReadableF137Layout(string $workbook): void

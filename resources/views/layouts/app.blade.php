@@ -13,9 +13,12 @@
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    @include('partials.responsive-foundation')
     <style>
         :root { --fla-navy: #000638; --fla-gold: #ffd22d; --fla-ink: #10152f; }
         body { font-family: 'Inter', sans-serif; background: #f6f7fb; }
+        button, a, input, select, textarea { touch-action: manipulation; }
+        img, svg { max-width: 100%; }
         html.dark { color-scheme: dark; }
         html.dark body { background: #080d1a; }
         html.dark .page-content { color: #e2e8f0; }
@@ -120,19 +123,68 @@
         .page-content table th {
             vertical-align: top;
         }
+        .responsive-table-wrap {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .responsive-table-wrap:focus-visible {
+            outline: 3px solid rgba(255, 210, 45, 0.7);
+            outline-offset: 2px;
+        }
+        [data-mobile-sidebar] {
+            width: min(20rem, calc(100vw - 3rem));
+        }
+        @media (max-width: 639px) {
+            .page-content .p-10 { padding: 1rem !important; }
+            .page-content .px-10 {
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+            }
+            .page-content .py-10 {
+                padding-top: 1rem !important;
+                padding-bottom: 1rem !important;
+            }
+            .page-content .gap-10 { gap: 1rem !important; }
+            .page-content .space-y-10 > :not([hidden]) ~ :not([hidden]),
+            .page-content .space-y-12 > :not([hidden]) ~ :not([hidden]) {
+                margin-top: 1rem !important;
+            }
+            .page-content input:not([type="checkbox"]):not([type="radio"]),
+            .page-content select,
+            .page-content textarea {
+                font-size: 16px !important;
+            }
+            .page-content table {
+                min-width: 42rem;
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                scroll-behavior: auto !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
     </style>
 </head>
-<body class="text-slate-900">
+<body class="text-slate-900 overflow-x-hidden">
     <div class="flex min-h-screen">
+        <button type="button" data-mobile-sidebar-backdrop class="fixed inset-0 z-[55] hidden bg-slate-950/60 backdrop-blur-sm lg:hidden" aria-label="Close navigation menu" tabindex="-1"></button>
+
         <!-- Sidebar -->
-        <aside class="w-64 bg-[#000638] text-slate-200 flex flex-col fixed h-full z-50 border-r border-[#10175a]">
+        <aside id="primary-sidebar" data-mobile-sidebar class="fixed inset-y-0 left-0 z-[60] flex h-full -translate-x-full flex-col border-r border-[#10175a] bg-[#000638] text-slate-200 shadow-2xl transition-transform duration-200 ease-out lg:z-50 lg:w-64 lg:translate-x-0 lg:shadow-none" aria-label="Primary navigation">
             <!-- Brand -->
             <div class="px-5 py-5 flex items-center gap-3 border-b border-white/10">
                 <img src="{{ asset('images/fiat.png') }}" alt="Fiat Lux Academe seal" class="w-12 h-12 rounded-full bg-white object-contain ring-2 ring-[#ffd22d]">
-                <div>
+                <div class="min-w-0 flex-1">
                     <h1 class="text-white font-bold text-base leading-tight">FIAT LUX ACADEME</h1>
                     <p class="text-xs text-[#ffd22d] mt-1">Document Request Hub</p>
                 </div>
+                <button type="button" data-mobile-sidebar-close class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#ffd22d] lg:hidden" aria-label="Close navigation menu">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12" /></svg>
+                </button>
             </div>
 
             <!-- User Profile Section -->
@@ -228,7 +280,7 @@
                 </a>
                 @endif
 
-                @if(in_array($role, ['admin', 'registrar']))
+                @if($role === 'registrar')
                 <p class="px-4 mb-3 mt-6 text-xs font-semibold text-slate-400 uppercase tracking-wide">Academic Records</p>
 
                 @if(in_array($role, ['admin', 'registrar']))
@@ -299,7 +351,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                         </svg>
                     </div>
-                    <span class="text-base font-semibold">System Logs</span>
+                    <span class="text-base font-semibold">Audit &amp; Security Logs</span>
                 </a>
 
                 <a href="{{ route('settings.index') }}" class="sidebar-link flex items-center justify-between gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('settings.index') ? 'active' : 'hover:bg-slate-800/50' }}">
@@ -309,7 +361,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                             </svg>
                         </div>
-                        <span class="text-base font-semibold">Settings</span>
+                            <span class="text-base font-semibold">System Settings</span>
                     </div>
                 </a>
                 @endif
@@ -330,12 +382,17 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="flex-1 ml-64 min-w-0 flex flex-col min-h-screen">
+        <main class="flex-1 min-w-0 flex flex-col min-h-screen lg:ml-64">
             <!-- Header -->
-            <header class="bg-white min-h-20 border-b border-slate-200 flex items-center justify-between gap-6 px-8 py-4 sticky top-0 z-40">
-                <div>
-                    <h2 class="text-xl font-bold text-[#000638]">@yield('page_title')</h2>
-                    <p class="text-sm text-slate-500 mt-0.5">@yield('page_subtitle')</p>
+            <header class="bg-white min-h-20 border-b border-slate-200 flex items-center justify-between gap-3 px-4 py-3 sticky top-0 z-40 sm:px-6 sm:py-4 lg:px-8">
+                <div class="flex min-w-0 items-center gap-3">
+                    <button type="button" data-mobile-sidebar-toggle class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[#000638] transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-[#ffd22d]/40 lg:hidden" aria-controls="primary-sidebar" aria-expanded="false" aria-label="Open navigation menu">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                    </button>
+                    <div class="min-w-0">
+                        <h2 class="truncate text-base font-bold text-[#000638] sm:text-xl">@yield('page_title')</h2>
+                        <p class="mt-0.5 hidden truncate text-sm text-slate-500 sm:block">@yield('page_subtitle')</p>
+                    </div>
                 </div>
 
                 <div class="flex items-center gap-3">
@@ -358,7 +415,7 @@
             </header>
 
             <!-- Page Content -->
-            <div class="p-6 lg:p-8 page-content">
+            <div class="page-content p-4 sm:p-6 lg:p-8">
                 @if(session('success'))
                     <div class="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-3">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -381,7 +438,7 @@
             </div>
 
             <!-- Footer -->
-            <footer class="mt-auto px-8 py-5 text-slate-500 text-xs border-t border-slate-200 bg-white">
+            <footer class="mt-auto border-t border-slate-200 bg-white px-4 py-5 text-xs text-slate-500 sm:px-6 lg:px-8">
                 <p>&copy; {{ date('Y') }} Fiat Lux Academe Document Request Hub</p>
             </footer>
         </main>
@@ -413,48 +470,182 @@
             syncLabel();
         })();
     </script>
-    @if($role === 'student')
     <script>
         (() => {
-            const idleLimit = 15_000;
+            const sidebar = document.querySelector('[data-mobile-sidebar]');
+            const toggle = document.querySelector('[data-mobile-sidebar-toggle]');
+            const closeButton = document.querySelector('[data-mobile-sidebar-close]');
+            const backdrop = document.querySelector('[data-mobile-sidebar-backdrop]');
+            let lastFocusedElement = null;
+
+            const isDesktop = () => window.matchMedia('(min-width: 1024px)').matches;
+            const isOpen = () => toggle?.getAttribute('aria-expanded') === 'true';
+
+            const openSidebar = () => {
+                if (!sidebar || !toggle || isDesktop()) return;
+                lastFocusedElement = document.activeElement;
+                sidebar.classList.remove('-translate-x-full');
+                sidebar.inert = false;
+                sidebar.setAttribute('aria-hidden', 'false');
+                backdrop?.classList.remove('hidden');
+                toggle.setAttribute('aria-expanded', 'true');
+                document.body.classList.add('overflow-hidden');
+                closeButton?.focus();
+            };
+
+            const closeSidebar = ({ restoreFocus = true } = {}) => {
+                if (!sidebar || !toggle || isDesktop()) return;
+                sidebar.classList.add('-translate-x-full');
+                sidebar.inert = true;
+                sidebar.setAttribute('aria-hidden', 'true');
+                backdrop?.classList.add('hidden');
+                toggle.setAttribute('aria-expanded', 'false');
+                document.body.classList.remove('overflow-hidden');
+                if (restoreFocus) (lastFocusedElement || toggle).focus();
+            };
+
+            toggle?.addEventListener('click', () => isOpen() ? closeSidebar() : openSidebar());
+            closeButton?.addEventListener('click', () => closeSidebar());
+            backdrop?.addEventListener('click', () => closeSidebar());
+            sidebar?.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => closeSidebar({ restoreFocus: false })));
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && isOpen()) closeSidebar();
+            });
+            window.addEventListener('resize', () => {
+                const desktop = isDesktop();
+                sidebar?.classList.toggle('-translate-x-full', !desktop);
+                if (sidebar) {
+                    sidebar.inert = !desktop;
+                    sidebar.setAttribute('aria-hidden', desktop ? 'false' : 'true');
+                }
+                backdrop?.classList.add('hidden');
+                toggle?.setAttribute('aria-expanded', 'false');
+                document.body.classList.remove('overflow-hidden');
+            });
+
+            if (sidebar) {
+                sidebar.inert = !isDesktop();
+                sidebar.setAttribute('aria-hidden', isDesktop() ? 'false' : 'true');
+            }
+
+            document.querySelectorAll('.page-content table').forEach((table) => {
+                const parent = table.parentElement;
+                if (!parent || parent.classList.contains('overflow-x-auto') || parent.classList.contains('responsive-table-wrap')) return;
+                const wrapper = document.createElement('div');
+                wrapper.className = 'responsive-table-wrap';
+                wrapper.tabIndex = 0;
+                wrapper.setAttribute('role', 'region');
+                wrapper.setAttribute('aria-label', 'Scrollable table');
+                parent.insertBefore(wrapper, table);
+                wrapper.appendChild(table);
+            });
+        })();
+    </script>
+    @if($role === 'student')
+    @php
+        try {
+            $studentIdleTimeoutMinutes = (int) (\App\Models\Setting::where('key', 'student_idle_timeout_minutes')->value('value') ?? 15);
+        } catch (\Throwable) {
+            $studentIdleTimeoutMinutes = 15;
+        }
+        $studentIdleTimeoutMinutes = max(1, min(120, $studentIdleTimeoutMinutes));
+    @endphp
+    <div id="student-idle-warning" class="fixed inset-0 z-[10000] hidden items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="student-idle-title" aria-describedby="student-idle-description" aria-hidden="true">
+        <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div class="flex items-start gap-4">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+                <div>
+                    <h2 id="student-idle-title" class="text-xl font-bold text-[#000638]">Are you still there?</h2>
+                    <p id="student-idle-description" class="mt-2 text-sm leading-relaxed text-slate-600">For your security, you will be signed out in <strong><span id="student-idle-countdown">60</span> seconds</strong> because there has been no activity.</p>
+                </div>
+            </div>
+            <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button type="button" id="student-idle-logout" class="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Log out now</button>
+                <button type="button" id="student-idle-continue" class="rounded-xl bg-[#000638] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#10175a] focus:outline-none focus:ring-4 focus:ring-[#ffd22d]/50">Stay signed in</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        (() => {
+            const idleLimit = {{ $studentIdleTimeoutMinutes * 60 * 1000 }};
+            const warningLead = Math.min(60_000, Math.max(10_000, Math.floor(idleLimit / 3)));
             const logoutForm = document.getElementById('logout-form');
+            const warning = document.getElementById('student-idle-warning');
+            const countdown = document.getElementById('student-idle-countdown');
+            const continueButton = document.getElementById('student-idle-continue');
+            const logoutButton = document.getElementById('student-idle-logout');
             let lastActivity = Date.now();
+            let warningTimer;
             let logoutTimer;
+            let countdownTimer;
             let loggingOut = false;
 
-            const logoutIfIdle = () => {
-                const remaining = idleLimit - (Date.now() - lastActivity);
-
-                if (remaining <= 0) {
-                    if (!loggingOut && logoutForm) {
-                        loggingOut = true;
-                        logoutForm.submit();
-                    }
-                    return;
-                }
-
-                logoutTimer = window.setTimeout(logoutIfIdle, remaining);
-            };
-
-            const registerActivity = () => {
-                if (loggingOut) return;
-                lastActivity = Date.now();
+            const clearTimers = () => {
+                window.clearTimeout(warningTimer);
                 window.clearTimeout(logoutTimer);
-                logoutTimer = window.setTimeout(logoutIfIdle, idleLimit);
+                window.clearInterval(countdownTimer);
             };
 
-            ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart'].forEach((eventName) => {
+            const hideWarning = () => {
+                warning.classList.add('hidden');
+                warning.classList.remove('flex');
+                warning.setAttribute('aria-hidden', 'true');
+                window.clearInterval(countdownTimer);
+            };
+
+            const logoutNow = () => {
+                if (loggingOut || !logoutForm) return;
+                loggingOut = true;
+                clearTimers();
+                logoutForm.submit();
+            };
+
+            const updateCountdown = () => {
+                const seconds = Math.max(0, Math.ceil((lastActivity + idleLimit - Date.now()) / 1000));
+                countdown.textContent = String(seconds);
+                if (seconds <= 0) logoutNow();
+            };
+
+            const showWarning = () => {
+                if (loggingOut || document.hidden) return;
+                warning.classList.remove('hidden');
+                warning.classList.add('flex');
+                warning.setAttribute('aria-hidden', 'false');
+                updateCountdown();
+                countdownTimer = window.setInterval(updateCountdown, 1000);
+                logoutTimer = window.setTimeout(logoutNow, Math.max(0, lastActivity + idleLimit - Date.now()));
+                continueButton.focus();
+            };
+
+            const scheduleTimers = () => {
+                clearTimers();
+                const remaining = lastActivity + idleLimit - Date.now();
+                if (remaining <= 0) return logoutNow();
+                if (remaining <= warningLead) return showWarning();
+                warningTimer = window.setTimeout(showWarning, remaining - warningLead);
+            };
+
+            const registerActivity = (event) => {
+                if (loggingOut) return;
+                const warningIsOpen = !warning.classList.contains('hidden');
+                if (warningIsOpen && event?.target !== continueButton) return;
+                lastActivity = Date.now();
+                hideWarning();
+                scheduleTimers();
+            };
+
+            ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach((eventName) => {
                 window.addEventListener(eventName, registerActivity, { passive: true });
             });
-
+            continueButton.addEventListener('click', registerActivity);
+            logoutButton.addEventListener('click', logoutNow);
             document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    window.clearTimeout(logoutTimer);
-                    logoutIfIdle();
-                }
+                if (!document.hidden) scheduleTimers();
             });
 
-            logoutTimer = window.setTimeout(logoutIfIdle, idleLimit);
+            scheduleTimers();
         })();
     </script>
     @endif

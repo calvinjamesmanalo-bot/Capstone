@@ -101,10 +101,10 @@
                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">
                     * All requirements must be checked to enable generation
                 </p>
-                <div class="flex flex-wrap gap-4">
+                <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:gap-4">
                     @if(request('request_id'))
                     <button type="button" id="submitRegistrarBtn"
-                        class="px-8 py-4 bg-emerald-600 text-white text-xs font-black rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all uppercase tracking-widest flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="flex w-full items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-8 py-4 text-xs font-black text-white shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                         </svg>
@@ -113,7 +113,7 @@
                     @endif
 
                     <button type="submit" name="preview" value="1" id="previewBtn"
-                        class="px-8 py-4 bg-white text-slate-600 text-xs font-black rounded-2xl border border-slate-200 hover:bg-slate-50 transition-all uppercase tracking-widest flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-8 py-4 text-xs font-black text-slate-600 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -121,7 +121,7 @@
                         Preview PDF
                     </button>
                     <button type="submit" id="generateBtn"
-                        class="px-10 py-4 bg-indigo-600 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all uppercase tracking-widest flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 px-10 py-4 text-xs font-black text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>

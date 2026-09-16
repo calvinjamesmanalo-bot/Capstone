@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Forgot Password - Fiat Lux Academe</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    @include('partials.responsive-foundation')
 </head>
 <body class="flex min-h-screen items-center justify-center bg-[#f6f7fb] p-4">
-    <main class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
+    <main class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-lg sm:p-8">
         <img src="{{ asset('images/fiat.png') }}" alt="Fiat Lux Academe seal" class="mb-6 h-16 w-16 rounded-full border-2 border-[#ffd22d] object-contain">
         <h1 class="text-2xl font-bold text-[#000638]">Forgot your password?</h1>
         <p class="mt-2 text-sm leading-6 text-slate-600">Enter your account email and we’ll send password reset instructions if the account exists.</p>

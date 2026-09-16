@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\RequestDocument;
+use App\Models\SchoolFormStudent;
 use App\Models\Student;
 use App\Support\DocumentIssuanceService;
 use Dompdf\Dompdf;
@@ -17,11 +18,17 @@ class CertificationController extends Controller
 {
     public function index(Request $request)
     {
+        $students = Student::orderBy('name')->get();
         $form = array_merge($this->defaultForm(), [
             'request_id' => $request->input('request_id', ''),
             'student_number' => $request->input('student_number', ''),
             'issue_date' => now()->toDateString(),
         ]);
+
+        if ($request->filled('student_number')) {
+            $selectedStudent = $students->firstWhere('student_number', $request->input('student_number'));
+            $form['student_name'] = $selectedStudent?->name ?? '';
+        }
 
         if ($request->filled('request_id')) {
             $documentRequest = RequestDocument::with('student')->find($request->input('request_id'));
@@ -37,10 +44,51 @@ class CertificationController extends Controller
         }
 
         return view('certifications.index', [
-            'students' => Student::orderBy('name')->get(),
+            'students' => $students,
+            'studentAcademicRecords' => $this->studentAcademicRecords($students),
             'certificateTypes' => $this->certificateTypes(),
             'form' => old() ?: $form,
         ]);
+    }
+
+    private function studentAcademicRecords($students): array
+    {
+        try {
+            $schoolFormStudents = SchoolFormStudent::query()
+                ->with(['enrollments' => fn ($query) => $query->orderByDesc('school_year')])
+                ->get();
+        } catch (Throwable) {
+            return [];
+        }
+
+        $byStudentNumber = $schoolFormStudents
+            ->filter(fn (SchoolFormStudent $student) => filled($student->student_number))
+            ->keyBy(fn (SchoolFormStudent $student) => strtoupper(trim((string) $student->student_number)));
+        $byLrn = $schoolFormStudents
+            ->filter(fn (SchoolFormStudent $student) => filled($student->lrn))
+            ->keyBy(fn (SchoolFormStudent $student) => preg_replace('/\D/', '', (string) $student->lrn));
+
+        return $students->mapWithKeys(function (Student $student) use ($byStudentNumber, $byLrn) {
+            $schoolFormStudent = $byStudentNumber->get(strtoupper(trim((string) $student->student_number)));
+            $lrn = preg_replace('/\D/', '', (string) $student->lrn);
+
+            if (! $schoolFormStudent && $lrn !== '') {
+                $schoolFormStudent = $byLrn->get($lrn);
+            }
+
+            $records = $schoolFormStudent?->enrollments
+                ->map(fn ($enrollment) => [
+                    'grade_level' => trim((string) $enrollment->level),
+                    'school_year' => trim((string) $enrollment->school_year),
+                    'section' => trim((string) $enrollment->section),
+                ])
+                ->filter(fn (array $record) => $record['grade_level'] !== '' && $record['school_year'] !== '')
+                ->unique(fn (array $record) => implode('|', $record))
+                ->values()
+                ->all() ?? [];
+
+            return [(string) $student->student_number => $records];
+        })->all();
     }
 
     public function preview(Request $request)
@@ -152,7 +200,7 @@ class CertificationController extends Controller
         $data = $request->validate([
             'certificate_type' => ['required', Rule::in(array_keys($this->certificateTypes()))],
             'request_id' => ['nullable', 'integer', 'exists:request_documents,id'],
-            'student_number' => ['nullable', 'string', 'max:50'],
+            'student_number' => ['required', 'string', 'max:50', 'exists:students,student_number'],
             'student_name' => ['required', 'string', 'max:120'],
             'grade_level' => ['required', 'string', 'max:50'],
             'section' => ['nullable', 'string', 'max:50'],

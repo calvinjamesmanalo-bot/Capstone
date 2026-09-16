@@ -135,10 +135,10 @@
                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">
                     * Complete all checks to proceed
                 </p>
-                <div class="flex flex-wrap gap-4">
+                <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:gap-4">
                     @if($docRequest)
                     <button type="button" id="submitRegistrarBtn"
-                        class="px-8 py-4 bg-emerald-600 text-white text-xs font-black rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all uppercase tracking-widest flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="flex w-full items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-8 py-4 text-xs font-black text-white shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                         </svg>
@@ -146,13 +146,13 @@
                     </button>
                     @endif
 
-                    <div id="generatorActions" class="flex gap-4">
+                    <div id="generatorActions" class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:gap-4">
                         <button type="submit" name="preview" value="1" id="previewBtn"
-                            class="px-8 py-4 bg-white text-slate-600 text-xs font-black rounded-2xl border border-slate-200 hover:bg-slate-50 transition-all uppercase tracking-widest flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                            class="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-8 py-4 text-xs font-black text-slate-600 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
                             Preview PDF
                         </button>
                         <button type="submit" id="generateBtn"
-                            class="px-10 py-4 bg-amber-600 text-white text-xs font-black rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-700 transition-all uppercase tracking-widest flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                            class="flex w-full items-center justify-center gap-3 rounded-2xl bg-amber-600 px-10 py-4 text-xs font-black text-white shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
                             Download PDF
                         </button>
                     </div>

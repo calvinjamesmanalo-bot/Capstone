@@ -58,6 +58,46 @@
             </div>
         </div>
 
+        <!-- Student Session Security -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-6 border-b border-slate-200 bg-slate-50">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-xl bg-[#000638] text-[#ffd22d] flex items-center justify-center shrink-0">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-[#000638] text-lg">Student Session Security</h3>
+                        <p class="text-sm text-slate-500 mt-1">Control how long an inactive student stays signed in.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-[minmax(0,1fr)_260px] md:items-end">
+                    <div>
+                        <label for="student_idle_timeout_minutes" class="block text-sm font-semibold text-slate-700">Log out students after</label>
+                        <p class="mt-1 text-sm text-slate-500">Clicking, typing, or scrolling resets the timer. Students receive a warning before automatic logout.</p>
+                    </div>
+                    <div>
+                        <div class="relative">
+                            <input type="number" name="student_idle_timeout_minutes" id="student_idle_timeout_minutes"
+                                value="{{ old('student_idle_timeout_minutes', $settings['student_idle_timeout_minutes'] ?? 15) }}"
+                                min="1" max="120" step="1" required
+                                class="w-full rounded-xl border border-slate-300 bg-white py-3 pl-4 pr-24 text-base font-bold text-[#000638] focus:border-[#000638] focus:ring-2 focus:ring-[#ffd22d]/40">
+                            <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-sm font-semibold text-slate-500">minutes</span>
+                        </div>
+                        @error('student_idle_timeout_minutes')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+
+                <div class="mt-5 flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <p class="text-sm text-blue-800"><strong>Recommended:</strong> 15 minutes for shared school computers. The new time applies when a student loads their next page.</p>
+                    <button type="submit" class="shrink-0 rounded-xl bg-[#000638] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#10175a]">Save session timeout</button>
+                </div>
+            </div>
+        </div>
+
         <!-- F137 School Profile -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             <div class="p-8 border-b border-slate-50 bg-slate-50/50">
@@ -99,7 +139,7 @@
                 </div>
 
                 <div class="pt-4">
-                    <button type="submit" class="px-8 py-4 bg-blue-600 text-white text-xs font-black rounded-2xl shadow-xl shadow-blue-600/10 hover:bg-blue-700 transition-all uppercase tracking-[0.2em]">
+                    <button type="submit" class="w-full rounded-2xl bg-blue-600 px-8 py-4 text-xs font-black text-white shadow-xl shadow-blue-600/10 transition-all hover:bg-blue-700 sm:w-auto">
                         Save School Profile
                     </button>
                 </div>
@@ -140,7 +180,7 @@
                 <p class="text-xs font-medium text-slate-400 mt-1">Control system availability and maintenance</p>
             </div>
             <div class="p-8 space-y-4">
-                <div class="flex items-center justify-between p-6 bg-indigo-50/50 rounded-2xl border border-indigo-100/50">
+                <div class="flex items-start justify-between gap-4 p-6 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 sm:items-center">
                     <div class="flex gap-4 items-center">
                         <div class="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -159,7 +199,7 @@
                 </div>
                 
                 <div class="pt-4">
-                    <button type="submit" class="px-8 py-4 bg-indigo-600 text-white text-xs font-black rounded-2xl shadow-xl shadow-indigo-500/10 hover:bg-indigo-700 transition-all uppercase tracking-[0.2em]">
+                    <button type="submit" class="w-full rounded-2xl bg-indigo-600 px-8 py-4 text-xs font-black text-white shadow-xl shadow-indigo-500/10 transition-all hover:bg-indigo-700 sm:w-auto">
                         Update Status
                     </button>
                 </div>

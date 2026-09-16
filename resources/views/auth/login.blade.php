@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $portal['title'] }} - Fiat Lux Academe Document Request Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    @include('partials.responsive-foundation')
     <script>
         window.onTurnstileSuccess = () => {
             const status = document.getElementById('turnstile-status');

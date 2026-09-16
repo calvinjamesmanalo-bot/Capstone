@@ -7,9 +7,9 @@
 @section('content')
 <div class="space-y-10">
     <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div class="p-10 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-            <div class="flex items-center gap-6">
-                <div class="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400">
+        <div class="flex flex-col gap-5 border-b border-slate-50 bg-slate-50/50 p-10 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center gap-4 sm:gap-6">
+                <div class="w-12 h-12 sm:w-16 sm:h-16 shrink-0 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400">
                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -19,12 +19,12 @@
                     <p class="text-sm font-medium text-slate-400 mt-1">Total of {{ $requests->count() }} history record(s) found</p>
                 </div>
             </div>
-            <div class="flex items-center gap-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                 @if(auth()->user()->role === 'admin')
                 <form action="{{ route('requests.reset-all') }}" method="POST" onsubmit="return confirm('CRITICAL ACTION: This will PERMANENTLY DELETE ALL requests, history, and ticket records. This cannot be undone. Are you absolutely sure?');">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="px-6 py-3 bg-red-600 text-white text-xs font-black rounded-xl shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all uppercase tracking-widest flex items-center gap-2">
+                    <button type="submit" class="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-xs font-black text-white shadow-lg shadow-red-500/20 transition-all hover:bg-red-700 sm:w-auto">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
@@ -34,7 +34,7 @@
                 @endif
                 
                 @if($requests->count() > 0)
-                <button type="button" onclick="toggleClearModal()" class="px-6 py-3 bg-red-50 text-red-600 hover:bg-red-100 font-bold text-xs uppercase tracking-widest rounded-xl transition-all">
+                <button type="button" onclick="toggleClearModal()" class="w-full rounded-xl bg-red-50 px-6 py-3 text-xs font-bold text-red-600 transition-all hover:bg-red-100 sm:w-auto">
                     <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
@@ -122,8 +122,8 @@
     </div>
 </div>
 
-<div id="clearModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-50 flex items-center justify-center">
-    <div class="bg-white rounded-2xl p-10 max-w-lg w-full mx-4 shadow-2xl">
+<div id="clearModal" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm">
+    <div class="my-auto w-full max-w-lg rounded-2xl bg-white p-10 shadow-2xl">
         <div class="text-center">
             <div class="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
                 <svg class="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

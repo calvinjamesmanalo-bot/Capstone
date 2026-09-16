@@ -7,6 +7,7 @@
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
+    @include('partials.responsive-foundation')
     <style>
         :root { --fla-navy: #000638; --fla-gold: #ffd22d; }
         .fla-field:focus { border-color: var(--fla-navy); box-shadow: 0 0 0 4px rgba(255, 210, 45, .28); }
@@ -16,7 +17,7 @@
 </head>
 <body class="min-h-screen bg-[#f6f7fb] font-sans text-slate-950">
 <header class="border-b border-white/10 bg-[#000638] text-white shadow-lg shadow-slate-950/10">
-    <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
+    <div class="mx-auto flex max-w-6xl flex-col items-stretch gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
         <a href="{{ route('school-forms.home') }}" class="flex min-w-0 items-center gap-3">
             <img src="{{ asset('images/fiat.png') }}" alt="Fiat Lux Academe seal" class="h-11 w-11 shrink-0 rounded-full bg-white object-contain ring-2 ring-[#ffd22d]">
             <span class="min-w-0">
@@ -24,7 +25,7 @@
                 <span class="block truncate text-xs text-[#ffd22d]">Fiat Lux Academe &middot; Academic Records</span>
             </span>
         </a>
-        <a href="{{ route('school-forms.home') }}" class="shrink-0 rounded-lg bg-[#ffd22d] px-4 py-2.5 text-sm font-bold text-[#000638] transition hover:bg-[#ffe36f] focus:outline-none focus:ring-4 focus:ring-white/20">
+        <a href="{{ route('school-forms.home') }}" class="shrink-0 rounded-lg bg-[#ffd22d] px-4 py-2.5 text-center text-sm font-bold text-[#000638] transition hover:bg-[#ffe36f] focus:outline-none focus:ring-4 focus:ring-white/20">
             Back to Form Makers
         </a>
     </div>

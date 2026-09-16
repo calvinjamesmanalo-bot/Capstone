@@ -24,6 +24,7 @@
     <meta name="robots" content="noindex,nofollow">
     <title>{{ $title }} &middot; {{ config('document_verification.issuer') }}</title>
     @include('documents.partials.verifier-theme')
+    @include('partials.responsive-foundation')
 </head>
 <body class="verify-page">
 @include('documents.partials.verifier-header', ['showLookupLink' => true])

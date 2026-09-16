@@ -138,6 +138,7 @@ Route::middleware(['auth', 'student.verified'])->group(function () {
         Route::get('/school-forms', [SchoolFormController::class, 'home'])->name('school-forms.home');
         Route::get('/school-forms/request/{documentRequest?}', [GeneratorController::class, 'maker'])->name('generator.maker');
         Route::get('/school-forms/f137/preview', [SchoolFormF137Controller::class, 'preview'])->name('school-forms.f137.preview');
+        Route::get('/school-forms/f137/pdf', [SchoolFormF137Controller::class, 'pdf'])->name('school-forms.f137.pdf');
         Route::get('/school-forms/f137/download', [SchoolFormF137Controller::class, 'download'])->name('school-forms.f137.download');
         Route::get('/school-forms/f137/template', [SchoolFormF137Controller::class, 'template'])->name('school-forms.f137.template');
         Route::get('/school-forms/f138/preview', [SchoolFormF138Controller::class, 'preview'])->name('school-forms.f138.preview');

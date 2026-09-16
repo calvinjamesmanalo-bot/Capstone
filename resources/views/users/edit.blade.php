@@ -7,9 +7,9 @@
 @section('content')
 <div class="max-w-4xl mx-auto">
     <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div class="p-10 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
-            <div class="flex items-center gap-6">
-                <div class="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-indigo-600">
+        <div class="flex flex-col gap-4 border-b border-slate-50 bg-slate-50/50 p-10 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center gap-4 sm:gap-6">
+                <div class="w-12 h-12 sm:w-16 sm:h-16 shrink-0 bg-white rounded-2xl shadow-sm flex items-center justify-center text-indigo-600">
                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
@@ -19,7 +19,7 @@
                     <p class="text-sm font-medium text-slate-400 mt-1">Update the user's information below</p>
                 </div>
             </div>
-            <a href="{{ route('users.index') }}" class="px-6 py-3 bg-white text-slate-600 text-xs font-black rounded-xl border border-slate-200 hover:bg-slate-50 transition-all uppercase tracking-widest flex items-center gap-2">
+            <a href="{{ route('users.index') }}" class="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-xs font-black text-slate-600 transition-all hover:bg-slate-50 sm:w-auto">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>

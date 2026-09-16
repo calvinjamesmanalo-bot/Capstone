@@ -7,9 +7,9 @@
 @section('content')
 <div class="max-w-4xl mx-auto">
     <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div class="p-10 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
-            <div class="flex items-center gap-6">
-                <div class="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-indigo-600">
+        <div class="flex flex-col gap-4 border-b border-slate-50 bg-slate-50/50 p-10 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center gap-4 sm:gap-6">
+                <div class="w-12 h-12 sm:w-16 sm:h-16 shrink-0 bg-white rounded-2xl shadow-sm flex items-center justify-center text-indigo-600">
                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                     </svg>
@@ -19,7 +19,7 @@
                     <p class="text-sm font-medium text-slate-400 mt-1">Please fill in the required information</p>
                 </div>
             </div>
-            <a href="{{ route('users.index') }}" class="px-6 py-3 bg-white text-slate-600 text-xs font-black rounded-xl border border-slate-200 hover:bg-slate-50 transition-all uppercase tracking-widest flex items-center gap-2">
+            <a href="{{ route('users.index') }}" class="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-xs font-black text-slate-600 transition-all hover:bg-slate-50 sm:w-auto">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
@@ -149,7 +149,7 @@
             </script>
 
             <div class="mt-12 flex justify-end">
-                <button type="submit" class="px-10 py-4 bg-indigo-600 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all uppercase tracking-widest flex items-center gap-3">
+                <button type="submit" class="flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 px-10 py-4 text-xs font-black text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-700 sm:w-auto">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>

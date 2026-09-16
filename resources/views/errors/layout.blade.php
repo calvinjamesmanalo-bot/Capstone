@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>@yield('code') - Fiat Lux Document Request Hub</title>
+    @include('partials.responsive-foundation')
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #f6f7fb; color: #0f172a; font-family: Inter, Arial, sans-serif; }
@@ -14,6 +15,13 @@
         p { margin: 0 auto 26px; max-width: 440px; color: #64748b; line-height: 1.65; }
         a { display: inline-block; padding: 12px 22px; border-radius: 12px; background: #000638; color: white; font-weight: 700; text-decoration: none; }
         small { display: block; margin-top: 22px; color: #94a3b8; }
+        @media (max-width: 520px) {
+            body { padding: 14px; }
+            main { padding: 30px 20px; border-radius: 18px; }
+            .code { font-size: 52px; }
+            h1 { font-size: 22px; }
+            a { width: 100%; box-sizing: border-box; }
+        }
     </style>
 </head>
 <body>

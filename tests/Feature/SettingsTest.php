@@ -40,6 +40,7 @@ class SettingsTest extends TestCase
             'school_id' => '401234',
             'school_division' => 'City Schools Division of Imus',
             'school_region' => 'Region IV-A',
+            'student_idle_timeout_minutes' => 15,
             'price_certificate_enrollment' => 100,
             'price_certificate_completion' => 120,
             'price_good_moral' => 100,

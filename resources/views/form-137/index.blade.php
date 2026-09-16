@@ -109,8 +109,8 @@
                             @endphp
                         </div>
                     </div>
-                    <div class="bg-slate-50 px-10 py-6 flex flex-row-reverse gap-4 border-t border-slate-100">
-                        <a href="{{ route('form-137.download', ['student_number' => session('temp_encoded_grades')['student_number']]) }}" class="inline-flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black px-10 py-4 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all text-xs uppercase tracking-widest">
+                    <div class="flex flex-col gap-3 border-t border-slate-100 bg-slate-50 px-10 py-6 sm:flex-row-reverse sm:gap-4">
+                        <a href="{{ route('form-137.download', ['student_number' => session('temp_encoded_grades')['student_number']]) }}" class="inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-10 py-4 text-xs font-black text-white shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-700 sm:w-auto">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
@@ -248,7 +248,7 @@
                                                     </div>
                                                 </div>
 
-                                                <div class="overflow-hidden rounded-[1.5rem] border border-slate-100 shadow-sm bg-white mb-8">
+                                                <div class="overflow-x-auto rounded-[1.5rem] border border-slate-100 shadow-sm bg-white mb-8">
                                                     <table class="w-full text-sm grade-table">
                                                         <thead>
                                                             <tr class="bg-slate-50 text-[10px] uppercase tracking-[0.3em] font-black text-slate-400 border-b border-slate-100">
@@ -380,7 +380,7 @@
                     <input type="text" name="data[${idx}][grade_level]" class="w-full bg-white border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm" placeholder="e.g. Grade 7" required>
                 </div>
             </div>
-            <div class="overflow-hidden rounded-[1.5rem] border border-slate-100 shadow-sm bg-white mb-8">
+            <div class="overflow-x-auto rounded-[1.5rem] border border-slate-100 shadow-sm bg-white mb-8">
                 <table class="w-full text-sm grade-table">
                     <thead>
                         <tr class="bg-slate-50 text-[10px] uppercase tracking-[0.3em] font-black text-slate-400 border-b border-slate-100">

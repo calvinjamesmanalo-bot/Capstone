@@ -30,6 +30,7 @@ class SettingController extends Controller
             'school_id' => ['nullable', 'string', 'max:40'],
             'school_division' => ['nullable', 'string', 'max:120'],
             'school_region' => ['nullable', 'string', 'max:120'],
+            'student_idle_timeout_minutes' => ['required', 'integer', 'min:1', 'max:120'],
             'maintenance_mode' => ['nullable', 'boolean'],
             'price_certificate_enrollment' => ['required', 'numeric', 'min:100', 'max:150'],
             'price_certificate_completion' => ['required', 'numeric', 'min:100', 'max:150'],
@@ -44,6 +45,7 @@ class SettingController extends Controller
             $group = match (true) {
                 str_starts_with($key, 'price_') => 'pricing',
                 in_array($key, ['school_name', 'school_district', 'school_id', 'school_division', 'school_region'], true) => 'school_profile',
+                $key === 'student_idle_timeout_minutes' => 'security',
                 default => 'general',
             };
 
