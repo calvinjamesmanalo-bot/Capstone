@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -17,7 +18,7 @@ class RequestController extends Controller
     public function index()
     {
         $user = auth()->user();
-        $query = RequestDocument::with('student');
+        $query = RequestDocument::with(['student', 'statusHistories.changedBy']);
 
         if ($user->role === 'registrar') {
             // Registrar only sees processed requests that need approval
@@ -40,6 +41,7 @@ class RequestController extends Controller
         $requests = RequestDocument::with([
             'student',
             'authenticities' => fn ($query) => $query->latest('id'),
+            'statusHistories.changedBy',
         ])
             ->whereIn('status', ['completed', 'rejected'])
             ->latest()
@@ -58,12 +60,14 @@ class RequestController extends Controller
         $requestHistory = [];
 
         if ($studentNumber) {
-            $activeRequests = RequestDocument::where('student_number', $studentNumber)
+            $activeRequests = RequestDocument::with('publicStatusHistories')
+                ->where('student_number', $studentNumber)
                 ->whereIn('status', ['pending', 'processing', 'processed', 'ready_to_release'])
                 ->latest()
                 ->get();
 
-            $requestHistory = RequestDocument::where('student_number', $studentNumber)
+            $requestHistory = RequestDocument::with('publicStatusHistories')
+                ->where('student_number', $studentNumber)
                 ->whereIn('status', ['completed', 'rejected'])
                 ->latest()
                 ->get();
@@ -83,12 +87,14 @@ class RequestController extends Controller
         $requestHistory = [];
 
         if ($studentNumber) {
-            $activeRequests = RequestDocument::where('student_number', $studentNumber)
+            $activeRequests = RequestDocument::with('publicStatusHistories')
+                ->where('student_number', $studentNumber)
                 ->whereIn('status', ['pending', 'processing', 'processed', 'ready_to_release'])
                 ->latest()
                 ->get();
 
-            $requestHistory = RequestDocument::where('student_number', $studentNumber)
+            $requestHistory = RequestDocument::with('publicStatusHistories')
+                ->where('student_number', $studentNumber)
                 ->whereIn('status', ['completed', 'rejected'])
                 ->latest()
                 ->get();
@@ -190,7 +196,7 @@ class RequestController extends Controller
 
         $documentPrice = $this->documentPrices()[$request->document_type];
 
-        $createdRequest = RequestDocument::create([
+        $createdRequest = DB::transaction(fn (): RequestDocument => RequestDocument::create([
             'ticket_number' => $ticketNumber,
             'student_number' => $studentNumber,
             'document_type' => $request->document_type,
@@ -210,7 +216,7 @@ class RequestController extends Controller
             'financial_balance' => $financialBalance,
             'payment_confirmed' => false,
             'status' => 'pending',
-        ]);
+        ]));
 
         record_log(
             'Uploaded Payment Receipt',
@@ -379,21 +385,27 @@ class RequestController extends Controller
             return redirect()->back()->with('error', 'Only the Registrar can approve requests for release.');
         }
 
-        $requestDoc->update([
-            'status' => $request->status,
-            'remarks' => $request->remarks,
-        ]);
+        $requestDoc = DB::transaction(function () use ($request, $request_id, $user): RequestDocument {
+            $lockedRequest = RequestDocument::query()->lockForUpdate()->findOrFail($request_id);
 
-        if ($request->status === 'rejected') {
-            $requestDoc->authenticities()
-                ->whereIn('status', ['valid', 'superseded'])
-                ->update([
-                    'status' => 'revoked',
-                    'revoked_at' => now(),
-                    'revoked_by' => $user->id,
-                    'revocation_reason' => $request->remarks ?: 'The related document request was rejected.',
-                ]);
-        }
+            $lockedRequest->update([
+                'status' => $request->status,
+                'remarks' => $request->remarks,
+            ]);
+
+            if ($request->status === 'rejected') {
+                $lockedRequest->authenticities()
+                    ->whereIn('status', ['valid', 'superseded'])
+                    ->update([
+                        'status' => 'revoked',
+                        'revoked_at' => now(),
+                        'revoked_by' => $user->id,
+                        'revocation_reason' => $request->remarks ?: 'The related document request was rejected.',
+                    ]);
+            }
+
+            return $lockedRequest;
+        });
 
         record_log('Updated Request Status', 'Requests', "Updated Request #{$request_id} status to {$request->status}");
 

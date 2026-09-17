@@ -82,9 +82,7 @@
                                 <span class="px-5 py-2.5 rounded-xl border {{ $statusClass }} text-xs font-black uppercase tracking-widest shadow-sm">
                                     {{ str_replace('_', ' ', $req->status) }}
                                 </span>
-                                @if($req->remarks)
-                                    <p class="text-[10px] text-slate-400 italic mt-1 font-bold uppercase tracking-tight">Remarks: {{ $req->remarks }}</p>
-                                @endif
+                                @include('requests.partials.status-timeline', ['histories' => $req->publicStatusHistories, 'staff' => false])
                             </div>
                         </div>
                     @endforeach
@@ -134,6 +132,7 @@
                                         <span class="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase tracking-widest">{{ $req->ticket_number ?? 'N/A' }}</span>
                                     </div>
                                     <p class="text-xs font-medium text-slate-500">{{ $req->created_at->format('M d, Y') }}</p>
+                                    @include('requests.partials.status-timeline', ['histories' => $req->publicStatusHistories, 'staff' => false])
                                 </div>
                             </div>
                             <span class="px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest {{ $req->status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100' }}">

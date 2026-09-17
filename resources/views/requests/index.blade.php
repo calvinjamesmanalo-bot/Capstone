@@ -70,6 +70,7 @@
                                     </div>
                                     <div class="text-base font-black text-slate-800 tracking-tight">{{ $req->student->name }}</div>
                                     <div class="text-xs font-black text-[#000638] uppercase tracking-widest mt-1">{{ $req->student_number }}</div>
+                                    @include('requests.partials.status-timeline', ['histories' => $req->statusHistories, 'staff' => true])
                                 </div>
                             </div>
                         </td>
