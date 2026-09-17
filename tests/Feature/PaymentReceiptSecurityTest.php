@@ -119,6 +119,52 @@ class PaymentReceiptSecurityTest extends TestCase
         ]);
     }
 
+    public function test_receipt_renders_request_details_and_print_controls_without_private_metadata(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('transcript_receipts/private-form-138.pdf', 'receipt');
+        $owner = $this->student('2026-1010');
+        $documentRequest = RequestDocument::create([
+            'ticket_number' => 'REQ-PRINT-1010',
+            'student_number' => $owner->student_number,
+            'document_type' => 'Form 138',
+            'school_year' => '2025-2026',
+            'document_price' => 100,
+            'status' => 'ready_to_release',
+            'delivery_method' => 'pickup',
+            'payment_method' => 'gcash',
+            'payment_confirmed' => true,
+            'clearance_status' => 'cleared',
+            'payment_proof_path' => 'transcript_receipts/private-form-138.pdf',
+            'payment_proof_disk' => 'local',
+            'payment_proof_original_name' => 'accounting-receipt.pdf',
+            'payment_proof_mime_type' => 'application/pdf',
+            'payment_proof_sha256' => str_repeat('a', 64),
+        ]);
+
+        $this->actingAs($owner)->get(route('requests.receipt', $documentRequest))
+            ->assertOk()
+            ->assertSee('Fiat Lux Academe')
+            ->assertSee('REQ-PRINT-1010')
+            ->assertSee('Receipt Test Student')
+            ->assertSee('2026-1010')
+            ->assertSee('Form 138')
+            ->assertSee('2025-2026')
+            ->assertSee('₱100.00')
+            ->assertSee('GCash')
+            ->assertSee('Confirmed')
+            ->assertSee('Pickup at Registrar’s Office')
+            ->assertSee('Ready for Release')
+            ->assertSee('Print Receipt')
+            ->assertSee('onclick="window.print()"', false)
+            ->assertSee('@page { size: A4 portrait;', false)
+            ->assertSee('bg-indigo-50', false)
+            ->assertSee('text-indigo-800', false)
+            ->assertDontSee('transcript_receipts/private-form-138.pdf')
+            ->assertDontSee('accounting-receipt.pdf')
+            ->assertDontSee(str_repeat('a', 64));
+    }
+
     public function test_enabled_student_can_submit_one_duplicate_active_request_and_bypass_is_consumed(): void
     {
         Storage::fake('local');

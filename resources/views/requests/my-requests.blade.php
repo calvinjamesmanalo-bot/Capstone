@@ -5,7 +5,7 @@
 @section('page_subtitle', 'Track and manage your document applications')
 
 @section('content')
-<div class="max-w-6xl mx-auto space-y-10">
+<div class="request-a11y mx-auto min-w-0 max-w-6xl space-y-10">
     <!-- Active Requests -->
     <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
         <div class="flex flex-col gap-4 border-b border-slate-50 bg-slate-50/50 p-10 sm:flex-row sm:items-center sm:justify-between">
@@ -19,11 +19,11 @@
             </a>
         </div>
         
-        <div class="p-10">
+        <div class="min-w-0 p-5 sm:p-10">
             @if(count($activeRequests) > 0)
                 <div class="space-y-4">
                     @foreach($activeRequests as $req)
-                        <div class="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex flex-col md:flex-row md:items-center justify-between group hover:bg-white hover:shadow-2xl hover:shadow-indigo-500/5 transition-all gap-6">
+                        <div class="flex min-w-0 flex-col justify-between gap-4 rounded-3xl border border-slate-100 bg-slate-50 p-4 transition-all hover:bg-white hover:shadow-2xl hover:shadow-indigo-500/5 sm:p-6 md:flex-row md:items-center md:gap-6 group">
                             <div class="flex min-w-0 items-start gap-4 sm:items-center sm:gap-5">
                                 <div class="w-12 h-12 sm:w-14 sm:h-14 shrink-0 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-all">
                                     <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -64,39 +64,22 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="flex flex-col items-start gap-2 md:items-end">
+                            <div class="flex min-w-0 flex-col items-start gap-2 md:items-end">
                                 @if($req->payment_proof_path)
-                                    <a href="{{ route('requests.receipt', $req) }}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-lg hover:bg-indigo-200 transition-all uppercase tracking-widest">
+                                    <a href="{{ route('requests.receipt', $req) }}" target="_blank" rel="noopener noreferrer" class="w-full rounded-lg bg-indigo-100 px-3 py-2 text-center text-xs font-black uppercase tracking-widest text-indigo-700 transition-all hover:bg-indigo-200 sm:w-auto">
                                         View Transcript Receipt
                                     </a>
                                 @endif
-                                @php
-                                    $statusClasses = [
-                                        'pending' => 'bg-amber-50 text-amber-700 border-amber-200',
-                                        'processing' => 'bg-blue-50 text-blue-700 border-blue-200',
-                                        'processed' => 'bg-purple-50 text-purple-700 border-purple-200',
-                                        'ready_to_release' => 'bg-indigo-50 text-indigo-700 border-indigo-200',
-                                    ];
-                                    $statusClass = $statusClasses[$req->status] ?? 'bg-slate-100 text-slate-700 border-slate-200';
-                                @endphp
-                                <span class="px-5 py-2.5 rounded-xl border {{ $statusClass }} text-xs font-black uppercase tracking-widest shadow-sm">
-                                    {{ str_replace('_', ' ', $req->status) }}
-                                </span>
+                                <x-request-status-badge :status="$req->status" />
                                 @if($req->remarks)
-                                    <p class="text-[10px] text-slate-400 italic mt-1 font-bold uppercase tracking-tight">Remarks: {{ $req->remarks }}</p>
+                                    <p class="mt-1 break-words text-xs font-bold italic text-slate-600">Remarks: {{ $req->remarks }}</p>
                                 @endif
                             </div>
                         </div>
                     @endforeach
                 </div>
             @else
-                <div class="text-center py-20 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
-                    <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
-                        <svg class="w-10 h-10 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 01-2 2H6a2 2 0 01-2-2m16 0l-8 4-8-4" /></svg>
-                    </div>
-                    <p class="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">No active requests found</p>
-                    <a href="{{ route('student.request') }}" class="inline-block mt-6 text-indigo-600 font-black text-xs uppercase tracking-widest hover:text-indigo-700">Submit a new request &rarr;</a>
-                </div>
+                <x-empty-state heading="No active requests" description="You have no document requests in progress. Submit a request when you need a school document." :action-url="auth()->user()->role === 'student' ? route('student.request') : null" action-label="Submit a new request" />
             @endif
         </div>
     </div>
@@ -106,7 +89,7 @@
         <div class="p-8 border-b border-slate-100 bg-white/50">
             <h3 class="font-black text-slate-500 text-base uppercase tracking-widest">History of Requests</h3>
         </div>
-        <div class="p-8">
+        <div class="min-w-0 p-5 sm:p-8">
             @if(count($requestHistory) > 0)
                 <div class="space-y-3">
                     @foreach($requestHistory as $req)
@@ -136,16 +119,12 @@
                                     <p class="text-xs font-medium text-slate-500">{{ $req->created_at->format('M d, Y') }}</p>
                                 </div>
                             </div>
-                            <span class="px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest {{ $req->status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100' }}">
-                                {{ $req->status }}
-                            </span>
+                            <x-request-status-badge :status="$req->status" />
                         </div>
                     @endforeach
                 </div>
             @else
-                <div class="text-center py-10">
-                    <p class="text-xs font-bold text-slate-300 uppercase tracking-widest">No past records found</p>
-                </div>
+                <x-empty-state heading="No request history yet" description="Your released and rejected document requests will appear here." />
             @endif
         </div>
     </div>

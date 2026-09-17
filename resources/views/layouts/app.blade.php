@@ -18,6 +18,12 @@
         :root { --fla-navy: #000638; --fla-gold: #ffd22d; --fla-ink: #10152f; }
         body { font-family: 'Inter', sans-serif; background: #f6f7fb; }
         button, a, input, select, textarea { touch-action: manipulation; }
+        .request-a11y :is(a, button, input, select, textarea, [tabindex="0"]):focus-visible,
+        .request-a11y label:has(> input.sr-only:focus-visible),
+        .request-a11y label[for="transcript_receipt"]:has(~ #transcript_receipt:focus-visible) {
+            outline: 3px solid #4f46e5;
+            outline-offset: 3px;
+        }
         img, svg { max-width: 100%; }
         html.dark { color-scheme: dark; }
         html.dark body { background: #080d1a; }

@@ -61,7 +61,9 @@
         <section class="rounded-2xl border border-red-200 bg-white p-6">
             <h2 class="text-lg font-black text-red-800">Revoke official document</h2>
             <p class="mt-1 text-sm text-slate-600">The original issuance and PDF stay in history. A correction must be finalized as a new document ID.</p>
-            <form method="POST" action="{{ route('documents.revoke', $document) }}" class="mt-4 flex flex-col gap-3 sm:flex-row" onsubmit="return confirm('Revoke this official document? This cannot be silently undone.');">
+            <form method="POST" action="{{ route('documents.revoke', $document) }}" class="mt-4 flex flex-col gap-3 sm:flex-row"
+                  data-confirm="Revoke issued document {{ $document->control_number }}? Its verification result will immediately show as revoked. This cannot be undone; a correction requires a new document ID."
+                  onsubmit="return confirm(this.dataset.confirm);">
                 @csrf
                 <input name="reason" required maxlength="255" placeholder="Required reason for revocation" class="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm">
                 <button class="rounded-xl bg-red-600 px-5 py-3 text-sm font-black uppercase tracking-wider text-white">Revoke</button>

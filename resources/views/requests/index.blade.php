@@ -5,7 +5,7 @@
 @section('page_subtitle', 'Monitor and process student document applications')
 
 @section('content')
-<div class="space-y-8">
+<div class="request-a11y min-w-0 space-y-8">
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="p-6 border-b border-slate-200 flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-center bg-slate-50">
             <div class="flex items-center gap-4">
@@ -16,12 +16,14 @@
                 </div>
                 <div>
                     <h2 class="text-xl font-semibold text-slate-900">Active requests</h2>
-                    <p class="text-sm text-slate-500 mt-1">{{ $requests->count() }} request(s) found</p>
+                    <p class="text-sm text-slate-500 mt-1">{{ $requests->total() }} request(s) found</p>
                 </div>
             </div>
 
             @if(auth()->user()->role === 'admin')
-            <form action="{{ route('requests.reset-all') }}" method="POST" onsubmit="return confirm('CRITICAL ACTION: This will PERMANENTLY DELETE ALL requests, history, and ticket records. This cannot be undone. Are you absolutely sure?');">
+            <form action="{{ route('requests.reset-all') }}" method="POST"
+                  data-confirm="Delete the entire request system record set, including all active requests, history, and ticket records? This cannot be undone."
+                  onsubmit="return confirm(this.dataset.confirm);">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2">
@@ -34,7 +36,68 @@
             @endif
         </div>
 
-        <div class="overflow-x-auto px-4 pb-4">
+        <form method="GET" action="{{ route('requests.index') }}" class="border-b border-slate-200 bg-white p-6">
+            <label for="request-search" class="mb-2 block text-sm font-semibold text-slate-700">
+                Search requests
+            </label>
+            <div class="flex flex-col gap-3 sm:flex-row">
+                <input
+                    id="request-search"
+                    type="search"
+                    name="search"
+                    value="{{ $search }}"
+                    maxlength="100"
+                    placeholder="Ticket number, student name, student number, or LRN"
+                    class="min-w-0 flex-1 rounded-xl border-slate-300 px-4 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                >
+                <button type="submit" class="w-full rounded-xl bg-[#000638] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#10175a] sm:w-auto">
+                    Apply Filters
+                </button>
+                <a href="{{ route('requests.index') }}" class="w-full rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto">
+                    Clear Filters
+                </a>
+            </div>
+            @php
+                $filterFields = [
+                    'status' => ['Status', 'statuses'],
+                    'document_type' => ['Document type', 'document_types'],
+                    'payment_method' => ['Payment method', 'payment_methods'],
+                    'delivery_method' => ['Delivery method', 'delivery_methods'],
+                    'school_year' => ['School year', 'school_years'],
+                ];
+                $filterLabel = fn ($value) => $value === 'gcash' ? 'GCash' : ucfirst(str_replace('_', ' ', $value));
+            @endphp
+            <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                @foreach($filterFields as $key => [$label, $optionsKey])
+                    <div>
+                        <label for="filter-{{ $key }}" class="mb-2 block text-sm font-semibold text-slate-700">{{ $label }}</label>
+                        <select id="filter-{{ $key }}" name="{{ $key }}" class="w-full rounded-xl border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <option value="">All</option>
+                            @foreach($filterOptions[$optionsKey] as $value)
+                                <option value="{{ $value }}" @selected($filters[$key] === $value)>{{ $filterLabel($value) }}</option>
+                            @endforeach
+                        </select>
+                        @error($key)
+                            <p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                @endforeach
+            </div>
+            @if($activeParameters)
+                <div class="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-600" aria-label="Active filters">
+                    <span class="font-semibold">Active filters:</span>
+                    @foreach($activeParameters as $key => $value)
+                        <span class="rounded-full bg-slate-100 px-3 py-1">{{ $key === 'search' ? 'Search' : $filterFields[$key][0] }}: {{ $key === 'search' ? $value : $filterLabel($value) }}</span>
+                    @endforeach
+                </div>
+            @endif
+            @error('search')
+                <p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>
+            @enderror
+        </form>
+
+        <p id="request-table-scroll-hint" class="px-4 pt-4 text-sm text-slate-600 lg:hidden">Scroll sideways to view every request detail and action.</p>
+        <div class="overflow-x-auto px-4 pb-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-indigo-600" tabindex="0" role="region" aria-label="Request management table" aria-describedby="request-table-scroll-hint">
             <table class="w-full min-w-[1380px] table-fixed text-left">
                 <colgroup>
                     <col class="w-[260px]">
@@ -47,13 +110,13 @@
                 </colgroup>
                 <thead>
                     <tr class="bg-slate-50 border-b border-slate-200">
-                        <th class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Ticket and student</th>
-                        <th class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Document type</th>
-                        <th class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Delivery and payment</th>
-                        <th class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Clearance</th>
-                        <th class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Current status</th>
-                        <th class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Request date</th>
-                        <th class="px-5 py-4 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
+                        <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Ticket and student</th>
+                        <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Document type</th>
+                        <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Delivery and payment</th>
+                        <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Clearance</th>
+                        <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Current status</th>
+                        <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Request date</th>
+                        <th scope="col" class="px-5 py-4 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
@@ -134,15 +197,7 @@
                             </div>
                         </td>
                         <td class="px-5 py-6 align-top">
-                            <span class="inline-flex whitespace-nowrap px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm
-                                {{ $req->status == 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-100' : '' }}
-                                {{ $req->status == 'processing' ? 'bg-blue-50 text-blue-700 border border-blue-100' : '' }}
-                                {{ $req->status == 'processed' ? 'bg-purple-50 text-purple-700 border border-purple-100' : '' }}
-                                {{ $req->status == 'ready_to_release' ? 'bg-[#ffd22d]/20 text-[#000638] border border-[#ffd22d]/60' : '' }}
-                                {{ $req->status == 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : '' }}
-                            ">
-                                {{ str_replace('_', ' ', $req->status) }}
-                            </span>
+                            <x-request-status-badge :status="$req->status" />
                         </td>
                         <td class="px-5 py-6 align-top">
                             <div class="text-sm font-bold text-slate-800">{{ $req->created_at->format('M d, Y') }}</div>
@@ -180,14 +235,17 @@
                                                 </a>
                                              @endif
                                              
-                                             <form action="{{ route('requests.update-status', $req->id) }}" method="POST" class="space-y-2">
+                                             <form action="{{ route('requests.update-status', $req->id) }}" method="POST" class="space-y-2"
+                                                   data-request-identifier="{{ $req->ticket_number ?? '#'.$req->id }}"
+                                                   onsubmit="const status=event.submitter?.value; const id=this.dataset.requestIdentifier; if (status === 'rejected') return confirm('Reject request ' + id + '? This cannot be undone through Request Management.'); if (status === 'ready_to_release') return confirm('Mark request ' + id + ' as ready for release? Confirm that the issued document is ready before continuing.'); return true;">
                                                  @csrf
-                                                 <input type="text" name="remarks" placeholder="Add remarks (optional)" class="text-sm font-bold bg-white border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 w-full" value="{{ $req->remarks }}">
+                                                 <label for="approval-remarks-{{ $req->id }}" class="text-xs font-semibold text-slate-700">Remarks for {{ $req->ticket_number ?? 'request #'.$req->id }} (optional)</label>
+                                                 <input id="approval-remarks-{{ $req->id }}" type="text" name="remarks" placeholder="Add remarks (optional)" class="w-full rounded-lg border-slate-200 bg-white px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500" value="{{ $req->remarks }}">
                                                  <div class="flex gap-2">
                                                      <button type="submit" name="status" value="ready_to_release" class="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all">
                                                          Approve
                                                      </button>
-                                                     <button type="submit" name="status" value="rejected" class="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all" onclick="return confirm('Are you sure?')">
+                                                     <button type="submit" name="status" value="rejected" class="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all">
                                                          Reject
                                                      </button>
                                                  </div>
@@ -220,10 +278,13 @@
                                         </div>
                                         
                                         <!-- Status Update -->
-                                        <form action="{{ route('requests.update-status', $req->id) }}" method="POST" class="flex flex-col gap-2">
+                                        <form action="{{ route('requests.update-status', $req->id) }}" method="POST" class="flex flex-col gap-2"
+                                              data-request-identifier="{{ $req->ticket_number ?? '#'.$req->id }}"
+                                              onsubmit="const status=this.querySelector('[name=status]').value; const id=this.dataset.requestIdentifier; if (status === 'rejected') return confirm('Reject request ' + id + '? This cannot be undone through Request Management.'); if (status === 'completed') return confirm('Mark request ' + id + ' as released? This records that the document was released and cannot be undone through Request Management.'); if (status === 'ready_to_release') return confirm('Mark request ' + id + ' as ready for release? Confirm that the issued document is ready before continuing.'); return true;">
                                             @csrf
                                             <div class="flex items-center gap-2">
-                                                <select name="status" class="text-xs font-black uppercase tracking-widest bg-white border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm min-w-[160px]">
+                                                <label for="request-status-{{ $req->id }}" class="sr-only">Status for request {{ $req->ticket_number ?? '#'.$req->id }}</label>
+                                                <select id="request-status-{{ $req->id }}" name="status" class="min-w-0 flex-1 rounded-xl border-slate-200 bg-white px-3 py-3 text-xs font-black uppercase tracking-widest shadow-sm transition-all focus:ring-2 focus:ring-indigo-500">
                                                     <option value="pending" {{ $req->status == 'pending' ? 'selected' : '' }}>Pending</option>
                                                     <option value="processing" {{ $req->status == 'processing' ? 'selected' : '' }}>Processing</option>
                                                     <option value="processed" {{ $req->status == 'processed' ? 'selected' : '' }}>Processed</option>
@@ -231,13 +292,14 @@
                                                     <option value="completed" {{ $req->status == 'completed' ? 'selected' : '' }}>Released</option>
                                                     <option value="rejected" {{ $req->status == 'rejected' ? 'selected' : '' }}>Rejected</option>
                                                 </select>
-                                                <button type="submit" class="w-12 h-12 flex items-center justify-center bg-[#000638] text-white rounded-xl shadow-sm hover:bg-[#10175a] transition-all shrink-0" title="Update Status">
+                                                <button type="submit" class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#000638] text-white shadow-sm transition-all hover:bg-[#10175a]" title="Update Status" aria-label="Update status for request {{ $req->ticket_number ?? '#'.$req->id }}">
                                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                                     </svg>
                                                 </button>
                                             </div>
-                                            <input type="text" name="remarks" placeholder="Add remarks..." class="text-sm font-bold bg-white border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm" value="{{ $req->remarks }}">
+                                            <label for="status-remarks-{{ $req->id }}" class="text-xs font-semibold text-slate-700">Remarks for {{ $req->ticket_number ?? 'request #'.$req->id }} (optional)</label>
+                                            <input id="status-remarks-{{ $req->id }}" type="text" name="remarks" placeholder="Add remarks..." class="min-w-0 rounded-xl border-slate-200 bg-white px-4 py-2.5 text-sm font-bold shadow-sm transition-all focus:ring-2 focus:ring-indigo-500" value="{{ $req->remarks }}">
                                         </form>
                                         
                                         <!-- Clearance Update Form (Hidden) -->
@@ -245,12 +307,14 @@
                                             <form action="{{ route('requests.update-clearance', $req->id) }}" method="POST">
                                                 @csrf
                                                 <div class="flex flex-col gap-2">
-                                                    <select name="clearance_status" class="text-xs font-bold bg-white border-amber-300 rounded-lg px-3 py-2">
+                                                    <label for="clearance-status-{{ $req->id }}" class="text-xs font-semibold text-slate-700">Clearance status for {{ $req->ticket_number ?? 'request #'.$req->id }}</label>
+                                                    <select id="clearance-status-{{ $req->id }}" name="clearance_status" class="min-w-0 rounded-lg border-amber-300 bg-white px-3 py-2 text-xs font-bold">
                                                         <option value="cleared" {{ $req->clearance_status == 'cleared' ? 'selected' : '' }}>Cleared</option>
                                                         <option value="pending_clearance" {{ $req->clearance_status == 'pending_clearance' ? 'selected' : '' }}>Pending Clearance</option>
                                                         <option value="has_balance" {{ $req->clearance_status == 'has_balance' ? 'selected' : '' }}>Has Balance</option>
                                                     </select>
-                                                    <input type="number" name="financial_balance" value="{{ $req->financial_balance }}" placeholder="Balance (₱)" step="0.01" min="0" class="text-xs font-bold bg-white border-amber-300 rounded-lg px-3 py-2">
+                                                    <label for="financial-balance-{{ $req->id }}" class="text-xs font-semibold text-slate-700">Financial balance (₱)</label>
+                                                    <input id="financial-balance-{{ $req->id }}" type="number" name="financial_balance" value="{{ $req->financial_balance }}" placeholder="Balance (₱)" step="0.01" min="0" class="min-w-0 rounded-lg border-amber-300 bg-white px-3 py-2 text-xs font-bold">
                                                     <button type="submit" class="px-3 py-1.5 bg-amber-600 text-white text-xs font-black rounded-lg hover:bg-amber-700 transition-all">
                                                         Update Clearance
                                                     </button>
@@ -260,13 +324,13 @@
                                     </div>
 
                                     @if(str_starts_with($req->document_type, 'Certificate of '))
-                                    <a href="{{ route('certifications.index', ['request_id' => $req->id]) }}" class="w-12 h-12 flex items-center justify-center bg-[#062b63] text-white rounded-xl shadow-lg transition-all hover:bg-[#041d45]" title="Open Certification Maker">
+                                    <a href="{{ route('certifications.index', ['request_id' => $req->id]) }}" class="w-12 h-12 flex items-center justify-center bg-[#062b63] text-white rounded-xl shadow-lg transition-all hover:bg-[#041d45]" title="Open Certification Maker" aria-label="Open certification maker for request {{ $req->ticket_number ?? '#'.$req->id }}">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 01.707.293l5.414 5.414A1 1 0 0118 9.414V19a2 2 0 01-2 2z" />
                                         </svg>
                                     </a>
                                     @elseif(str_contains(strtolower($req->document_type), 'good moral'))
-                                    <a href="{{ route('good-moral.index', ['request_id' => $req->id]) }}" class="w-12 h-12 flex items-center justify-center bg-indigo-500 text-white rounded-xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 transition-all" title="Open Good Moral Maker">
+                                    <a href="{{ route('good-moral.index', ['request_id' => $req->id]) }}" class="w-12 h-12 flex items-center justify-center bg-indigo-500 text-white rounded-xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 transition-all" title="Open Good Moral Maker" aria-label="Open good moral maker for request {{ $req->ticket_number ?? '#'.$req->id }}">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                         </svg>
@@ -274,7 +338,7 @@
                                     @endif
 
                                     @if(in_array(strtolower($req->document_type), ['form 137', 'form 138', 'f137', 'f138']))
-                                    <a href="{{ route('generator.maker', ['documentRequest' => $req->id, 'form' => str_contains(strtolower($req->document_type), '137') ? 'f137' : 'f138']) }}" target="_blank" class="w-12 h-12 flex items-center justify-center bg-blue-600 text-white rounded-xl shadow-lg hover:bg-blue-700 transition-all" title="Open {{ $req->document_type }} Maker">
+                                    <a href="{{ route('generator.maker', ['documentRequest' => $req->id, 'form' => str_contains(strtolower($req->document_type), '137') ? 'f137' : 'f138']) }}" target="_blank" class="w-12 h-12 flex items-center justify-center bg-blue-600 text-white rounded-xl shadow-lg hover:bg-blue-700 transition-all" title="Open {{ $req->document_type }} Maker" aria-label="Open {{ $req->document_type }} maker for request {{ $req->ticket_number ?? '#'.$req->id }}">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0118 9.414V19a2 2 0 01-2 2z" />
                                         </svg>
@@ -282,7 +346,7 @@
                                     @endif
 
                                     @if(str_contains(strtolower($req->document_type), 'diploma'))
-                                    <a href="{{ route('diploma.index', ['request_id' => $req->id]) }}" class="w-12 h-12 flex items-center justify-center bg-amber-500 text-white rounded-xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all" title="Open Diploma Maker">
+                                    <a href="{{ route('diploma.index', ['request_id' => $req->id]) }}" class="w-12 h-12 flex items-center justify-center bg-amber-500 text-white rounded-xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all" title="Open Diploma Maker" aria-label="Open diploma maker for request {{ $req->ticket_number ?? '#'.$req->id }}">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path d="M12 14l9-5-9-5-9 5 9 5z" />
                                             <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
@@ -297,17 +361,21 @@
                 </tbody>
             </table>
             @if($requests->isEmpty())
-                <div class="p-16 text-center bg-slate-50/30">
-                    <div class="w-20 h-20 bg-white rounded-2xl flex items-center justify-center text-slate-300 mx-auto mb-6 border border-slate-200">
-                        <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 01-2 2H6a2 2 0 01-2-2m16 0l-8 4-8-4" />
-                        </svg>
-                    </div>
-                    <h3 class="text-slate-700 text-lg font-semibold">No requests yet</h3>
-                    <p class="text-slate-500 mt-2">All document applications will appear here.</p>
-                </div>
+                @if($requests->total() > 0)
+                    <x-empty-state heading="No requests on this page" description="Return to the first page to view requests matching your current selection." :action-url="route('requests.index', $activeParameters)" action-label="View first page" />
+                @elseif($activeParameters)
+                    <x-empty-state heading="No matching requests found" description="Try different search terms or clear the filters to view active requests." :action-url="route('requests.index')" action-label="Clear search and filters" />
+                @else
+                    <x-empty-state heading="No active requests" :description="auth()->user()->role === 'registrar' ? 'Requests will appear here when they have been processed and are ready for your review.' : 'New student document requests will appear here. Released and rejected requests are available in history.'" :action-url="route('requests.history')" action-label="View request history" />
+                @endif
             @endif
         </div>
+
+        @if($requests->hasPages())
+            <div class="border-t border-slate-200 px-6 py-4">
+                {{ $requests->links() }}
+            </div>
+        @endif
     </div>
 </div>
 

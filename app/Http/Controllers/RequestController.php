@@ -6,6 +6,7 @@ use App\Models\RequestDocument;
 use App\Models\Setting;
 use App\Models\Student;
 use App\Models\User;
+use App\Support\SchoolProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -14,8 +15,36 @@ use Illuminate\Validation\Rule;
 class RequestController extends Controller
 {
     // Records Officer / Registrar View
-    public function index()
+    public function index(Request $request)
     {
+        $filterOptions = [
+            'statuses' => ['pending', 'processing', 'processed', 'ready_to_release', 'completed', 'rejected'],
+            'document_types' => ['Form 137', 'Form 138', 'Certificate of Enrollment', 'Certificate of Completion', 'Certificate of Good Moral Character', 'Certificate of Recognition', 'Diploma'],
+            'payment_methods' => ['cash', 'gcash', 'bank_transfer'],
+            'delivery_methods' => ['pickup', 'delivery'],
+            'school_years' => config('academics.school_years', []),
+        ];
+
+        $filterKeys = ['search', 'status', 'document_type', 'payment_method', 'delivery_method', 'school_year'];
+        $request->merge(collect($filterKeys)->mapWithKeys(function (string $key) use ($request) {
+            $value = $request->query($key);
+
+            return [$key => is_string($value) ? trim($value) : $value];
+        })->all());
+
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'string', Rule::in($filterOptions['statuses'])],
+            'document_type' => ['nullable', 'string', Rule::in($filterOptions['document_types'])],
+            'payment_method' => ['nullable', 'string', Rule::in($filterOptions['payment_methods'])],
+            'delivery_method' => ['nullable', 'string', Rule::in($filterOptions['delivery_methods'])],
+            'school_year' => ['nullable', 'string', Rule::in($filterOptions['school_years'])],
+        ]);
+        $search = $validated['search'] ?? '';
+        $filters = collect(array_diff($filterKeys, ['search']))
+            ->mapWithKeys(fn (string $key) => [$key => $validated[$key] ?? ''])
+            ->all();
+
         $user = auth()->user();
         $query = RequestDocument::with('student');
 
@@ -30,9 +59,33 @@ class RequestController extends Controller
             $query->whereNotIn('status', ['completed', 'rejected']);
         }
 
-        $requests = $query->latest()->get();
+        if ($search !== '') {
+            $searchPattern = '%'.mb_strtolower($search).'%';
 
-        return view('requests.index', compact('requests'));
+            $query->where(function ($query) use ($searchPattern) {
+                $query->whereRaw('LOWER(ticket_number) LIKE ?', [$searchPattern])
+                    ->orWhereRaw('LOWER(student_number) LIKE ?', [$searchPattern])
+                    ->orWhereHas('student', function ($studentQuery) use ($searchPattern) {
+                        $studentQuery->whereRaw('LOWER(name) LIKE ?', [$searchPattern])
+                            ->orWhereRaw('LOWER(student_number) LIKE ?', [$searchPattern])
+                            ->orWhereRaw('LOWER(lrn) LIKE ?', [$searchPattern]);
+                    });
+            });
+        }
+
+        foreach ($filters as $column => $value) {
+            if ($value !== '') {
+                $query->where($column, $value);
+            }
+        }
+
+        $activeParameters = array_filter(
+            ['search' => $search, ...$filters],
+            fn ($value) => $value !== '',
+        );
+        $requests = $query->latest()->paginate(15)->appends($activeParameters);
+
+        return view('requests.index', compact('requests', 'search', 'filters', 'filterOptions', 'activeParameters'));
     }
 
     public function history()
@@ -269,25 +322,20 @@ class RequestController extends Controller
             abort(404);
         }
 
-        $downloadName = $requestDocument->payment_proof_original_name
-            ?: basename($requestDocument->payment_proof_path);
-
         record_log(
             'Viewed Payment Receipt',
             'File Security',
             "Viewed receipt for request #{$requestDocument->id}; student: {$requestDocument->student_number}; role: {$user->role}"
         );
 
-        return Storage::disk($disk)->response(
-            $requestDocument->payment_proof_path,
-            $downloadName,
-            [
-                'Cache-Control' => 'private, no-store, max-age=0',
-                'Pragma' => 'no-cache',
-                'X-Content-Type-Options' => 'nosniff',
-                'Content-Security-Policy' => "default-src 'none'; sandbox",
-            ]
-        );
+        $requestDocument->loadMissing('student');
+        $schoolProfile = app(SchoolProfile::class)->values();
+
+        return response()
+            ->view('requests.receipt', compact('requestDocument', 'schoolProfile'))
+            ->header('Cache-Control', 'private, no-store, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('X-Content-Type-Options', 'nosniff');
     }
 
     private function documentPrices(): array

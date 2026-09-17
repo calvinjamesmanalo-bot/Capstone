@@ -56,7 +56,7 @@
     html.dark .request-step-label[data-state="complete"] { color: #f8fafc; }
 </style>
 
-<div class="mx-auto w-full max-w-[1440px]">
+<div class="request-a11y mx-auto w-full min-w-0 max-w-[1440px]">
     @if($errors->any())
         <div class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800" role="alert">
             <div class="flex items-start gap-3">
@@ -82,7 +82,7 @@
                 <nav class="flex w-full max-w-xl items-start" aria-label="Request progress">
                     @foreach(['Choose document', 'Delivery & payment', 'Review request'] as $index => $label)
                         <div class="flex min-w-0 flex-1 items-start">
-                            <button type="button" class="group flex min-w-0 items-center gap-2.5 text-left" data-step-target="{{ $index + 1 }}">
+                            <button type="button" class="group flex min-w-0 items-center gap-2.5 text-left" data-step-target="{{ $index + 1 }}" aria-label="Step {{ $index + 1 }}: {{ $label }}">
                                 <span class="request-step-dot flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-slate-300 bg-white text-sm font-bold text-slate-500 transition" data-step-dot="{{ $index + 1 }}">{{ $index + 1 }}</span>
                                 <span class="request-step-label hidden text-xs font-semibold leading-tight text-slate-500 transition sm:block" data-step-label="{{ $index + 1 }}">{{ $label }}</span>
                             </button>

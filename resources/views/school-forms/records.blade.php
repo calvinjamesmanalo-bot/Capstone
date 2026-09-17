@@ -97,7 +97,7 @@
             </div>
         </div>
 
-        <form method="POST" action="{{ route('school-forms.grade-sheets.store') }}" enctype="multipart/form-data" class="p-6 sm:p-8" data-upload-form>
+        <form id="grade-sheet-upload" method="POST" action="{{ route('school-forms.grade-sheets.store') }}" enctype="multipart/form-data" class="p-6 sm:p-8" data-upload-form>
             @csrf
             <div class="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div class="mb-4 flex items-center gap-3">
@@ -218,7 +218,7 @@
                 </div>
             </div>
 
-            <form method="GET" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <form id="record-finder" method="GET" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <label>
                     <span class="sr-only">School year</span>
                     <select name="school_year" class="fla-field w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition" required>
@@ -288,7 +288,9 @@
                                             Download
                                         </a>
                                         @if(in_array(auth()->user()->role, ['admin', 'registrar'], true))
-                                        <form method="POST" action="{{ route('school-forms.uploads.destroy', $upload) }}" onsubmit="return confirm('Delete this sheet and all records imported from it? This cannot be undone.')">
+                                        <form method="POST" action="{{ route('school-forms.uploads.destroy', $upload) }}"
+                                              data-confirm="Delete upload '{{ $upload->original_name }}' and all records imported from it? This cannot be undone."
+                                              onsubmit="return confirm(this.dataset.confirm);">
                                             @csrf @method('DELETE')
                                             <button class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50">
                                                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16m-10 4v6m4-6v6M9 7l1-3h4l1 3m3 0-1 14H7L6 7"/></svg>
@@ -299,7 +301,7 @@
                                     </div>
                                 </article>
                             @empty
-                                <div class="p-8 text-center"><p class="font-bold text-slate-700">No attendance sheets</p><p class="mt-1 text-sm text-slate-500">None have been uploaded for this class.</p></div>
+                                <x-empty-state heading="No matching attendance sheets" description="No attendance sheets have been uploaded for the selected school year, grade level, and section. Try another class." :action-url="route('school-forms.records')" action-label="Clear class filters" />
                             @endforelse
                         </div>
                     </section>
@@ -334,7 +336,9 @@
                                             Download
                                         </a>
                                         @if(in_array(auth()->user()->role, ['admin', 'registrar'], true))
-                                        <form method="POST" action="{{ route('school-forms.uploads.destroy', $upload) }}" onsubmit="return confirm('Delete this sheet and all records imported from it? This cannot be undone.')">
+                                        <form method="POST" action="{{ route('school-forms.uploads.destroy', $upload) }}"
+                                              data-confirm="Delete upload '{{ $upload->original_name }}' and all records imported from it? This cannot be undone."
+                                              onsubmit="return confirm(this.dataset.confirm);">
                                             @csrf @method('DELETE')
                                             <button class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50">
                                                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16m-10 4v6m4-6v6M9 7l1-3h4l1 3m3 0-1 14H7L6 7"/></svg>
@@ -345,20 +349,18 @@
                                     </div>
                                 </article>
                             @empty
-                                <div class="p-8 text-center"><p class="font-bold text-slate-700">No summary sheets</p><p class="mt-1 text-sm text-slate-500">None have been uploaded for this class.</p></div>
+                                <x-empty-state heading="No matching summary sheets" description="No summary sheets have been uploaded for the selected school year, grade level, and section. Try another class." :action-url="route('school-forms.records')" action-label="Clear class filters" />
                             @endforelse
                         </div>
                     </section>
                 </div>
             </div>
         @else
-            <div class="grid place-items-center px-6 py-12 text-center">
-                <span class="grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-400">
-                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 5h16M6 12h12M9 19h6"/></svg>
-                </span>
-                <p class="mt-4 font-bold text-slate-700">Choose a class to view its records</p>
-                <p class="mt-1 max-w-sm text-sm text-slate-500">Use the school year, grade level, and section filters above.</p>
-            </div>
+            @if($levels->isEmpty())
+                <x-empty-state heading="No grade sheets uploaded yet" description="Uploaded attendance and summary sheets will appear here, organized by class." :action-url="in_array(auth()->user()->role, ['admin', 'registrar', 'records_officer'], true) ? '#grade-sheet-upload' : null" action-label="Upload grade sheets" />
+            @else
+                <x-empty-state heading="Choose a class to view its records" description="Select a school year, grade level, and section in the Record Finder to see matching sheets." action-url="#record-finder" action-label="Choose class filters" />
+            @endif
         @endif
     </section>
 </main>

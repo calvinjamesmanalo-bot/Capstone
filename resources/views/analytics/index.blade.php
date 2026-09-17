@@ -80,20 +80,10 @@
             @foreach(['pending', 'processing', 'processed', 'ready_to_release', 'completed'] as $status)
                 @php
                     $count = $statusCounts->where('status', $status)->first()->total ?? 0;
-                    $colors = [
-                        'pending' => 'bg-amber-500',
-                        'processing' => 'bg-blue-500',
-                        'processed' => 'bg-purple-500',
-                        'ready_to_release' => 'bg-indigo-500',
-                        'completed' => 'bg-emerald-500'
-                    ];
                 @endphp
                 <div class="p-4 bg-slate-50 rounded-lg border border-slate-200">
                     <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 {{ $colors[$status] }} rounded-full"></span>
-                            <p class="text-sm text-slate-700">{{ ucwords(str_replace('_', ' ', $status)) }}</p>
-                        </div>
+                        <x-request-status-badge :status="$status" />
                         <h4 class="text-xl font-semibold text-slate-900">{{ $count }}</h4>
                     </div>
                 </div>

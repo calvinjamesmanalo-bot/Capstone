@@ -32,7 +32,7 @@
                 </div>
             @endif
 
-            <form action="{{ route('grade-portal.upload') }}" method="POST" enctype="multipart/form-data" class="space-y-8">
+            <form id="grade-upload" action="{{ route('grade-portal.upload') }}" method="POST" enctype="multipart/form-data" class="space-y-8">
                 @csrf
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div class="space-y-2">
@@ -105,7 +105,7 @@
                 </div>
             </div>
             
-            <form action="{{ route('grade-portal.index') }}" method="GET">
+            <form id="student-finder" action="{{ route('grade-portal.index') }}" method="GET">
                 <div class="flex gap-4">
                     <div class="relative flex-1">
                         <span class="absolute inset-y-0 left-0 flex items-center pl-5 text-slate-400">
@@ -182,7 +182,8 @@
                                                     </a>
                                                     <form action="{{ route('grade-portal.delete', $upload->id) }}" 
                                                           method="POST" 
-                                                          onsubmit="return confirm('Are you sure you want to delete this record?');" 
+                                                          data-confirm="Delete grade upload '{{ $upload->original_filename }}' (record #{{ $upload->id }})? This cannot be undone."
+                                                          onsubmit="return confirm(this.dataset.confirm);"
                                                           class="inline">
                                                         @csrf
                                                         @method('DELETE')
@@ -200,30 +201,13 @@
                             </table>
                         </div>
                     @else
-                        <div class="p-16 text-center bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-100">
-                            <div class="w-20 h-20 bg-white rounded-3xl flex items-center justify-center text-slate-200 mx-auto mb-6 shadow-sm">
-                                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                                </svg>
-                            </div>
-                            <p class="text-slate-500 font-black text-lg">No records found</p>
-                            <p class="text-sm text-slate-400 mt-2 font-medium">Start by uploading a Form 138 for this student.</p>
-                        </div>
+                        <x-empty-state heading="No grade records for this student" description="No Form 138 files have been uploaded for this student yet." :action-url="in_array(auth()->user()->role, ['admin', 'registrar'], true) ? '#grade-upload' : null" action-label="Upload a grade record" />
                     @endif
                 @else
-                    <div class="p-10 text-center bg-red-50 rounded-3xl border border-red-100">
-                        <p class="text-red-600 font-black text-sm uppercase tracking-widest">Student number not found in our directory.</p>
-                    </div>
+                    <x-empty-state heading="No matching student found" description="Check the student number and try again, or clear your search." :action-url="route('grade-portal.index')" action-label="Clear student search" />
                 @endif
             @else
-                <div class="p-20 text-center bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100/50">
-                    <div class="w-20 h-20 bg-white rounded-3xl flex items-center justify-center text-slate-200 mx-auto mb-6 shadow-sm">
-                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                    </div>
-                    <p class="text-slate-400 text-sm font-black uppercase tracking-[0.2em]">Search for a student to view history</p>
-                </div>
+                <x-empty-state heading="Find a student’s grade records" description="Enter a student number to view their uploaded Form 138 files." action-url="#student-finder" action-label="Search for a student" />
             @endif
         </div>
     </div>

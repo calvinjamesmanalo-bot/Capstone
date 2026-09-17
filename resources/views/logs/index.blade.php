@@ -13,13 +13,9 @@
                 <p class="text-xs font-medium text-slate-400 mt-1">Real-time system event monitoring</p>
             </div>
             <div class="flex gap-3">
-                <button class="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
-                    Filter
-                </button>
-                <form action="{{ route('logs.clear') }}" method="POST" onsubmit="return confirm('Are you sure you want to clear all logs? This cannot be undone.');">
+                <form action="{{ route('logs.clear') }}" method="POST"
+                      data-confirm="Clear all activity logs and document verification audit logs? This cannot be undone."
+                      onsubmit="return confirm(this.dataset.confirm);">
                     @csrf
                     @method('DELETE')
                     <button type="submit" class="px-4 py-2 text-xs font-bold text-red-600 bg-red-50 border border-red-100 rounded-xl hover:bg-red-100 transition-all">
@@ -77,7 +73,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="5" class="px-8 py-12 text-center text-slate-400 font-bold">No system logs found</td>
+                        <td colspan="5"><x-empty-state :heading="$logs->total() ? 'No activity on this page' : 'No activity recorded yet'" description="Activity entries appear here as people use the system." :action-url="$logs->total() ? route('logs.index') : null" action-label="View first page" /></td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -121,7 +117,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="px-8 py-12 text-center text-slate-400 font-bold">No document verifications recorded</td></tr>
+                        <tr><td colspan="5"><x-empty-state :heading="$verificationAudits->total() ? 'No verifications on this page' : 'No document verifications recorded'" description="Verification entries appear here when an issued document is checked." :action-url="$verificationAudits->total() ? route('logs.index') : null" action-label="View first page" /></td></tr>
                     @endforelse
                 </tbody>
             </table>

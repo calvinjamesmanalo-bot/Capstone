@@ -21,7 +21,9 @@
             </div>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                 @if(auth()->user()->role === 'admin')
-                <form action="{{ route('requests.reset-all') }}" method="POST" onsubmit="return confirm('CRITICAL ACTION: This will PERMANENTLY DELETE ALL requests, history, and ticket records. This cannot be undone. Are you absolutely sure?');">
+                <form action="{{ route('requests.reset-all') }}" method="POST"
+                      data-confirm="Delete the entire request system record set, including all active requests, history, and ticket records? This cannot be undone."
+                      onsubmit="return confirm(this.dataset.confirm);">
                     @csrf
                     @method('DELETE')
                     <button type="submit" class="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-xs font-black text-white shadow-lg shadow-red-500/20 transition-all hover:bg-red-700 sm:w-auto">
@@ -82,7 +84,9 @@
                                     <span class="px-2 py-1 rounded-md text-[9px] font-black uppercase {{ $authenticity->status === 'valid' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600' }}">{{ $authenticity->status }}</span>
                                 </div>
                                 @if($authenticity->status !== 'revoked' && in_array(auth()->user()->role, ['admin', 'registrar']))
-                                    <form class="mt-2" method="POST" action="{{ route('documents.revoke', $authenticity) }}" onsubmit="return confirm('Revoke this issued document? The QR will show a warning immediately.');">
+                                    <form class="mt-2" method="POST" action="{{ route('documents.revoke', $authenticity) }}"
+                                          data-confirm="Revoke issued document {{ $authenticity->control_number }}? Its verification result will immediately show as revoked. This cannot be undone; a correction requires a new document ID."
+                                          onsubmit="return confirm(this.dataset.confirm);">
                                         @csrf
                                         <input type="hidden" name="reason" value="Revoked by {{ auth()->user()->role }} from request history">
                                         <button class="text-[9px] font-black uppercase tracking-wider text-red-600" type="submit">Revoke document</button>
@@ -96,11 +100,7 @@
                             {{ $req->document_type }}
                         </td>
                         <td class="px-10 py-8">
-                            <span class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm
-                                {{ $req->status == 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600' }}
-                            ">
-                                {{ str_replace('_', ' ', $req->status) }}
-                            </span>
+                            <x-request-status-badge :status="$req->status" />
                         </td>
                         <td class="px-10 py-8">
                             <div class="text-sm font-bold text-slate-800">{{ $req->updated_at->format('M d, Y') }}</div>
@@ -114,9 +114,7 @@
                 </tbody>
             </table>
             @if($requests->isEmpty())
-                <div class="p-32 text-center bg-slate-50/30">
-                    <h3 class="text-slate-400 text-lg font-black uppercase tracking-[0.3em]">No history yet</h3>
-                </div>
+                <x-empty-state heading="No request history yet" description="Released and rejected requests will appear here once they leave the active list." :action-url="route('requests.index')" action-label="View active requests" />
             @endif
         </div>
     </div>
@@ -133,7 +131,8 @@
             <h3 class="text-2xl font-black text-slate-800 mb-2">Clear Request History?</h3>
             <p class="text-slate-500 mb-8">This action cannot be undone. All selected records will be permanently deleted.</p>
         </div>
-        <form id="clearForm" method="POST" action="{{ route('requests.history.clear') }}">
+        <form id="clearForm" method="POST" action="{{ route('requests.history.clear') }}"
+              onsubmit="const selected=this.querySelector('input[name=action]:checked'); const label=selected ? selected.closest('label').innerText.trim() : 'selected request history'; return confirm('Permanently delete ' + label + '? This cannot be undone.');">
             @csrf
             @method('DELETE')
             <div class="mb-6">
