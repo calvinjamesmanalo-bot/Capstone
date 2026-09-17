@@ -22,4 +22,19 @@ class ProductionReadinessCheckTest extends TestCase
             ->doesntExpectOutputToContain('never-print-this-secret')
             ->assertFailed();
     }
+
+    public function test_unsupported_backup_driver_and_synchronous_queue_fail_readiness(): void
+    {
+        config([
+            'database.default' => 'mysql',
+            'queue.default' => 'sync',
+            'mail.default' => 'log',
+        ]);
+
+        $this->artisan('production:check')
+            ->expectsOutputToContain('Backup-compatible database')
+            ->expectsOutputToContain('Asynchronous queue')
+            ->expectsOutputToContain('SMTP mail transport')
+            ->assertFailed();
+    }
 }

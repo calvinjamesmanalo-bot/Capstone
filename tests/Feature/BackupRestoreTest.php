@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -57,5 +58,26 @@ class BackupRestoreTest extends TestCase
             ->expectsOutputToContain('Isolated restore verification failed:')
             ->expectsOutputToContain('Current system modified: NO')
             ->assertFailed();
+    }
+
+    public function test_backup_contains_private_uploaded_files(): void
+    {
+        Storage::disk('local')->put('transcript_receipts/backup-test.txt', 'private test receipt');
+
+        try {
+            $this->artisan('backup:create', ['--name' => 'private-file-test'])->assertSuccessful();
+            $backup = collect(File::glob(storage_path('app/backups/*_private-file-test_*.zip')))->sort()->last();
+            $this->assertNotNull($backup);
+            $this->createdBackups[] = $backup;
+
+            $zip = new ZipArchive;
+            $this->assertTrue($zip->open($backup));
+            $this->assertSame('private test receipt', $zip->getFromName('files/application/transcript_receipts/backup-test.txt'));
+            $zip->close();
+
+            $this->artisan('backup:restore-test', ['file' => $backup])->assertSuccessful();
+        } finally {
+            Storage::disk('local')->delete('transcript_receipts/backup-test.txt');
+        }
     }
 }

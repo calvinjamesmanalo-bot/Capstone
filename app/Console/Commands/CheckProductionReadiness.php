@@ -68,6 +68,9 @@ class CheckProductionReadiness extends Command
             $databaseOk = false;
         }
         $add('Database reachable', $databaseOk, 'Check production database connection and credentials.');
+        $add('Backup-compatible database', config('database.default') === 'sqlite', 'The built-in backup command supports SQLite only; configure and test a backup tool for your production database.');
+        $add('Asynchronous queue', ! in_array(config('queue.default'), ['sync', 'null'], true), 'Set QUEUE_CONNECTION=database or redis and run a queue worker.');
+        $add('SMTP mail transport', config('mail.default') === 'smtp', 'Set MAIL_MAILER=smtp for notification delivery.');
         $add('Private storage writable', Storage::disk('local')->put('.production-check', 'ok'), 'Grant write access to private storage.');
         Storage::disk('local')->delete('.production-check');
         $backupRoot = realpath(storage_path('app/backups')) ?: storage_path('app/backups');
