@@ -151,6 +151,30 @@
                         </td>
                         <td class="px-5 py-6 align-top">
                             <div class="flex items-center justify-end gap-3">
+                                @if(in_array(auth()->user()->role, ['registrar', 'admin']) && !in_array($req->status, ['completed', 'rejected']))
+                                    <div class="flex flex-col gap-2">
+                                        @if($req->payment_proof_path)
+                                            <a href="{{ route('requests.receipt', $req) }}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-indigo-50 px-3 py-2 text-center text-xs font-bold text-indigo-700">Review accounting receipt</a>
+                                        @endif
+                                        @if(!$req->payment_confirmed)
+                                            <form action="{{ route('requests.confirm-payment', $req->id) }}" method="POST">
+                                                @csrf
+                                                <button type="submit" class="w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white" onclick="return confirm('Confirm document payment for {{ $req->ticket_number }}? This does not clear Accounting clearance.')">Confirm document payment</button>
+                                            </form>
+                                        @endif
+                                        <form action="{{ route('requests.update-clearance', $req->id) }}" method="POST" class="flex flex-col gap-1">
+                                            @csrf
+                                            <label class="text-xs font-semibold text-slate-600">Accounting clearance</label>
+                                            <select name="clearance_status" class="rounded-lg border-slate-300 text-xs">
+                                                @foreach(['pending_clearance' => 'Pending', 'cleared' => 'Cleared', 'has_balance' => 'Has balance'] as $value => $label)
+                                                    <option value="{{ $value }}" @selected($req->clearance_status === $value)>{{ $label }}</option>
+                                                @endforeach
+                                            </select>
+                                            <input type="number" name="financial_balance" value="{{ $req->financial_balance }}" min="0" step="0.01" placeholder="Balance (PHP)" class="rounded-lg border-slate-300 text-xs">
+                                            <button type="submit" class="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white">Save clearance</button>
+                                        </form>
+                                    </div>
+                                @endif
                                 @if(in_array(auth()->user()->role, ['registrar', 'admin']) && $req->status === 'processed')
                                          <div class="flex w-full flex-col gap-3">
                                              {{-- Preview Buttons (Direct PDF) --}}
@@ -202,30 +226,6 @@
                                     </form>
                                 @elseif(in_array(auth()->user()->role, ['records_officer', 'admin']) && $transitions->allowed($req, auth()->user()) !== [])
                                     <div class="flex flex-col gap-2 w-full">
-                                        <!-- Payment & Clearance Actions -->
-                                        <div class="flex flex-col gap-2">
-                                            @if($req->payment_proof_path)
-                                                <a href="{{ route('requests.receipt', $req) }}" target="_blank" rel="noopener noreferrer" class="px-3 py-2 bg-indigo-600 text-white text-xs font-black rounded-xl hover:bg-indigo-700 transition-all uppercase tracking-widest text-center">
-                                                    View Transcript Receipt
-                                                </a>
-                                            @endif
-                                            <div class="flex gap-2">
-                                                @if(!$req->payment_confirmed)
-                                                    <form action="{{ route('requests.confirm-payment', $req->id) }}" method="POST">
-                                                        @csrf
-                                                        <button type="submit" class="px-3 py-2 bg-emerald-600 text-white text-xs font-black rounded-xl hover:bg-emerald-700 transition-all uppercase tracking-widest" title="Confirm Payment">
-                                                            Confirm Payment
-                                                        </button>
-                                                    </form>
-                                                @endif
-                                            
-                                            @if(in_array(auth()->user()->role, ['registrar', 'admin']))
-                                                <button type="button" onclick="toggleClearanceForm({{ $req->id }})" class="px-3 py-2 bg-amber-600 text-white text-xs font-black rounded-xl hover:bg-amber-700 transition-all uppercase tracking-widest" title="Update Clearance">
-                                                    Clearance
-                                                </button>
-                                            @endif
-                                        </div>
-                                        
                                         <!-- Status Update -->
                                         <form action="{{ route('requests.update-status', $req->id) }}" method="POST" class="flex flex-col gap-2">
                                             @csrf

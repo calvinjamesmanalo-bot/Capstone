@@ -23,6 +23,8 @@ class RequestDocument extends Model
         'delivery_method',
         'payment_method',
         'payment_confirmed',
+        'payment_confirmed_at',
+        'payment_confirmed_by',
         'clearance_status',
         'financial_balance',
         'payment_proof_path',
@@ -36,6 +38,7 @@ class RequestDocument extends Model
 
     protected $casts = [
         'payment_confirmed' => 'boolean',
+        'payment_confirmed_at' => 'datetime',
         'financial_balance' => 'decimal:2',
         'document_price' => 'decimal:2',
     ];

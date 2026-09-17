@@ -31,6 +31,9 @@ class PaymentReceiptSecurityTest extends TestCase
         $documentRequest = RequestDocument::firstOrFail();
 
         $this->assertSame('local', $documentRequest->payment_proof_disk);
+        $this->assertSame('pending_clearance', $documentRequest->clearance_status);
+        $this->assertFalse($documentRequest->payment_confirmed);
+        $this->assertSame('0.00', $documentRequest->financial_balance);
         $this->assertSame('my receipt.jpg', $documentRequest->payment_proof_original_name);
         $this->assertStringNotContainsString('my receipt', $documentRequest->payment_proof_path);
         Storage::disk('local')->assertExists($documentRequest->payment_proof_path);
@@ -40,6 +43,29 @@ class PaymentReceiptSecurityTest extends TestCase
             'module' => 'File Security',
             'status' => 'success',
         ]);
+    }
+
+    public function test_payment_confirmation_is_audited_and_does_not_auto_clear_accounting(): void
+    {
+        $owner = $this->student('2026-1009');
+        $documentRequest = $this->documentRequest($owner->student_number);
+        $documentRequest->update(['clearance_status' => 'has_balance', 'financial_balance' => 500]);
+
+        $this->actingAs(User::factory()->create(['role' => 'records_officer']))
+            ->post(route('requests.confirm-payment', $documentRequest->id))
+            ->assertForbidden();
+
+        $registrar = User::factory()->create(['role' => 'registrar']);
+        $this->actingAs($registrar)
+            ->post(route('requests.confirm-payment', $documentRequest->id))
+            ->assertRedirect();
+
+        $documentRequest->refresh();
+        $this->assertTrue($documentRequest->payment_confirmed);
+        $this->assertSame($registrar->id, $documentRequest->payment_confirmed_by);
+        $this->assertNotNull($documentRequest->payment_confirmed_at);
+        $this->assertSame('has_balance', $documentRequest->clearance_status);
+        $this->assertSame('500.00', $documentRequest->financial_balance);
     }
 
     public function test_form_137_requires_and_stores_the_requested_school_level(): void

@@ -54,7 +54,7 @@
                                             {{ $req->delivery_method ? ucfirst($req->delivery_method) : 'N/A' }} • {{ $req->payment_method ? ucfirst(str_replace('_', ' ', $req->payment_method)) : 'N/A' }}
                                         </span>
                                         <span class="text-[9px] font-black {{ $req->payment_confirmed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' }} px-2 py-0.5 rounded uppercase tracking-widest">
-                                            {{ $req->payment_confirmed ? 'Payment Confirmed' : 'Awaiting Payment' }}
+                                            {{ $req->payment_confirmed ? 'Document Payment Confirmed' : 'Document Payment Pending' }}
                                         </span>
                                         @if($req->clearance_status)
                                             <span class="text-[9px] font-black {{ $req->clearance_status === 'cleared' ? 'bg-emerald-100 text-emerald-700' : ($req->clearance_status === 'has_balance' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700') }} px-2 py-0.5 rounded uppercase tracking-widest">

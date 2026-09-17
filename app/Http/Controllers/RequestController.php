@@ -169,15 +169,9 @@ class RequestController extends Controller
             return redirect()->back()->with('error', "You already have an active request for {$request->document_type}. You need to go to registrar's office to complete your request if you need another copy.");
         }
 
-        // Simulate clearance check - in real system, this would query a finance database
-        $clearanceStatus = 'cleared';
+        // A receipt upload is evidence to review, not proof of clearance or payment.
+        $clearanceStatus = 'pending_clearance';
         $financialBalance = 0.00;
-
-        // For demonstration: randomly assign balance to some requests
-        if (rand(1, 10) <= 2) {
-            $clearanceStatus = 'has_balance';
-            $financialBalance = rand(500, 5000);
-        }
 
         // Generate Ticket Number: REQ-YYYY-XXXX (where XXXX is a unique random string or increment)
         $ticketNumber = 'REQ-'.date('Y').'-'.strtoupper(bin2hex(random_bytes(3)));
@@ -242,9 +236,7 @@ class RequestController extends Controller
         record_log('Submitted Request', 'Requests', "Student #{$studentNumber} requested {$request->document_type} for ₱".number_format($documentPrice, 2)." (Ticket: {$ticketNumber}) - Delivery: {$request->delivery_method}, Payment: {$request->payment_method}");
 
         $message = "Your request has been submitted! Ticket Number: {$ticketNumber}. Document fee: ₱".number_format($documentPrice, 2).'.';
-        if ($clearanceStatus === 'has_balance') {
-            $message .= ' Note: You have an outstanding balance of ₱'.number_format($financialBalance, 2).'. Please settle this before your document can be released.';
-        }
+        $message .= ' Accounting clearance and document payment await staff verification.';
 
         return redirect()->back()->with('success', $message);
     }
@@ -334,14 +326,22 @@ class RequestController extends Controller
     {
         $user = auth()->user();
 
-        abort_unless(in_array($user?->role, ['registrar', 'admin', 'records_officer'], true), 403);
+        abort_unless(in_array($user?->role, ['registrar', 'admin'], true), 403);
 
-        $requestDoc = RequestDocument::findOrFail($request_id);
+        $requestDoc = DB::transaction(function () use ($request_id, $user): RequestDocument {
+            $requestDoc = RequestDocument::query()->lockForUpdate()->findOrFail($request_id);
+            abort_if(in_array($requestDoc->status, ['completed', 'rejected'], true), 422);
 
-        $requestDoc->update([
-            'payment_confirmed' => true,
-            'clearance_status' => 'cleared',
-        ]);
+            if (! $requestDoc->payment_confirmed) {
+                $requestDoc->update([
+                    'payment_confirmed' => true,
+                    'payment_confirmed_at' => now(),
+                    'payment_confirmed_by' => $user->id,
+                ]);
+            }
+
+            return $requestDoc;
+        });
 
         record_log('Payment Confirmed', 'Requests', "Confirmed payment for Request #{$request_id} (Ticket: {$requestDoc->ticket_number})");
 
