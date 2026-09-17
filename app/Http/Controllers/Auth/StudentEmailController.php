@@ -86,7 +86,7 @@ class StudentEmailController extends Controller
             ->where('id', '!=', $request->session()->getId())
             ->delete();
 
-        $request->session()->regenerate();
+        $request->session()->regenerate(true);
 
         Notification::route('mail', $oldEmail)
             ->notify(new StudentEmailChanged($newEmail));

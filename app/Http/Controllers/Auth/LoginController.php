@@ -205,7 +205,9 @@ class LoginController extends Controller
             }
 
             $security->clearAccount($identifier);
-            $request->session()->regenerate();
+            // Always rotate the identifier after authentication and destroy the
+            // pre-authentication session to prevent session fixation.
+            $request->session()->regenerate(true);
 
             if ($user->role === 'student' && ! $user->hasVerifiedEmail()) {
                 return redirect()->route('verification.notice');
@@ -317,7 +319,7 @@ class LoginController extends Controller
         }
 
         Auth::login($user);
-        session()->regenerate();
+        session()->regenerate(true);
 
         return redirect()->route('dashboard')->with('success', "Logged in as {$role}");
     }
