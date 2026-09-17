@@ -6,6 +6,7 @@ use App\Models\RequestDocument;
 use App\Models\Setting;
 use App\Models\Student;
 use App\Models\User;
+use App\Support\RequestStatusTransitions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -15,14 +16,14 @@ use Illuminate\Validation\Rule;
 class RequestController extends Controller
 {
     // Records Officer / Registrar View
-    public function index()
+    public function index(RequestStatusTransitions $transitions)
     {
         $user = auth()->user();
         $query = RequestDocument::with(['student', 'statusHistories.changedBy']);
 
         if ($user->role === 'registrar') {
             // Registrar only sees processed requests that need approval
-            $query->where('status', 'processed');
+            $query->whereIn('status', ['processed', 'ready_to_release']);
         } elseif ($user->role === 'admin') {
             // Admin sees all active requests
             $query->whereNotIn('status', ['completed', 'rejected']);
@@ -33,7 +34,7 @@ class RequestController extends Controller
 
         $requests = $query->latest()->get();
 
-        return view('requests.index', compact('requests'));
+        return view('requests.index', compact('requests', 'transitions'));
     }
 
     public function history()
@@ -368,25 +369,20 @@ class RequestController extends Controller
         return redirect()->back()->with('success', 'Clearance status updated successfully.');
     }
 
-    public function updateStatus(Request $request, $request_id)
+    public function updateStatus(Request $request, $request_id, RequestStatusTransitions $transitions)
     {
         $user = auth()->user();
         abort_unless(in_array($user?->role, ['registrar', 'admin', 'records_officer'], true), 403);
 
         $request->validate([
             'status' => 'required|string|in:pending,processing,processed,ready_to_release,completed,rejected',
-            'remarks' => 'nullable|string',
+            'remarks' => 'nullable|string|max:1000',
         ]);
 
-        $requestDoc = RequestDocument::findOrFail($request_id);
-
-        // Security check for Registrar approval
-        if ($request->status === 'ready_to_release' && $user->role !== 'registrar' && $user->role !== 'admin') {
-            return redirect()->back()->with('error', 'Only the Registrar can approve requests for release.');
-        }
-
-        $requestDoc = DB::transaction(function () use ($request, $request_id, $user): RequestDocument {
+        $requestDoc = DB::transaction(function () use ($request, $request_id, $user, $transitions): RequestDocument {
             $lockedRequest = RequestDocument::query()->lockForUpdate()->findOrFail($request_id);
+
+            $transitions->validate($lockedRequest, $user, $request->status, $request->remarks);
 
             $lockedRequest->update([
                 'status' => $request->status,

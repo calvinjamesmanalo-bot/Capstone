@@ -194,7 +194,13 @@
                                                  </div>
                                              </form>
                                          </div>
-                                @elseif(in_array(auth()->user()->role, ['records_officer', 'admin']))
+                                @elseif(in_array(auth()->user()->role, ['registrar', 'admin']) && $req->status === 'ready_to_release')
+                                    <form action="{{ route('requests.update-status', $req->id) }}" method="POST" class="w-full">
+                                        @csrf
+                                        <input type="hidden" name="status" value="completed">
+                                        <button type="submit" class="w-full rounded-xl bg-emerald-600 px-4 py-3 text-xs font-bold text-white hover:bg-emerald-700" onclick="return confirm('Mark ticket {{ $req->ticket_number }} as released?')">Mark as Released</button>
+                                    </form>
+                                @elseif(in_array(auth()->user()->role, ['records_officer', 'admin']) && $transitions->allowed($req, auth()->user()) !== [])
                                     <div class="flex flex-col gap-2 w-full">
                                         <!-- Payment & Clearance Actions -->
                                         <div class="flex flex-col gap-2">
@@ -225,12 +231,10 @@
                                             @csrf
                                             <div class="flex items-center gap-2">
                                                 <select name="status" class="text-xs font-black uppercase tracking-widest bg-white border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm min-w-[160px]">
-                                                    <option value="pending" {{ $req->status == 'pending' ? 'selected' : '' }}>Pending</option>
-                                                    <option value="processing" {{ $req->status == 'processing' ? 'selected' : '' }}>Processing</option>
-                                                    <option value="processed" {{ $req->status == 'processed' ? 'selected' : '' }}>Processed</option>
-                                                    <option value="ready_to_release" {{ $req->status == 'ready_to_release' ? 'selected' : '' }}>Ready to Release</option>
-                                                    <option value="completed" {{ $req->status == 'completed' ? 'selected' : '' }}>Released</option>
-                                                    <option value="rejected" {{ $req->status == 'rejected' ? 'selected' : '' }}>Rejected</option>
+                                                    <option value="{{ $req->status }}" selected>Current: {{ str_replace('_', ' ', ucfirst($req->status)) }}</option>
+                                                    @foreach($transitions->allowed($req, auth()->user()) as $target)
+                                                        <option value="{{ $target }}">{{ str_replace('_', ' ', ucfirst($target)) }}</option>
+                                                    @endforeach
                                                 </select>
                                                 <button type="submit" class="w-12 h-12 flex items-center justify-center bg-[#000638] text-white rounded-xl shadow-sm hover:bg-[#10175a] transition-all shrink-0" title="Update Status">
                                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
