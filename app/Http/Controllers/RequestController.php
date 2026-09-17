@@ -104,7 +104,7 @@ class RequestController extends Controller
         return view('requests.my-requests', compact('activeRequests', 'requestHistory', 'studentNumber'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, \App\Support\RequestNotificationService $notifications)
     {
         $user = auth()->user();
 
@@ -218,6 +218,8 @@ class RequestController extends Controller
             'payment_confirmed' => false,
             'status' => 'pending',
         ]));
+
+        $notifications->statusChanged($createdRequest);
 
         record_log(
             'Uploaded Payment Receipt',
@@ -369,7 +371,7 @@ class RequestController extends Controller
         return redirect()->back()->with('success', 'Clearance status updated successfully.');
     }
 
-    public function updateStatus(Request $request, $request_id, RequestStatusTransitions $transitions)
+    public function updateStatus(Request $request, $request_id, RequestStatusTransitions $transitions, \App\Support\RequestNotificationService $notifications)
     {
         $user = auth()->user();
         abort_unless(in_array($user?->role, ['registrar', 'admin', 'records_officer'], true), 403);
@@ -402,6 +404,10 @@ class RequestController extends Controller
 
             return $lockedRequest;
         });
+
+        if ($requestDoc->wasChanged('status')) {
+            $notifications->statusChanged($requestDoc);
+        }
 
         record_log('Updated Request Status', 'Requests', "Updated Request #{$request_id} status to {$request->status}");
 
