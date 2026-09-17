@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\EnforceProductionHttps;
 use App\Http\Middleware\EnsureStudentAccountIsVerified;
 use App\Http\Middleware\RequireRole;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             EnforceProductionHttps::class,
         ]);
         $middleware->web(append: [
+            AddSecurityHeaders::class,
             'throttle:web',
         ]);
 

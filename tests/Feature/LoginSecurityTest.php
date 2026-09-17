@@ -88,6 +88,19 @@ class LoginSecurityTest extends TestCase
             ->assertRedirect(route('dashboard'));
     }
 
+    public function test_successful_password_login_regenerates_the_session_identifier(): void
+    {
+        $user = User::factory()->create(['email' => 'staff@example.com', 'role' => 'records_officer']);
+        $this->get(route('login.staff'));
+        $beforeLogin = session()->getId();
+
+        $response = $this->login($user->email, 'password', 'staff');
+
+        $response->assertRedirect(route('dashboard'));
+        $this->assertAuthenticatedAs($user);
+        $this->assertNotSame($beforeLogin, session()->getId());
+    }
+
     public function test_account_limit_combines_failures_from_different_ip_addresses(): void
     {
         $user = User::factory()->create(['email' => 'staff@example.com', 'role' => 'records_officer']);
@@ -380,8 +393,12 @@ class LoginSecurityTest extends TestCase
 
     public function test_quick_access_supports_admin_only_in_local_or_testing_environments(): void
     {
+        $this->get(route('login'));
+        $beforeLogin = session()->getId();
+
         $this->get(route('login.as', 'registrar'))->assertRedirect(route('dashboard'));
         $this->assertAuthenticated();
+        $this->assertNotSame($beforeLogin, session()->getId());
 
         $this->post('/logout');
         $this->get(route('login.as', 'admin'))->assertRedirect(route('dashboard'));

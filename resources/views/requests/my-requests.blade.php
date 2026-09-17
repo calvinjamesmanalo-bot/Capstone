@@ -54,7 +54,7 @@
                                             {{ $req->delivery_method ? ucfirst($req->delivery_method) : 'N/A' }} • {{ $req->payment_method ? ucfirst(str_replace('_', ' ', $req->payment_method)) : 'N/A' }}
                                         </span>
                                         <span class="text-[9px] font-black {{ $req->payment_confirmed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' }} px-2 py-0.5 rounded uppercase tracking-widest">
-                                            {{ $req->payment_confirmed ? 'Payment Confirmed' : 'Awaiting Payment' }}
+                                            {{ $req->payment_confirmed ? 'Document Payment Confirmed' : 'Document Payment Pending' }}
                                         </span>
                                         @if($req->clearance_status)
                                             <span class="text-[9px] font-black {{ $req->clearance_status === 'cleared' ? 'bg-emerald-100 text-emerald-700' : ($req->clearance_status === 'has_balance' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700') }} px-2 py-0.5 rounded uppercase tracking-widest">
@@ -65,15 +65,12 @@
                                 </div>
                             </div>
                             <div class="flex min-w-0 flex-col items-start gap-2 md:items-end">
+                                <a href="{{ route('requests.receipt', $req) }}" target="_blank" rel="noopener noreferrer" class="w-full rounded-lg bg-indigo-100 px-3 py-2 text-center text-xs font-black uppercase tracking-widest text-indigo-700 transition-all hover:bg-indigo-200 sm:w-auto">Print Request Receipt</a>
                                 @if($req->payment_proof_path)
-                                    <a href="{{ route('requests.receipt', $req) }}" target="_blank" rel="noopener noreferrer" class="w-full rounded-lg bg-indigo-100 px-3 py-2 text-center text-xs font-black uppercase tracking-widest text-indigo-700 transition-all hover:bg-indigo-200 sm:w-auto">
-                                        View Transcript Receipt
-                                    </a>
+                                    <a href="{{ route('requests.receipt.uploaded', $req) }}" target="_blank" rel="noopener noreferrer" class="w-full rounded-lg bg-slate-100 px-3 py-2 text-center text-xs font-black uppercase tracking-widest text-slate-700 transition-all hover:bg-slate-200 sm:w-auto">View Transcript Receipt (Uploaded Accounting File)</a>
                                 @endif
                                 <x-request-status-badge :status="$req->status" />
-                                @if($req->remarks)
-                                    <p class="mt-1 break-words text-xs font-bold italic text-slate-600">Remarks: {{ $req->remarks }}</p>
-                                @endif
+                                @include('requests.partials.status-timeline', ['histories' => $req->publicStatusHistories, 'staff' => false])
                             </div>
                         </div>
                     @endforeach
@@ -117,6 +114,7 @@
                                         <span class="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase tracking-widest">{{ $req->ticket_number ?? 'N/A' }}</span>
                                     </div>
                                     <p class="text-xs font-medium text-slate-500">{{ $req->created_at->format('M d, Y') }}</p>
+                                    @include('requests.partials.status-timeline', ['histories' => $req->publicStatusHistories, 'staff' => false])
                                 </div>
                             </div>
                             <x-request-status-badge :status="$req->status" />

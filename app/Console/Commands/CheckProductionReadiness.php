@@ -33,6 +33,11 @@ class CheckProductionReadiness extends Command
         $add('Separate document signing key', $documentKey !== '' && ! hash_equals($key, $documentKey), 'Set a separate random DOCUMENT_SIGNING_KEY.');
 
         $add('Encrypted sessions', (bool) config('session.encrypt'), 'Set SESSION_ENCRYPT=true.');
+        $add(
+            'Strict session mode',
+            (bool) config('session.strict_mode') && ini_get('session.use_strict_mode') === '1',
+            'Set SESSION_STRICT_MODE=true and ensure PHP session.use_strict_mode is enabled.'
+        );
         $add('Secure session cookie', (bool) config('session.secure'), 'Set SESSION_SECURE_COOKIE=true.');
         $add('HTTP-only session cookie', (bool) config('session.http_only'), 'Set SESSION_HTTP_ONLY=true.');
         $add('SameSite session cookie', in_array(config('session.same_site'), ['lax', 'strict'], true), 'Use SESSION_SAME_SITE=lax or strict.');
@@ -63,6 +68,9 @@ class CheckProductionReadiness extends Command
             $databaseOk = false;
         }
         $add('Database reachable', $databaseOk, 'Check production database connection and credentials.');
+        $add('Backup-compatible database', config('database.default') === 'sqlite', 'The built-in backup command supports SQLite only; configure and test a backup tool for your production database.');
+        $add('Asynchronous queue', ! in_array(config('queue.default'), ['sync', 'null'], true), 'Set QUEUE_CONNECTION=database or redis and run a queue worker.');
+        $add('SMTP mail transport', config('mail.default') === 'smtp', 'Set MAIL_MAILER=smtp for notification delivery.');
         $add('Private storage writable', Storage::disk('local')->put('.production-check', 'ok'), 'Grant write access to private storage.');
         Storage::disk('local')->delete('.production-check');
         $backupRoot = realpath(storage_path('app/backups')) ?: storage_path('app/backups');

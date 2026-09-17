@@ -22,6 +22,7 @@ use App\Http\Controllers\SchoolFormF137Controller;
 use App\Http\Controllers\SchoolFormF138Controller;
 use App\Http\Controllers\SchoolFormRecordController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\StudentNotificationController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -86,6 +87,9 @@ Route::middleware(['auth', 'student.verified'])->group(function () {
     Route::get('/requests/{requestDocument}/receipt', [RequestController::class, 'receipt'])
         ->middleware('throttle:60,1')
         ->name('requests.receipt');
+    Route::get('/requests/{requestDocument}/accounting-receipt', [RequestController::class, 'uploadedReceipt'])
+        ->middleware('throttle:60,1')
+        ->name('requests.receipt.uploaded');
     Route::get('/grade-portal/uploads/{upload}', [GradeController::class, 'view'])
         ->middleware('throttle:60,1')
         ->name('grade-portal.uploads.view');
@@ -116,6 +120,9 @@ Route::middleware(['auth', 'student.verified'])->group(function () {
         Route::get('/student/request', [RequestController::class, 'studentIndex'])->name('student.request');
         Route::get('/student/my-requests', [RequestController::class, 'myRequests'])->name('student.my-requests');
         Route::post('/student/request/store', [RequestController::class, 'store'])->name('student.request.store');
+        Route::get('/student/notifications', [StudentNotificationController::class, 'index'])->name('student.notifications.index');
+        Route::post('/student/notifications/read-all', [StudentNotificationController::class, 'markAllRead'])->name('student.notifications.read-all');
+        Route::post('/student/notifications/{notification}/read', [StudentNotificationController::class, 'markRead'])->name('student.notifications.read');
     });
 
     // Records Officer / Registrar Request Management

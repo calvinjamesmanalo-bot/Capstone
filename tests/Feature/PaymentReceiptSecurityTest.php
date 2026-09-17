@@ -31,6 +31,9 @@ class PaymentReceiptSecurityTest extends TestCase
         $documentRequest = RequestDocument::firstOrFail();
 
         $this->assertSame('local', $documentRequest->payment_proof_disk);
+        $this->assertSame('pending_clearance', $documentRequest->clearance_status);
+        $this->assertFalse($documentRequest->payment_confirmed);
+        $this->assertSame('0.00', $documentRequest->financial_balance);
         $this->assertSame('my receipt.jpg', $documentRequest->payment_proof_original_name);
         $this->assertStringNotContainsString('my receipt', $documentRequest->payment_proof_path);
         Storage::disk('local')->assertExists($documentRequest->payment_proof_path);
@@ -40,6 +43,29 @@ class PaymentReceiptSecurityTest extends TestCase
             'module' => 'File Security',
             'status' => 'success',
         ]);
+    }
+
+    public function test_payment_confirmation_is_audited_and_does_not_auto_clear_accounting(): void
+    {
+        $owner = $this->student('2026-1009');
+        $documentRequest = $this->documentRequest($owner->student_number);
+        $documentRequest->update(['clearance_status' => 'has_balance', 'financial_balance' => 500]);
+
+        $this->actingAs(User::factory()->create(['role' => 'records_officer']))
+            ->post(route('requests.confirm-payment', $documentRequest->id))
+            ->assertForbidden();
+
+        $registrar = User::factory()->create(['role' => 'registrar']);
+        $this->actingAs($registrar)
+            ->post(route('requests.confirm-payment', $documentRequest->id))
+            ->assertRedirect();
+
+        $documentRequest->refresh();
+        $this->assertTrue($documentRequest->payment_confirmed);
+        $this->assertSame($registrar->id, $documentRequest->payment_confirmed_by);
+        $this->assertNotNull($documentRequest->payment_confirmed_at);
+        $this->assertSame('has_balance', $documentRequest->clearance_status);
+        $this->assertSame('500.00', $documentRequest->financial_balance);
     }
 
     public function test_form_137_requires_and_stores_the_requested_school_level(): void
@@ -84,16 +110,16 @@ class PaymentReceiptSecurityTest extends TestCase
         $otherStudent = $this->student('2026-1003');
         $documentRequest = $this->documentRequest($owner->student_number);
 
-        $this->get(route('requests.receipt', $documentRequest))->assertRedirect(route('login'));
-        $this->actingAs($otherStudent)->get(route('requests.receipt', $documentRequest))->assertForbidden();
-        $this->actingAs($owner)->get(route('requests.receipt', $documentRequest))
+        $this->get(route('requests.receipt.uploaded', $documentRequest))->assertRedirect(route('login'));
+        $this->actingAs($otherStudent)->get(route('requests.receipt.uploaded', $documentRequest))->assertForbidden();
+        $this->actingAs($owner)->get(route('requests.receipt.uploaded', $documentRequest))
             ->assertOk()
             ->assertHeader('Cache-Control', 'max-age=0, no-store, private')
             ->assertHeader('X-Content-Type-Options', 'nosniff');
 
         foreach (['admin', 'registrar', 'records_officer'] as $role) {
             $this->actingAs(User::factory()->create(['role' => $role]))
-                ->get(route('requests.receipt', $documentRequest))
+                ->get(route('requests.receipt.uploaded', $documentRequest))
                 ->assertOk();
         }
 
@@ -111,12 +137,33 @@ class PaymentReceiptSecurityTest extends TestCase
         $owner = $this->student('2026-1004');
         $documentRequest = $this->documentRequest($owner->student_number);
 
-        $this->actingAs($owner)->get(route('requests.receipt', $documentRequest))->assertNotFound();
+        $this->actingAs($owner)->get(route('requests.receipt.uploaded', $documentRequest))->assertNotFound();
         $this->assertDatabaseHas('activity_logs', [
             'action' => 'Receipt File Missing',
             'module' => 'File Security',
             'status' => 'missing',
         ]);
+    }
+
+    public function test_printable_request_receipt_remains_available_when_upload_is_missing(): void
+    {
+        Storage::fake('local');
+        $owner = $this->student('2026-1011');
+        $otherStudent = $this->student('2026-1012');
+        $documentRequest = $this->documentRequest($owner->student_number);
+
+        $this->actingAs($otherStudent)
+            ->get(route('requests.receipt', $documentRequest))
+            ->assertForbidden();
+
+        $this->actingAs($owner)
+            ->get(route('requests.receipt', $documentRequest))
+            ->assertOk()
+            ->assertSee($documentRequest->ticket_number)
+            ->assertSee('Print Receipt');
+
+        $this->get(route('requests.receipt.uploaded', $documentRequest))
+            ->assertNotFound();
     }
 
     public function test_receipt_renders_request_details_and_print_controls_without_private_metadata(): void

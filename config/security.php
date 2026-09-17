@@ -2,6 +2,29 @@
 
 return [
 
+    'headers' => [
+        'enabled' => (bool) env('SECURITY_HEADERS_ENABLED', true),
+        // Inline scripts/styles remain temporarily allowed because the current
+        // Blade templates and Tailwind CDN runtime use them. External origins
+        // are limited to the services intentionally used by this application.
+        'content_security_policy' => implode('; ', [
+            "default-src 'self'",
+            "base-uri 'self'",
+            "object-src 'none'",
+            "frame-ancestors 'none'",
+            "form-action 'self'",
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://challenges.cloudflare.com",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.bunny.net",
+            "font-src 'self' data: https://fonts.gstatic.com https://fonts.bunny.net",
+            "img-src 'self' data: blob:",
+            "connect-src 'self' https://challenges.cloudflare.com",
+            'frame-src https://challenges.cloudflare.com',
+            "worker-src 'self' blob:",
+            "media-src 'self' data: blob:",
+            "manifest-src 'self'",
+        ]),
+    ],
+
     'https' => [
         // Local HTTP remains available. Production enables HTTPS enforcement
         // unless FORCE_HTTPS is explicitly overridden by the deployment.

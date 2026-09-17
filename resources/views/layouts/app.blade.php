@@ -402,6 +402,14 @@
                 </div>
 
                 <div class="flex items-center gap-3">
+                @if($role === 'student')
+                    <a href="{{ route('student.notifications.index') }}" class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[#000638] hover:bg-slate-100" aria-label="Notifications">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2 2 0 0118 14.172V11a6 6 0 00-12 0v3.172a2 2 0 01-.595 1.423L4 17h5m6 0a3 3 0 01-6 0m6 0H9" /></svg>
+                        @if($unreadCount = auth()->user()->unreadNotifications()->count())
+                            <span class="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-600 px-1 text-center text-xs font-bold text-white">{{ min($unreadCount, 99) }}</span>
+                        @endif
+                    </a>
+                @endif
                     <button type="button" data-theme-toggle class="w-11 h-11 shrink-0 rounded-xl border border-slate-200 bg-slate-50 text-[#000638] flex items-center justify-center hover:bg-slate-100 transition-colors" aria-label="Switch to dark mode" title="Switch color theme">
                         <svg class="theme-toggle-icon-moon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
                         <svg class="theme-toggle-icon-sun w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364-.707-.707M6.343 6.343l-.707-.707m12.728 0-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>

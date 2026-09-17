@@ -22,6 +22,8 @@ Use only dummy records. Mark every item `PASS`, `FAIL`, or `BLOCKED`, and attach
 - [ ] View the student's own receipt from My Requests.
 - [ ] Paste another student's receipt URL and confirm a 403 response.
 - [ ] Track pending, processing, ready-to-release, completed, and rejected statuses.
+- [ ] Open Notifications, read a status update, and confirm another student cannot mark it read.
+- [ ] Confirm a new receipt upload shows accounting clearance and document payment as pending, not automatically approved.
 - [ ] Confirm logout ends the session and protected pages require login.
 
 ## Records Officer
@@ -30,13 +32,15 @@ Use only dummy records. Mark every item `PASS`, `FAIL`, or `BLOCKED`, and attach
 - [ ] Process a request without accessing admin-only user/settings/log pages.
 - [ ] Confirm payment receipt access works and is logged.
 - [ ] Confirm registrar-only approval controls remain unavailable.
+- [ ] Confirm a records officer cannot confirm document payment or accounting clearance.
 - [ ] Generate supported draft documents and confirm request/student data match.
 
 ## Registrar
 
 - [ ] Sign in and view the correct request queue.
-- [ ] Review receipts and confirm payments.
+- [ ] Review the Accounting receipt and confirm document payment separately.
 - [ ] Update accounting clearance where authorized.
+- [ ] Confirm payment does not automatically change a recorded balance or Accounting clearance.
 - [ ] Review/approve a processed request for release.
 - [ ] Upload and privately view a Grade Portal reference file.
 - [ ] Try invalid type, invalid school year, and file above 20 MB.
@@ -59,6 +63,7 @@ Use only dummy records. Mark every item `PASS`, `FAIL`, or `BLOCKED`, and attach
 - [ ] Authorized issuer generates the draft/official document.
 - [ ] Registrar completes required review/approval.
 - [ ] Student sees the correct final status.
+- [ ] Student receives an in-app update; verified email receives ready-to-release/completed/rejected updates while the queue worker is running.
 - [ ] Issued document QR/control number verifies correctly.
 - [ ] An edited official file fails authenticity verification.
 - [ ] Audit logs show the complete workflow without private paths or secrets.

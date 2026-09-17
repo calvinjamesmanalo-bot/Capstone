@@ -34,6 +34,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsTo(Student::class, 'student_number', 'student_number');
     }
 
+    public function requestStatusChanges()
+    {
+        return $this->hasMany(RequestStatusHistory::class, 'changed_by');
+    }
+
     public function hasMatchingOfficialStudentRecord(): bool
     {
         if ($this->role !== 'student') {

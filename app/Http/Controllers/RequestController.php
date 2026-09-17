@@ -7,7 +7,9 @@ use App\Models\Setting;
 use App\Models\Student;
 use App\Models\User;
 use App\Support\SchoolProfile;
+use App\Support\RequestStatusTransitions;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -15,7 +17,7 @@ use Illuminate\Validation\Rule;
 class RequestController extends Controller
 {
     // Records Officer / Registrar View
-    public function index(Request $request)
+    public function index(Request $request, RequestStatusTransitions $transitions)
     {
         $filterOptions = [
             'statuses' => ['pending', 'processing', 'processed', 'ready_to_release', 'completed', 'rejected'],
@@ -46,11 +48,11 @@ class RequestController extends Controller
             ->all();
 
         $user = auth()->user();
-        $query = RequestDocument::with('student');
+        $query = RequestDocument::with(['student', 'statusHistories.changedBy']);
 
         if ($user->role === 'registrar') {
             // Registrar only sees processed requests that need approval
-            $query->where('status', 'processed');
+            $query->whereIn('status', ['processed', 'ready_to_release']);
         } elseif ($user->role === 'admin') {
             // Admin sees all active requests
             $query->whereNotIn('status', ['completed', 'rejected']);
@@ -85,7 +87,7 @@ class RequestController extends Controller
         );
         $requests = $query->latest()->paginate(15)->appends($activeParameters);
 
-        return view('requests.index', compact('requests', 'search', 'filters', 'filterOptions', 'activeParameters'));
+        return view('requests.index', compact('requests', 'search', 'filters', 'filterOptions', 'activeParameters', 'transitions'));
     }
 
     public function history()
@@ -93,6 +95,7 @@ class RequestController extends Controller
         $requests = RequestDocument::with([
             'student',
             'authenticities' => fn ($query) => $query->latest('id'),
+            'statusHistories.changedBy',
         ])
             ->whereIn('status', ['completed', 'rejected'])
             ->latest()
@@ -111,12 +114,14 @@ class RequestController extends Controller
         $requestHistory = [];
 
         if ($studentNumber) {
-            $activeRequests = RequestDocument::where('student_number', $studentNumber)
+            $activeRequests = RequestDocument::with('publicStatusHistories')
+                ->where('student_number', $studentNumber)
                 ->whereIn('status', ['pending', 'processing', 'processed', 'ready_to_release'])
                 ->latest()
                 ->get();
 
-            $requestHistory = RequestDocument::where('student_number', $studentNumber)
+            $requestHistory = RequestDocument::with('publicStatusHistories')
+                ->where('student_number', $studentNumber)
                 ->whereIn('status', ['completed', 'rejected'])
                 ->latest()
                 ->get();
@@ -136,12 +141,14 @@ class RequestController extends Controller
         $requestHistory = [];
 
         if ($studentNumber) {
-            $activeRequests = RequestDocument::where('student_number', $studentNumber)
+            $activeRequests = RequestDocument::with('publicStatusHistories')
+                ->where('student_number', $studentNumber)
                 ->whereIn('status', ['pending', 'processing', 'processed', 'ready_to_release'])
                 ->latest()
                 ->get();
 
-            $requestHistory = RequestDocument::where('student_number', $studentNumber)
+            $requestHistory = RequestDocument::with('publicStatusHistories')
+                ->where('student_number', $studentNumber)
                 ->whereIn('status', ['completed', 'rejected'])
                 ->latest()
                 ->get();
@@ -150,7 +157,7 @@ class RequestController extends Controller
         return view('requests.my-requests', compact('activeRequests', 'requestHistory', 'studentNumber'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, \App\Support\RequestNotificationService $notifications)
     {
         $user = auth()->user();
 
@@ -215,15 +222,9 @@ class RequestController extends Controller
             return redirect()->back()->with('error', "You already have an active request for {$request->document_type}. You need to go to registrar's office to complete your request if you need another copy.");
         }
 
-        // Simulate clearance check - in real system, this would query a finance database
-        $clearanceStatus = 'cleared';
+        // A receipt upload is evidence to review, not proof of clearance or payment.
+        $clearanceStatus = 'pending_clearance';
         $financialBalance = 0.00;
-
-        // For demonstration: randomly assign balance to some requests
-        if (rand(1, 10) <= 2) {
-            $clearanceStatus = 'has_balance';
-            $financialBalance = rand(500, 5000);
-        }
 
         // Generate Ticket Number: REQ-YYYY-XXXX (where XXXX is a unique random string or increment)
         $ticketNumber = 'REQ-'.date('Y').'-'.strtoupper(bin2hex(random_bytes(3)));
@@ -243,7 +244,7 @@ class RequestController extends Controller
 
         $documentPrice = $this->documentPrices()[$request->document_type];
 
-        $createdRequest = RequestDocument::create([
+        $createdRequest = DB::transaction(fn (): RequestDocument => RequestDocument::create([
             'ticket_number' => $ticketNumber,
             'student_number' => $studentNumber,
             'document_type' => $request->document_type,
@@ -263,7 +264,9 @@ class RequestController extends Controller
             'financial_balance' => $financialBalance,
             'payment_confirmed' => false,
             'status' => 'pending',
-        ]);
+        ]));
+
+        $notifications->statusChanged($createdRequest);
 
         record_log(
             'Uploaded Payment Receipt',
@@ -286,30 +289,30 @@ class RequestController extends Controller
         record_log('Submitted Request', 'Requests', "Student #{$studentNumber} requested {$request->document_type} for ₱".number_format($documentPrice, 2)." (Ticket: {$ticketNumber}) - Delivery: {$request->delivery_method}, Payment: {$request->payment_method}");
 
         $message = "Your request has been submitted! Ticket Number: {$ticketNumber}. Document fee: ₱".number_format($documentPrice, 2).'.';
-        if ($clearanceStatus === 'has_balance') {
-            $message .= ' Note: You have an outstanding balance of ₱'.number_format($financialBalance, 2).'. Please settle this before your document can be released.';
-        }
+        $message .= ' Accounting clearance and document payment await staff verification.';
 
         return redirect()->back()->with('success', $message);
     }
 
     public function receipt(Request $request, RequestDocument $requestDocument)
     {
-        $user = $request->user();
-        $isOwner = $user?->role === 'student'
-            && filled($user->student_number)
-            && hash_equals((string) $requestDocument->student_number, (string) $user->student_number);
-        $isStaff = in_array($user?->role, ['admin', 'registrar', 'records_officer'], true);
+        $user = $this->authorizeReceiptViewer($request, $requestDocument);
+        $requestDocument->loadMissing('student');
+        $schoolProfile = app(SchoolProfile::class)->values();
 
-        if (! $isOwner && ! $isStaff) {
-            record_log(
-                'Receipt Access Denied',
-                'File Security',
-                "Denied receipt access for request #{$requestDocument->id}; role: ".($user?->role ?? 'unknown'),
-                'denied'
-            );
-            abort(403);
-        }
+        record_log('Viewed Request Receipt', 'Requests', "Viewed request receipt for #{$requestDocument->id}; role: {$user->role}");
+
+        return response()
+            ->view('requests.receipt', compact('requestDocument', 'schoolProfile'))
+            ->header('Cache-Control', 'private, no-store, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('X-Content-Type-Options', 'nosniff');
+    }
+
+    public function uploadedReceipt(Request $request, RequestDocument $requestDocument)
+    {
+        $user = $this->authorizeReceiptViewer($request, $requestDocument);
+
         if (blank($requestDocument->payment_proof_path)) {
             record_log('Receipt File Missing', 'File Security', "Receipt unavailable for request #{$requestDocument->id}", 'missing');
             abort(404);
@@ -328,14 +331,39 @@ class RequestController extends Controller
             "Viewed receipt for request #{$requestDocument->id}; student: {$requestDocument->student_number}; role: {$user->role}"
         );
 
-        $requestDocument->loadMissing('student');
-        $schoolProfile = app(SchoolProfile::class)->values();
+        $downloadName = $requestDocument->payment_proof_original_name
+            ?: basename($requestDocument->payment_proof_path);
 
-        return response()
-            ->view('requests.receipt', compact('requestDocument', 'schoolProfile'))
-            ->header('Cache-Control', 'private, no-store, max-age=0')
-            ->header('Pragma', 'no-cache')
-            ->header('X-Content-Type-Options', 'nosniff');
+        return Storage::disk($disk)->response(
+            $requestDocument->payment_proof_path,
+            $downloadName,
+            [
+                'Cache-Control' => 'private, no-store, max-age=0',
+                'Pragma' => 'no-cache',
+                'X-Content-Type-Options' => 'nosniff',
+                'Content-Security-Policy' => "default-src 'none'; sandbox",
+            ]
+        );
+    }
+
+    private function authorizeReceiptViewer(Request $request, RequestDocument $requestDocument): User
+    {
+        $user = $request->user();
+        $isOwner = $user?->role === 'student'
+            && filled($user->student_number)
+            && hash_equals((string) $requestDocument->student_number, (string) $user->student_number);
+        $isStaff = in_array($user?->role, ['admin', 'registrar', 'records_officer'], true);
+
+        if (! $isOwner && ! $isStaff) {
+            record_log(
+                'Receipt Access Denied',
+                'File Security',
+                "Denied receipt access for request #{$requestDocument->id}; role: ".($user?->role ?? 'unknown'),
+                'denied'
+            );
+            abort(403);
+        }
+        return $user;
     }
 
     private function documentPrices(): array
@@ -373,14 +401,22 @@ class RequestController extends Controller
     {
         $user = auth()->user();
 
-        abort_unless(in_array($user?->role, ['registrar', 'admin', 'records_officer'], true), 403);
+        abort_unless(in_array($user?->role, ['registrar', 'admin'], true), 403);
 
-        $requestDoc = RequestDocument::findOrFail($request_id);
+        $requestDoc = DB::transaction(function () use ($request_id, $user): RequestDocument {
+            $requestDoc = RequestDocument::query()->lockForUpdate()->findOrFail($request_id);
+            abort_if(in_array($requestDoc->status, ['completed', 'rejected'], true), 422);
 
-        $requestDoc->update([
-            'payment_confirmed' => true,
-            'clearance_status' => 'cleared',
-        ]);
+            if (! $requestDoc->payment_confirmed) {
+                $requestDoc->update([
+                    'payment_confirmed' => true,
+                    'payment_confirmed_at' => now(),
+                    'payment_confirmed_by' => $user->id,
+                ]);
+            }
+
+            return $requestDoc;
+        });
 
         record_log('Payment Confirmed', 'Requests', "Confirmed payment for Request #{$request_id} (Ticket: {$requestDoc->ticket_number})");
 
@@ -410,37 +446,42 @@ class RequestController extends Controller
         return redirect()->back()->with('success', 'Clearance status updated successfully.');
     }
 
-    public function updateStatus(Request $request, $request_id)
+    public function updateStatus(Request $request, $request_id, RequestStatusTransitions $transitions, \App\Support\RequestNotificationService $notifications)
     {
         $user = auth()->user();
         abort_unless(in_array($user?->role, ['registrar', 'admin', 'records_officer'], true), 403);
 
         $request->validate([
             'status' => 'required|string|in:pending,processing,processed,ready_to_release,completed,rejected',
-            'remarks' => 'nullable|string',
+            'remarks' => 'nullable|string|max:1000',
         ]);
 
-        $requestDoc = RequestDocument::findOrFail($request_id);
+        $requestDoc = DB::transaction(function () use ($request, $request_id, $user, $transitions): RequestDocument {
+            $lockedRequest = RequestDocument::query()->lockForUpdate()->findOrFail($request_id);
 
-        // Security check for Registrar approval
-        if ($request->status === 'ready_to_release' && $user->role !== 'registrar' && $user->role !== 'admin') {
-            return redirect()->back()->with('error', 'Only the Registrar can approve requests for release.');
-        }
+            $transitions->validate($lockedRequest, $user, $request->status, $request->remarks);
 
-        $requestDoc->update([
-            'status' => $request->status,
-            'remarks' => $request->remarks,
-        ]);
+            $lockedRequest->update([
+                'status' => $request->status,
+                'remarks' => $request->remarks,
+            ]);
 
-        if ($request->status === 'rejected') {
-            $requestDoc->authenticities()
-                ->whereIn('status', ['valid', 'superseded'])
-                ->update([
-                    'status' => 'revoked',
-                    'revoked_at' => now(),
-                    'revoked_by' => $user->id,
-                    'revocation_reason' => $request->remarks ?: 'The related document request was rejected.',
-                ]);
+            if ($request->status === 'rejected') {
+                $lockedRequest->authenticities()
+                    ->whereIn('status', ['valid', 'superseded'])
+                    ->update([
+                        'status' => 'revoked',
+                        'revoked_at' => now(),
+                        'revoked_by' => $user->id,
+                        'revocation_reason' => $request->remarks ?: 'The related document request was rejected.',
+                    ]);
+            }
+
+            return $lockedRequest;
+        });
+
+        if ($requestDoc->wasChanged('status')) {
+            $notifications->statusChanged($requestDoc);
         }
 
         record_log('Updated Request Status', 'Requests', "Updated Request #{$request_id} status to {$request->status}");

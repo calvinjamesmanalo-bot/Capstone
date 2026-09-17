@@ -46,6 +46,7 @@ class LoginController extends Controller
         }
 
         Auth::login($user);
+        session()->regenerate(true);
 
         session(['user_role' => $role]);
 

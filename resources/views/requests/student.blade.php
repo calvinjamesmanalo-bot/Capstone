@@ -243,7 +243,7 @@
 
                             <div>
                                 <label for="transcript_receipt" class="block text-base font-bold text-slate-800">Accounting clearance receipt <span class="text-red-600">*</span></label>
-                                <p class="mt-1 text-sm text-slate-500">Upload the transcript clearance receipt issued by Accounting.</p>
+                                <p class="mt-1 text-sm text-slate-500">Upload the transcript clearance receipt issued by Accounting. Staff will verify clearance and document payment separately; uploading a file does not confirm either one.</p>
                                 <label for="transcript_receipt" class="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-5 py-7 text-center transition hover:border-[#000638] hover:bg-blue-50">
                                     <svg class="h-8 w-8 text-[#000638]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.9-7.9A5 5 0 0115.9 7H17a4 4 0 010 8h-1m-4-5v9m0-9-3 3m3-3 3 3" /></svg>
                                     <span id="receipt_file_name" class="mt-3 text-sm font-bold text-[#000638]">Choose a JPG, PNG, or PDF file</span>
