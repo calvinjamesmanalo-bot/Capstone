@@ -5,6 +5,10 @@
 @section('page_subtitle', 'Upload and manage student Form 138 records')
 
 @section('content')
+<nav class="mb-6 flex flex-wrap gap-3" aria-label="Grade Portal sections">
+    <a href="{{ route('grade-portal.index') }}" aria-current="page" class="rounded-xl bg-[#000638] px-5 py-3 text-sm font-bold text-white">Student Form 138 Records</a>
+    <a href="{{ route('school-forms.records') }}" class="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-[#000638] hover:bg-slate-50">Class Grade Sheets</a>
+</nav>
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
     <!-- Upload Section -->
     <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden h-fit">

@@ -46,7 +46,7 @@ class EmptyStateTest extends TestCase
 
     public function test_grade_sheet_initial_and_filtered_empty_states(): void
     {
-        $this->actingAs(User::factory()->create(['role' => 'records_officer']));
+        $this->actingAs(User::factory()->create(['role' => 'registrar']));
         $data = [
             'schoolYear' => '', 'level' => '', 'section' => '', 'hasSearch' => false,
             'schoolYears' => collect(config('academics.school_years')), 'levels' => collect(),

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Grade Sheet Records</title>
+    <title>Grade Portal - Class Grade Sheets</title>
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
@@ -18,25 +18,29 @@
 <body class="min-h-screen bg-[#f6f7fb] font-sans text-slate-950">
 <header class="border-b border-white/10 bg-[#000638] text-white shadow-lg shadow-slate-950/10">
     <div class="mx-auto flex max-w-6xl flex-col items-stretch gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-        <a href="{{ route('school-forms.home') }}" class="flex min-w-0 items-center gap-3">
+        <a href="{{ route('grade-portal.index') }}" class="flex min-w-0 items-center gap-3">
             <img src="{{ asset('images/fiat.png') }}" alt="Fiat Lux Academe seal" class="h-11 w-11 shrink-0 rounded-full bg-white object-contain ring-2 ring-[#ffd22d]">
             <span class="min-w-0">
-                <span class="block truncate font-bold">School Forms Maker</span>
+                <span class="block truncate font-bold">Grade Portal</span>
                 <span class="block truncate text-xs text-[#ffd22d]">Fiat Lux Academe &middot; Academic Records</span>
             </span>
         </a>
-        <a href="{{ route('school-forms.home') }}" class="shrink-0 rounded-lg bg-[#ffd22d] px-4 py-2.5 text-center text-sm font-bold text-[#000638] transition hover:bg-[#ffe36f] focus:outline-none focus:ring-4 focus:ring-white/20">
-            Back to Form Makers
+        <a href="{{ route('grade-portal.index') }}" class="shrink-0 rounded-lg bg-[#ffd22d] px-4 py-2.5 text-center text-sm font-bold text-[#000638] transition hover:bg-[#ffe36f] focus:outline-none focus:ring-4 focus:ring-white/20">
+            Student Form 138 Records
         </a>
     </div>
 </header>
 
 <main class="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
+    <nav class="mb-8 flex flex-wrap gap-3" aria-label="Grade Portal sections">
+        <a href="{{ route('grade-portal.index') }}" class="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-[#000638]">Student Form 138 Records</a>
+        <a href="{{ route('school-forms.records') }}" aria-current="page" class="rounded-xl bg-[#000638] px-5 py-3 text-sm font-bold text-white">Class Grade Sheets</a>
+    </nav>
     <div class="mb-9 max-w-2xl">
         <p class="mb-3 inline-flex rounded-full bg-[#fff5c4] px-3 py-1.5 text-xs font-bold text-[#000638]">Class records workspace</p>
         <h1 class="text-3xl font-bold text-[#000638] sm:text-4xl">Grade Sheet Records</h1>
         <p class="mt-3 leading-7 text-slate-600">
-            @if(in_array(auth()->user()->role, ['admin', 'registrar', 'records_officer'], true))
+            @if(in_array(auth()->user()->role, ['admin', 'registrar'], true))
                 Upload one or all grading periods in a single batch, then preview, download, or manage the imported class records.
             @else
                 Find, preview, and download attendance or summary sheets securely by class.
@@ -68,7 +72,7 @@
         </div>
     @endif
 
-    @if(in_array(auth()->user()->role, ['admin', 'registrar', 'records_officer'], true))
+    @if(in_array(auth()->user()->role, ['admin', 'registrar'], true))
     @php
         $uploadYear = old('grade_school_year', $schoolYear);
         $uploadLevel = old('grade_level', $level);
@@ -357,7 +361,7 @@
             </div>
         @else
             @if($levels->isEmpty())
-                <x-empty-state heading="No grade sheets uploaded yet" description="Uploaded attendance and summary sheets will appear here, organized by class." :action-url="in_array(auth()->user()->role, ['admin', 'registrar', 'records_officer'], true) ? '#grade-sheet-upload' : null" action-label="Upload grade sheets" />
+                <x-empty-state heading="No grade sheets uploaded yet" description="Uploaded attendance and summary sheets will appear here, organized by class." :action-url="in_array(auth()->user()->role, ['admin', 'registrar'], true) ? '#grade-sheet-upload' : null" action-label="Upload grade sheets" />
             @else
                 <x-empty-state heading="Choose a class to view its records" description="Select a school year, grade level, and section in the Record Finder to see matching sheets." action-url="#record-finder" action-label="Choose class filters" />
             @endif

@@ -665,7 +665,7 @@ class SchoolFormsIntegrationTest extends TestCase
     public function test_2026_2027_uploader_uses_three_terms_and_rejects_a_fourth_period(): void
     {
         Storage::fake('school_forms_local');
-        $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
+        $recordsOfficer = User::factory()->create(['role' => 'registrar']);
         $query = ['school_year' => '2026-2027', 'level' => 'Grade 4', 'section' => 'Bambi'];
 
         $this->actingAs($recordsOfficer)
@@ -698,7 +698,7 @@ class SchoolFormsIntegrationTest extends TestCase
 
     public function test_2026_generated_grade_sheet_templates_use_term_metadata_and_months(): void
     {
-        $staff = User::factory()->create(['role' => 'records_officer']);
+        $staff = User::factory()->create(['role' => 'registrar']);
         $query = ['school_year' => '2026-2027', 'level' => 'Grade 4', 'section' => 'Bambi'];
 
         $summary = $this->actingAs($staff)->get(route('school-forms.grade-sheets.template', [
@@ -853,12 +853,11 @@ class SchoolFormsIntegrationTest extends TestCase
         $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
         $this->actingAs($recordsOfficer)
             ->get(route('school-forms.uploads.preview', $upload))
-            ->assertOk()
-            ->assertSee('2020-0001');
+            ->assertForbidden();
 
         $this->actingAs($recordsOfficer)
             ->get(route('generator.grade-sheets'))
-            ->assertRedirect(route('school-forms.records'));
+            ->assertForbidden();
 
         $this->actingAs($recordsOfficer)
             ->get(route('school-forms.records', [
@@ -866,36 +865,21 @@ class SchoolFormsIntegrationTest extends TestCase
                 'level' => 'Grade 1',
                 'section' => 'Amity',
             ]))
-            ->assertOk()
-            ->assertSee('Quick View')
-            ->assertSee('Upload grade sheets')
-            ->assertDontSee('Delete this sheet');
+            ->assertForbidden();
     }
 
-    public function test_records_officer_can_upload_grade_sheets_but_cannot_delete_them(): void
+    public function test_records_officer_cannot_access_class_grade_sheets(): void
     {
-        Storage::fake('school_forms_local');
-        $importer = $this->mock(GradeSheetImporter::class);
-        $importer->shouldReceive('assertMatchesSelection')->twice();
-        $importer->shouldReceive('teacherName')->twice()->andReturn('Test Adviser');
-        $importer->shouldReceive('summaries')->once()->andReturn([]);
-        $importer->shouldReceive('attendance')->once()->andReturn([]);
         $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
 
         $this->actingAs($recordsOfficer)
             ->get(route('school-forms.records'))
-            ->assertOk()
-            ->assertSee('2010-2011')
-            ->assertSee('2026-2027')
-            ->assertSee('Elementary (Kinder to Grade 6)')
-            ->assertSee('Junior High School (Grade 7 to Grade 10)')
-            ->assertSee('Kinder')
-            ->assertSee('Grade 6')
-            ->assertSee('Grade 7')
-            ->assertSee('Grade 10')
-            ->assertSee('Quarterly upload')
-            ->assertSee('Whole school year / bulk')
-            ->assertSee('Grading period to upload');
+            ->assertForbidden();
+
+        $this->get(route('generator.grade-sheets'))->assertForbidden();
+        $this->get(route('school-forms.grade-sheets.status', [
+            'school_year' => '2026-2027', 'level' => 'Grade 4', 'section' => 'Bambi',
+        ]))->assertForbidden();
 
         $this->actingAs($recordsOfficer)
             ->post(route('school-forms.grade-sheets.store'), [
@@ -903,16 +887,10 @@ class SchoolFormsIntegrationTest extends TestCase
                 'grade_level' => 'Grade 2',
                 'grade_section' => 'Bambi',
                 'grading_period' => 2,
-                'attendance_file' => UploadedFile::fake()->create('attendance.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
-                'summary_file' => UploadedFile::fake()->create('summary.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
             ])
-            ->assertRedirect(route('school-forms.records'));
-
-        $this->assertDatabaseCount('grade_sheet_uploads', 2, 'school_forms');
-        $upload = SchoolFormUpload::firstOrFail();
-        $this->actingAs($recordsOfficer)
-            ->delete(route('school-forms.uploads.destroy', $upload))
             ->assertForbidden();
+
+        $this->assertDatabaseCount('grade_sheet_uploads', 0, 'school_forms');
     }
 
     public function test_staff_can_upload_multiple_optional_workbook_slots_in_one_batch(): void
@@ -922,7 +900,7 @@ class SchoolFormsIntegrationTest extends TestCase
         $importer->shouldReceive('assertMatchesSelection')->twice();
         $importer->shouldReceive('teacherName')->twice()->andReturn('Test Adviser');
         $importer->shouldReceive('summaries')->twice()->andReturn([]);
-        $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
+        $recordsOfficer = User::factory()->create(['role' => 'registrar']);
 
         $this->actingAs($recordsOfficer)
             ->post(route('school-forms.grade-sheets.store'), [
@@ -960,7 +938,7 @@ class SchoolFormsIntegrationTest extends TestCase
         ]);
         $importer = $this->mock(GradeSheetImporter::class);
         $importer->shouldReceive('assertMatchesSelection')->once();
-        $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
+        $recordsOfficer = User::factory()->create(['role' => 'registrar']);
 
         $this->actingAs($recordsOfficer)
             ->from(route('school-forms.records'))
@@ -989,7 +967,7 @@ class SchoolFormsIntegrationTest extends TestCase
             'original_name' => 'attendance.xlsx',
             'stored_path' => 'grade-sheets/attendance.xlsx',
         ]);
-        $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
+        $recordsOfficer = User::factory()->create(['role' => 'registrar']);
         $query = ['school_year' => '2010-2011', 'level' => 'Grade 10', 'section' => 'Bambi'];
 
         $this->actingAs($recordsOfficer)

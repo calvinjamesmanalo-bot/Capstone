@@ -37,7 +37,7 @@ class GeneratorController extends Controller
 
     public function gradeSheets(): RedirectResponse
     {
-        $this->authorizeStaff(['admin', 'registrar', 'records_officer']);
+        $this->authorizeStaff(['admin', 'registrar']);
 
         return redirect()->route('school-forms.records');
     }

@@ -11,7 +11,6 @@
             'admin' => [
                 ['route' => 'requests.index', 'title' => 'Manage Requests', 'description' => 'Review and process document requests.', 'count' => $data['pending_requests'], 'count_label' => 'pending requests'],
                 ['route' => 'users.index', 'title' => 'Manage Users', 'description' => 'Manage staff and student accounts.', 'count' => $data['total_users'], 'count_label' => 'users'],
-                ['route' => 'school-forms.records', 'title' => 'Grade Sheet Records', 'description' => 'Upload and review class grade sheets.', 'count' => null],
                 ['route' => 'grade-portal.index', 'title' => 'Grade Portal', 'description' => 'Find and manage student grade uploads.', 'count' => null],
                 ['route' => 'analytics.index', 'title' => 'View Analytics', 'description' => 'Review request and system trends.', 'count' => null],
                 ['route' => 'logs.index', 'title' => 'Activity Logs', 'description' => 'Review system and verification activity.', 'count' => null],
@@ -20,15 +19,13 @@
             'registrar' => [
                 ['route' => 'requests.index', 'title' => 'Review Requests', 'description' => 'Review processed requests awaiting action.', 'count' => null],
                 ['route' => 'requests.history', 'title' => 'Request History', 'description' => 'View released and rejected requests.', 'count' => null],
-                ['route' => 'school-forms.records', 'title' => 'Grade Sheet Records', 'description' => 'Review class attendance and grade sheets.', 'count' => null],
-                ['route' => 'grade-portal.index', 'title' => 'Grade Portal', 'description' => 'Find and manage student grade uploads.', 'count' => null],
+                ['route' => 'grade-portal.index', 'title' => 'Grade Portal', 'description' => 'Upload student records and class grade sheets.', 'count' => null],
                 ['route' => 'certifications.index', 'title' => 'Certifications', 'description' => 'Prepare certification documents.', 'count' => null],
             ],
             'records_officer' => [
                 ['route' => 'requests.index', 'title' => 'Manage Requests', 'description' => 'Process active student document requests.', 'count' => $data['pending_requests'], 'count_label' => 'pending requests'],
                 ['route' => 'requests.history', 'title' => 'Request History', 'description' => 'View released and rejected requests.', 'count' => null],
                 ['route' => 'school-forms.home', 'title' => 'School Forms', 'description' => 'Prepare Form 137 and Form 138 records.', 'count' => null],
-                ['route' => 'school-forms.records', 'title' => 'Grade Sheet Records', 'description' => 'Upload and review class grade sheets.', 'count' => null],
                 ['route' => 'certifications.index', 'title' => 'Certifications', 'description' => 'Prepare certification documents.', 'count' => null],
             ],
             'student' => [

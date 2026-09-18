@@ -508,6 +508,6 @@ class SchoolFormF138Controller extends Controller
 
     private function authorizeGradeStaff(): void
     {
-        abort_unless(auth()->check() && in_array(auth()->user()->role, ['admin', 'registrar', 'records_officer'], true), 403);
+        abort_unless(auth()->check() && in_array(auth()->user()->role, ['admin', 'registrar'], true), 403);
     }
 }

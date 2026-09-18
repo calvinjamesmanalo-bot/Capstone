@@ -289,16 +289,14 @@
                 @if($role === 'registrar')
                 <p class="px-4 mb-3 mt-6 text-xs font-semibold text-slate-400 uppercase tracking-wide">Academic Records</p>
 
-                @if(in_array($role, ['admin', 'registrar']))
-                <a href="{{ route('generator.grade-sheets') }}" target="_blank" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group hover:bg-slate-800/50">
+                <a href="{{ route('grade-portal.index') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('grade-portal.*', 'school-forms.records') ? 'active' : 'hover:bg-slate-800/50' }}">
                     <div class="w-5 h-5 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                     </div>
-                    <span class="text-base font-semibold">Grade Sheet Upload</span>
+                    <span class="text-base font-semibold">Grade Portal</span>
                 </a>
-                @endif
 
                 @if($role === 'admin')
                 <a href="{{ route('generator.maker', ['form' => 'f137']) }}" target="_blank" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group hover:bg-slate-800/50">

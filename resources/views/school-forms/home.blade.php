@@ -9,7 +9,9 @@
 <body class="min-h-screen bg-[#f6f7f9] font-sans text-slate-950">
 <header class="border-b border-slate-200 bg-white"><div class="mx-auto flex max-w-5xl flex-col items-stretch gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
     <a href="{{ route('school-forms.home') }}" class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-sm font-bold text-white">SF</span><span><span class="block font-bold">School Forms Maker</span><span class="block text-xs text-slate-500">Student report card workspace</span></span></a>
-    <a href="{{ route('school-forms.records') }}" class="rounded-lg bg-blue-50 px-4 py-2 text-center text-sm font-bold text-blue-700">Grade Sheet Records</a>
+    @if(auth()->user()->role === 'admin')
+        <a href="{{ route('school-forms.records') }}" class="rounded-lg bg-blue-50 px-4 py-2 text-center text-sm font-bold text-blue-700">Class Grade Sheets</a>
+    @endif
 </div></header>
 <main class="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
     <div class="mb-9 max-w-2xl"><p class="mb-2 text-sm font-semibold text-blue-600">Simple school form workspace</p><h1 id="page-title" class="text-3xl font-bold sm:text-4xl">F138 Maker</h1><p id="page-description" class="mt-3 leading-7 text-slate-600">Generate a student's F138 from uploaded grade sheets.</p></div>

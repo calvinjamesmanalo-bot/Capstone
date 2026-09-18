@@ -153,12 +153,13 @@ Route::middleware(['auth', 'student.verified'])->group(function () {
         Route::get('/school-forms/f138/download', [SchoolFormF138Controller::class, 'download'])->name('school-forms.f138.download');
         Route::post('/school-forms/f138/finalize', [SchoolFormF138Controller::class, 'finalize'])->name('school-forms.f138.finalize');
     });
-    Route::middleware('role:admin,registrar,records_officer')->group(function () {
+    Route::middleware('role:admin,registrar')->group(function () {
         Route::get('/school-forms/grade-sheets', [GeneratorController::class, 'gradeSheets'])->name('generator.grade-sheets');
         Route::post('/school-forms/grade-sheets', [SchoolFormF138Controller::class, 'storeGradeSheets'])->name('school-forms.grade-sheets.store');
         Route::get('/school-forms/grade-sheets/status', [SchoolFormRecordController::class, 'status'])->name('school-forms.grade-sheets.status');
         Route::get('/school-forms/grade-sheets/template/{type}', [SchoolFormRecordController::class, 'template'])->name('school-forms.grade-sheets.template');
-        Route::get('/school-forms/records', [SchoolFormRecordController::class, 'index'])->name('school-forms.records');
+        Route::get('/grade-portal/class-sheets', [SchoolFormRecordController::class, 'index'])->name('school-forms.records');
+        Route::get('/school-forms/records', fn () => redirect()->route('school-forms.records', request()->query()));
         Route::get('/school-forms/uploads/{upload}', [SchoolFormRecordController::class, 'download'])->name('school-forms.uploads.download');
         Route::get('/school-forms/uploads/{upload}/preview', [SchoolFormRecordController::class, 'preview'])->name('school-forms.uploads.preview');
     });

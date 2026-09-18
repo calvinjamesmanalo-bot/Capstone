@@ -17,7 +17,6 @@ class DashboardQuickActionsTest extends TestCase
         $this->assertQuickActions('admin', [
             'requests.index',
             'users.index',
-            'school-forms.records',
             'grade-portal.index',
             'analytics.index',
             'logs.index',
@@ -34,7 +33,6 @@ class DashboardQuickActionsTest extends TestCase
         $this->assertQuickActions('registrar', [
             'requests.index',
             'requests.history',
-            'school-forms.records',
             'grade-portal.index',
             'certifications.index',
         ], [
@@ -54,11 +52,11 @@ class DashboardQuickActionsTest extends TestCase
             'requests.index',
             'requests.history',
             'school-forms.home',
-            'school-forms.records',
             'certifications.index',
         ], [
             'users.index',
             'grade-portal.index',
+            'school-forms.records',
             'analytics.index',
             'logs.index',
             'settings.index',

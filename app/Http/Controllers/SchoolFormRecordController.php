@@ -285,6 +285,6 @@ class SchoolFormRecordController extends Controller
 
     private function authorizeRecordsStaff(): void
     {
-        abort_unless(auth()->check() && in_array(auth()->user()->role, ['admin', 'registrar', 'records_officer'], true), 403);
+        abort_unless(auth()->check() && in_array(auth()->user()->role, ['admin', 'registrar'], true), 403);
     }
 }

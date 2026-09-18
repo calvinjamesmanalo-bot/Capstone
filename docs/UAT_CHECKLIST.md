@@ -32,6 +32,7 @@ Use only dummy records. Mark every item `PASS`, `FAIL`, or `BLOCKED`, and attach
 - [ ] Process a request without accessing admin-only user/settings/log pages.
 - [ ] Confirm payment receipt access works and is logged.
 - [ ] Confirm registrar-only approval controls remain unavailable.
+- [ ] Confirm Grade Sheet Records/Upload is absent and its direct URLs return 403.
 - [ ] Confirm a records officer cannot confirm document payment or accounting clearance.
 - [ ] Generate supported draft documents and confirm request/student data match.
 
@@ -43,6 +44,7 @@ Use only dummy records. Mark every item `PASS`, `FAIL`, or `BLOCKED`, and attach
 - [ ] Confirm payment does not automatically change a recorded balance or Accounting clearance.
 - [ ] Review/approve a processed request for release.
 - [ ] Upload and privately view a Grade Portal reference file.
+- [ ] Use the Grade Portal tabs to upload student Form 138 records and class grade sheets from one module.
 - [ ] Try invalid type, invalid school year, and file above 20 MB.
 - [ ] Confirm admin-only analytics/settings/user management are inaccessible.
 
