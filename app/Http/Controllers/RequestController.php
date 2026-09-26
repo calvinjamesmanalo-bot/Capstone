@@ -28,7 +28,7 @@ class RequestController extends Controller
         ];
 
         $filterKeys = ['search', 'status', 'document_type', 'payment_method', 'delivery_method', 'school_year'];
-        $request->merge(collect($filterKeys)->mapWithKeys(function (string $key) use ($request) {
+        $request->merge(collect([...$filterKeys, 'sort'])->mapWithKeys(function (string $key) use ($request) {
             $value = $request->query($key);
 
             return [$key => is_string($value) ? trim($value) : $value];
@@ -41,14 +41,16 @@ class RequestController extends Controller
             'payment_method' => ['nullable', 'string', Rule::in($filterOptions['payment_methods'])],
             'delivery_method' => ['nullable', 'string', Rule::in($filterOptions['delivery_methods'])],
             'school_year' => ['nullable', 'string', Rule::in($filterOptions['school_years'])],
+            'sort' => ['nullable', 'string', Rule::in(['newest', 'oldest'])],
         ]);
         $search = $validated['search'] ?? '';
+        $sort = $validated['sort'] ?? 'newest';
         $filters = collect(array_diff($filterKeys, ['search']))
             ->mapWithKeys(fn (string $key) => [$key => $validated[$key] ?? ''])
             ->all();
 
         $user = auth()->user();
-        $query = RequestDocument::with(['student', 'statusHistories.changedBy']);
+        $query = RequestDocument::with(['student', 'statusHistories.changedBy', 'authenticities.artifacts']);
 
         if ($user->role === 'registrar') {
             // Registrar only sees processed requests that need approval
@@ -85,9 +87,12 @@ class RequestController extends Controller
             ['search' => $search, ...$filters],
             fn ($value) => $value !== '',
         );
-        $requests = $query->latest()->paginate(15)->appends($activeParameters);
+        $direction = $sort === 'oldest' ? 'asc' : 'desc';
+        $paginationParameters = $sort === 'oldest' ? [...$activeParameters, 'sort' => 'oldest'] : $activeParameters;
+        $requests = $query->orderBy('created_at', $direction)->orderBy('id', $direction)
+            ->paginate(15)->appends($paginationParameters);
 
-        return view('requests.index', compact('requests', 'search', 'filters', 'filterOptions', 'activeParameters', 'transitions'));
+        return view('requests.index', compact('requests', 'search', 'sort', 'filters', 'filterOptions', 'activeParameters', 'transitions'));
     }
 
     public function history()
@@ -346,6 +351,67 @@ class RequestController extends Controller
         );
     }
 
+    public function documentQuickView(Request $request, RequestDocument $requestDocument)
+    {
+        abort_unless(in_array($request->user()?->role, ['admin', 'registrar', 'records_officer'], true), 403);
+
+        $document = $requestDocument->authenticities()
+            ->where('status', 'valid')
+            ->where('pdf_signature_status', 'signed')
+            ->latest('id')
+            ->firstOrFail();
+        $artifact = $document->artifacts()
+            ->where('is_pdf_signed', true)
+            ->whereNotNull('storage_path')
+            ->latest('id')
+            ->firstOrFail();
+
+        abort_unless($artifact->storage_disk === 'local', 404);
+        abort_unless(str_starts_with($artifact->storage_path, 'review-documents/') && ! str_contains($artifact->storage_path, '..'), 404);
+        abort_unless(Storage::disk('local')->exists($artifact->storage_path), 404);
+
+        record_log('Reviewed Generated Document', 'Document Review', "Opened signed document {$document->control_number} for request #{$requestDocument->id}");
+
+        return Storage::disk('local')->response(
+            $artifact->storage_path,
+            $artifact->original_filename ?: $document->control_number.'.pdf',
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="'.str_replace(['"', '/', '\\'], '-', $artifact->original_filename ?: $document->control_number.'.pdf').'"',
+                'Cache-Control' => 'private, no-store, max-age=0',
+                'X-Content-Type-Options' => 'nosniff',
+            ]
+        );
+    }
+
+    public function documentDownload(Request $request, RequestDocument $requestDocument)
+    {
+        abort_unless(in_array($request->user()?->role, ['admin', 'registrar', 'records_officer'], true), 403);
+
+        $document = $requestDocument->authenticities()
+            ->where('status', 'valid')
+            ->where('pdf_signature_status', 'signed')
+            ->latest('id')
+            ->firstOrFail();
+        $artifact = $document->artifacts()
+            ->where('is_pdf_signed', true)
+            ->whereNotNull('storage_path')
+            ->latest('id')
+            ->firstOrFail();
+
+        abort_unless($artifact->storage_disk === 'local', 404);
+        abort_unless(str_starts_with($artifact->storage_path, 'review-documents/') && ! str_contains($artifact->storage_path, '..'), 404);
+        abort_unless(Storage::disk('local')->exists($artifact->storage_path), 404);
+
+        record_log('Downloaded Generated Document', 'Document Review', "Downloaded signed document {$document->control_number} for request #{$requestDocument->id}");
+
+        return Storage::disk('local')->download(
+            $artifact->storage_path,
+            $artifact->original_filename ?: $document->control_number.'.pdf',
+            ['Cache-Control' => 'private, no-store, max-age=0', 'X-Content-Type-Options' => 'nosniff']
+        );
+    }
+
     private function authorizeReceiptViewer(Request $request, RequestDocument $requestDocument): User
     {
         $user = $request->user();
@@ -500,7 +566,8 @@ class RequestController extends Controller
             ], fn ($value) => $value !== null && $value !== ''));
         }
 
-        return redirect()->back()->with('success', 'Request status updated to '.str_replace('_', ' ', $request->status));
+        return redirect()->to(route('requests.index').'#request-'.$requestDoc->id)
+            ->with('success', 'Request status updated to '.str_replace('_', ' ', $request->status).'.');
     }
 
     public function clearHistory(Request $request)

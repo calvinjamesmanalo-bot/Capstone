@@ -5,6 +5,14 @@
 @section('page_subtitle', 'Monitor and process student document applications')
 
 @section('content')
+    @if($errors->any())
+        <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800" role="alert">
+            <p class="font-bold">The request was not updated.</p>
+            <ul class="mt-2 list-disc space-y-1 pl-5">
+                @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
+            </ul>
+        </div>
+    @endif
 <div class="request-a11y min-w-0 space-y-8">
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="p-6 border-b border-slate-200 flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-center bg-slate-50">
@@ -16,7 +24,7 @@
                 </div>
                 <div>
                     <h2 class="text-xl font-semibold text-slate-900">Active requests</h2>
-                    <p class="text-sm text-slate-500 mt-1">{{ $requests->total() }} request(s) found</p>
+                    <p class="text-sm text-slate-500 mt-1">{{ $requests->total() }} request(s) found{{ auth()->user()->role === 'records_officer' ? ' · Review each request and choose its next step below.' : '' }}</p>
                 </div>
             </div>
 
@@ -57,6 +65,14 @@
                     Clear Filters
                 </a>
             </div>
+            <div class="mt-4 max-w-xs">
+                <label for="request-sort" class="mb-2 block text-sm font-semibold text-slate-700">Sort by request date</label>
+                <select id="request-sort" name="sort" class="w-full rounded-xl border-slate-300 bg-white text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="newest" @selected($sort === 'newest')>Newest first</option>
+                    <option value="oldest" @selected($sort === 'oldest')>Oldest first</option>
+                </select>
+                @error('sort')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
+            </div>
             @php
                 $filterFields = [
                     'status' => ['Status', 'statuses'],
@@ -67,6 +83,10 @@
                 ];
                 $filterLabel = fn ($value) => $value === 'gcash' ? 'GCash' : ucfirst(str_replace('_', ' ', $value));
             @endphp
+            @if(auth()->user()->role === 'records_officer')
+            <details class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" @if($activeParameters) open @endif>
+                <summary class="cursor-pointer text-sm font-semibold text-[#000638]">More filters: status, document, payment, delivery, school year</summary>
+            @endif
             <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 @foreach($filterFields as $key => [$label, $optionsKey])
                     <div>
@@ -83,6 +103,9 @@
                     </div>
                 @endforeach
             </div>
+            @if(auth()->user()->role === 'records_officer')
+            </details>
+            @endif
             @if($activeParameters)
                 <div class="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-600" aria-label="Active filters">
                     <span class="font-semibold">Active filters:</span>
@@ -96,6 +119,46 @@
             @enderror
         </form>
 
+        @if(auth()->user()->role === 'records_officer')
+            @php
+                $queueParameters = collect($activeParameters)->except('status')->all();
+                $requestQueues = [
+                    '' => 'All active',
+                    'pending' => 'New',
+                    'processing' => 'Processing',
+                    'processed' => 'For registrar review',
+                    'ready_to_release' => 'Reviewed / Ready',
+                ];
+                $selectedQueue = $filters['status'] ?? '';
+            @endphp
+            <nav class="border-b border-slate-200 bg-white px-4 py-3 sm:px-6" aria-label="Request queues">
+                <div class="flex gap-2 overflow-x-auto pb-1">
+                    @foreach($requestQueues as $queueStatus => $queueLabel)
+                        @php
+                            $queueUrl = route('requests.index', array_filter(
+                                [...$queueParameters, 'status' => $queueStatus],
+                                fn ($value) => $value !== ''
+                            ));
+                            $isSelectedQueue = $selectedQueue === $queueStatus;
+                        @endphp
+                        <a href="{{ $queueUrl }}"
+                           @if($isSelectedQueue) aria-current="page" @endif
+                           class="shrink-0 rounded-full border px-4 py-2 text-sm font-bold transition-colors {{ $isSelectedQueue ? 'border-[#000638] bg-[#000638] text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50' }}">
+                            {{ $queueLabel }}
+                        </a>
+                    @endforeach
+                </div>
+            </nav>
+            <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-6">
+                <h3 class="text-sm font-bold text-[#000638]">{{ $requestQueues[$selectedQueue] ?? 'Filtered requests' }}</h3>
+                <span class="text-xs text-slate-500">{{ $requests->total() }} request(s)</span>
+            </div>
+            <div class="grid items-start gap-4 bg-[#f7f8fb] p-3 sm:p-4 xl:grid-cols-2" aria-label="Active request cards">
+                @foreach($requests as $req)
+                    @include('requests.partials.records-officer-card', ['req' => $req, 'transitions' => $transitions])
+                @endforeach
+            </div>
+        @else
         <p id="request-table-scroll-hint" class="px-4 pt-4 text-sm text-slate-600 lg:hidden">Scroll sideways to view every request detail and action.</p>
         <div class="overflow-x-auto px-4 pb-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-indigo-600" tabindex="0" role="region" aria-label="Request management table" aria-describedby="request-table-scroll-hint">
             <table class="w-full min-w-[1380px] table-fixed text-left">
@@ -113,7 +176,6 @@
                         <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Ticket and student</th>
                         <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Document type</th>
                         <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Delivery and payment</th>
-                        <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Clearance</th>
                         <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Current status</th>
                         <th scope="col" class="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">Request date</th>
                         <th scope="col" class="px-5 py-4 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
@@ -175,7 +237,7 @@
                                 @endif
                             </div>
                         </td>
-                        <td class="px-5 py-6 align-top">
+                        <td class="hidden px-5 py-6 align-top">
                             <div class="space-y-2">
                                 <span class="inline-flex whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm
                                     {{ $req->clearance_status == 'cleared' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : '' }}
@@ -206,7 +268,7 @@
                         </td>
                         <td class="px-5 py-6 align-top">
                             <div class="flex items-center justify-end gap-3">
-                                @if(in_array(auth()->user()->role, ['registrar', 'admin']) && !in_array($req->status, ['completed', 'rejected']))
+                                @if(false && in_array(auth()->user()->role, ['registrar', 'admin']) && !in_array($req->status, ['completed', 'rejected']))
                                     <div class="flex flex-col gap-2">
                                         @if($req->payment_proof_path)
                                             <a href="{{ route('requests.receipt.uploaded', $req) }}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-indigo-50 px-3 py-2 text-center text-xs font-bold text-indigo-700">Review accounting receipt</a>
@@ -232,6 +294,20 @@
                                 @endif
                                 @if(in_array(auth()->user()->role, ['registrar', 'admin']) && $req->status === 'processed')
                                          <div class="flex w-full flex-col gap-3">
+                                             @php
+                                                 $reviewDocument = $req->authenticities->first(
+                                                     fn ($document) => $document->status === 'valid'
+                                                         && $document->pdf_signature_status === 'signed'
+                                                         && $document->artifacts->contains(
+                                                             fn ($artifact) => $artifact->is_pdf_signed && filled($artifact->storage_path)
+                                                         )
+                                                 );
+                                             @endphp
+                                             @if($reviewDocument)
+                                                <a href="{{ route('requests.document-preview', $req) }}" target="_blank" rel="noopener" class="w-full rounded-xl bg-[#062b63] px-4 py-2.5 text-center text-xs font-black uppercase tracking-wider text-white hover:bg-[#041d45]">Quick View Document</a>
+                                             @else
+                                                <span class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-center text-xs font-bold text-amber-800">No generated document available</span>
+                                             @endif
                                              {{-- Preview Buttons (Direct PDF) --}}
                                              @if(str_starts_with($req->document_type, 'Certificate of '))
                                                 <a href="{{ route('certifications.index', ['request_id' => $req->id]) }}" class="w-full px-4 py-2.5 bg-[#062b63] text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-[#041d45] transition-all text-center">
@@ -365,6 +441,8 @@
                     @endforeach
                 </tbody>
             </table>
+        </div>
+        @endif
             @if($requests->isEmpty())
                 @if($requests->total() > 0)
                     <x-empty-state heading="No requests on this page" description="Return to the first page to view requests matching your current selection." :action-url="route('requests.index', $activeParameters)" action-label="View first page" />
@@ -374,7 +452,6 @@
                     <x-empty-state heading="No active requests" :description="auth()->user()->role === 'registrar' ? 'Requests will appear here when they have been processed and are ready for your review.' : 'New student document requests will appear here. Released and rejected requests are available in history.'" :action-url="route('requests.history')" action-label="View request history" />
                 @endif
             @endif
-        </div>
 
         @if($requests->hasPages())
             <div class="border-t border-slate-200 px-6 py-4">

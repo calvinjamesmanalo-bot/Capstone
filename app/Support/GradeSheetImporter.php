@@ -51,12 +51,13 @@ class GradeSheetImporter
             throw new RuntimeException("The selected grade level '{$level}' is not supported.");
         }
 
-        $expectedPeriodType = AcademicPeriod::usesTerms($schoolYear) ? 'term' : 'grading';
+        $expectedPeriodType = AcademicPeriod::usesTerms($schoolYear, $level) ? 'term' : 'grading';
 
         if ($detectedSchoolYear !== $schoolYear || $detectedGradeLevel !== $selectedGradeLevel || $detectedPeriod !== $gradingPeriod || $detectedPeriodType !== $expectedPeriodType) {
             $detectedPeriodLabel = AcademicPeriod::label(
                 $detectedSchoolYear ?? $schoolYear,
                 $detectedPeriod ?? $gradingPeriod,
+                $detectedGradeLevel,
             );
             if ($detectedPeriodType !== null) {
                 $periodName = ['First', 'Second', 'Third', 'Fourth'][($detectedPeriod ?? 1) - 1] ?? 'Unknown';
@@ -65,9 +66,76 @@ class GradeSheetImporter
 
             throw new RuntimeException(
                 "Workbook metadata mismatch. The file is {$detectedSchoolYear}, {$detectedGradeLevel}, {$detectedPeriodLabel}, "
-                ."but the selected upload destination is {$schoolYear}, {$level}, ".AcademicPeriod::label($schoolYear, $gradingPeriod).'.'
+                ."but the selected upload destination is {$schoolYear}, {$level}, ".AcademicPeriod::label($schoolYear, $gradingPeriod, $level).'.'
             );
         }
+    }
+
+    public function destination(string $path, string $originalName = ''): array
+    {
+        $values = [];
+        foreach ($this->firstSheetRows($path) as $row) {
+            foreach ($row['cells'] as $cell) {
+                $value = trim((string) ($cell['value'] ?? ''));
+                if ($value !== '') {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        $contents = implode("\n", $values);
+        $searchable = $originalName."\n".$contents;
+        preg_match('/\b(20\d{2})\s*[-_â€“]\s*(20\d{2})\b/u', $searchable, $yearMatch);
+        $schoolYear = isset($yearMatch[1], $yearMatch[2]) ? $yearMatch[1].'-'.$yearMatch[2] : null;
+        $level = $this->gradeLevel($searchable);
+        $period = $this->gradingPeriod($searchable);
+        $type = preg_match('/\bATTENDANCE(?:\s+SHEET)?\b/i', $searchable)
+            ? 'attendance'
+            : (preg_match('/\bSUMMARY(?:\s+SHEET)?\b/i', $searchable) ? 'summary' : null);
+
+        $normalized = ' '.mb_strtolower(preg_replace('/[^\pL\pN]+/u', ' ', $searchable)).' ';
+        $sections = collect(CurriculumSubjects::sections())
+            ->sortByDesc(fn (string $section) => mb_strlen($section));
+        $section = $sections->first(function (string $candidate) use ($normalized): bool {
+            $needle = ' '.mb_strtolower(preg_replace('/[^\pL\pN]+/u', ' ', $candidate)).' ';
+
+            return str_contains($normalized, $needle);
+        });
+
+        if (! $schoolYear || ! $level || ! $period || ! $type || ! $section) {
+            $missing = collect([
+                'school year' => $schoolYear,
+                'grade level' => $level,
+                'section' => $section,
+                'grading period' => $period,
+                'file type' => $type,
+            ])->filter(fn ($value) => ! $value)->keys()->join(', ');
+            throw new RuntimeException("Could not automatically identify {$missing}. Use an official workbook with complete headers and a descriptive filename.");
+        }
+
+        if (! in_array($schoolYear, config('academics.school_years', []), true)
+            || ! in_array($level, config('academics.grade_levels', []), true)
+            || ! in_array($section, config("academics.sections_by_grade.{$level}", []), true)
+            || ! in_array($period, AcademicPeriod::numbers($schoolYear, $level), true)) {
+            throw new RuntimeException("Detected destination {$schoolYear}, {$level} - {$section}, period {$period} is not configured in the system.");
+        }
+
+        $this->assertMatchesSelection($path, $schoolYear, $level, $period);
+
+        return compact('schoolYear', 'level', 'section', 'period', 'type');
+    }
+
+    private function gradingPeriod(string $text): ?int
+    {
+        $tokens = ['first' => 1, '1st' => 1, 'second' => 2, '2nd' => 2, 'third' => 3, '3rd' => 3, 'fourth' => 4, '4th' => 4];
+        if (preg_match('/\b(first|second|third|fourth|[1-4](?:st|nd|rd|th))\s+(?:grading|term)\b/i', $text, $match)
+            || preg_match('/\b(?:grading|term)\s+(first|second|third|fourth|[1-4](?:st|nd|rd|th)?)\b/i', $text, $match)) {
+            $token = strtolower($match[1]);
+
+            return $tokens[$token] ?? (int) $token;
+        }
+
+        return null;
     }
 
     private function gradeLevel(string $text): ?string
@@ -87,9 +155,11 @@ class GradeSheetImporter
             'eight' => 8,
             'nine' => 9,
             'ten' => 10,
+            'eleven' => 11,
+            'twelve' => 12,
         ];
 
-        if (! preg_match('/\bgrade\s+(one|two|three|four|five|six|seven|eight|nine|ten|10|[1-9])\b/i', $text, $match)) {
+        if (! preg_match('/\bgrade\s+(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|1[0-2]|[1-9])\b/i', $text, $match)) {
             return null;
         }
 
@@ -103,6 +173,11 @@ class GradeSheetImporter
     {
         $rows = $this->firstSheetRows($path);
         $subjectColumns = $this->subjectColumns($rows);
+        $usesLrn = collect($rows)->contains(function (array $row): bool {
+            $cells = $this->cellsByColumn($row);
+
+            return mb_strtolower(trim((string) ($cells['B'] ?? ''))) === 'lrn';
+        });
         $records = [];
 
         foreach ($rows as $row) {
@@ -114,7 +189,7 @@ class GradeSheetImporter
             }
 
             $records[] = [
-                'student_number' => $studentNumber,
+                $usesLrn ? 'lrn' : 'student_number' => $studentNumber,
                 'name' => trim($cells['C'] ?? ''),
                 'grades' => collect($subjectColumns)
                     ->mapWithKeys(fn (string $subject, string $column) => [

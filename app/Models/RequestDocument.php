@@ -91,4 +91,15 @@ class RequestDocument extends Model
         return $this->hasMany(RequestStatusHistory::class)
             ->oldest('id');
     }
+
+    public function hasPreparedDocument(): bool
+    {
+        return $this->authenticities()
+            ->where('status', 'valid')
+            ->where('pdf_signature_status', 'signed')
+            ->whereHas('artifacts', fn ($query) => $query
+                ->where('is_pdf_signed', true)
+                ->whereNotNull('storage_path'))
+            ->exists();
+    }
 }

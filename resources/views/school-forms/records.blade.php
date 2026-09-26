@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Grade Portal - Class Grade Sheets</title>
+    <title>Grade Portal | Fiat Lux Academe</title>
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
@@ -13,6 +13,13 @@
         .fla-field:focus { border-color: var(--fla-navy); box-shadow: 0 0 0 4px rgba(255, 210, 45, .28); }
         .fla-file::file-selector-button { color: var(--fla-navy); background: #fff8d6; }
         .fla-file:hover::file-selector-button { background: #ffefaa; }
+        [data-portal-panel][hidden] { display: none !important; }
+        .portal-tab { border: 1px solid #dbe2ef; background: #fff; color: #334155; transition: border-color .18s, background .18s, box-shadow .18s, transform .18s; }
+        .portal-tab:hover { border-color: #000638; transform: translateY(-2px); }
+        .portal-tab.is-active { border-color: #000638; background: #000638; color: #fff; box-shadow: 0 12px 28px rgba(0, 6, 56, .16); }
+        .portal-tab.is-active .portal-tab-number { background: #ffd22d; color: #000638; }
+        .portal-tab.is-active .portal-tab-description { color: #cbd5e1; }
+        .portal-tab:focus-visible { outline: 3px solid #ffd22d; outline-offset: 3px; }
     </style>
 </head>
 <body class="min-h-screen bg-[#f6f7fb] font-sans text-slate-950">
@@ -25,28 +32,36 @@
                 <span class="block truncate text-xs text-[#ffd22d]">Fiat Lux Academe &middot; Academic Records</span>
             </span>
         </a>
-        <a href="{{ route('grade-portal.index') }}" class="shrink-0 rounded-lg bg-[#ffd22d] px-4 py-2.5 text-center text-sm font-bold text-[#000638] transition hover:bg-[#ffe36f] focus:outline-none focus:ring-4 focus:ring-white/20">
-            Student Form 138 Records
-        </a>
+        <a href="{{ route('dashboard') }}" class="shrink-0 rounded-lg bg-[#ffd22d] px-4 py-2.5 text-center text-sm font-bold text-[#000638] transition hover:bg-[#ffe36f] focus:outline-none focus:ring-4 focus:ring-white/20">Back to dashboard</a>
     </div>
 </header>
 
-<main class="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
-    <nav class="mb-8 flex flex-wrap gap-3" aria-label="Grade Portal sections">
-        <a href="{{ route('grade-portal.index') }}" class="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-[#000638]">Student Form 138 Records</a>
-        <a href="{{ route('school-forms.records') }}" aria-current="page" class="rounded-xl bg-[#000638] px-5 py-3 text-sm font-bold text-white">Class Grade Sheets</a>
-    </nav>
-    <div class="mb-9 max-w-2xl">
-        <p class="mb-3 inline-flex rounded-full bg-[#fff5c4] px-3 py-1.5 text-xs font-bold text-[#000638]">Class records workspace</p>
-        <h1 class="text-3xl font-bold text-[#000638] sm:text-4xl">Grade Sheet Records</h1>
-        <p class="mt-3 leading-7 text-slate-600">
-            @if(in_array(auth()->user()->role, ['admin', 'registrar'], true))
-                Upload one or all grading periods in a single batch, then preview, download, or manage the imported class records.
-            @else
-                Find, preview, and download attendance or summary sheets securely by class.
-            @endif
-        </p>
+<main class="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
+    <div class="mb-7 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="max-w-2xl">
+                <p class="text-xs font-bold uppercase tracking-[.18em] text-slate-500">Registrar workspace</p>
+                <h1 class="mt-2 text-3xl font-bold text-[#000638] sm:text-4xl">Grade Portal</h1>
+                <p class="mt-2 text-sm leading-6 text-slate-600">Choose a task below. Student grades and class sheets are organized separately so you can find what you need quickly.</p>
+            </div>
+            <span class="inline-flex w-fit items-center gap-2 rounded-full bg-[#fff7d1] px-4 py-2 text-xs font-bold text-[#000638]"><span class="h-2 w-2 rounded-full bg-emerald-500"></span> Academic records</span>
+        </div>
     </div>
+
+    <nav class="mb-7 grid gap-3 md:grid-cols-3" aria-label="Grade Portal tasks" data-portal-tabs data-default-panel="{{ $errors->any() || session('grade_sheet_import_result') ? 'upload' : ($hasSearch ? 'class' : 'student') }}">
+        <a href="#student-grade-search" class="portal-tab is-active flex items-start gap-3 rounded-2xl p-4 text-left sm:p-5" data-portal-tab="student" aria-controls="student-grade-search" aria-current="page">
+            <span class="portal-tab-number grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-sm font-bold text-[#000638]">1</span>
+            <span><span class="block text-sm font-bold">Find student grades</span><span class="portal-tab-description mt-1 block text-xs leading-5 text-slate-500">Search by name, student number, or LRN.</span></span>
+        </a>
+        <a href="#class-records" class="portal-tab flex items-start gap-3 rounded-2xl p-4 text-left sm:p-5" data-portal-tab="class" aria-controls="class-records">
+            <span class="portal-tab-number grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-sm font-bold text-[#000638]">2</span>
+            <span><span class="block text-sm font-bold">Browse class sheets</span><span class="portal-tab-description mt-1 block text-xs leading-5 text-slate-500">Filter by year, grade, and section.</span></span>
+        </a>
+        <a href="#grade-sheet-upload" class="portal-tab flex items-start gap-3 rounded-2xl p-4 text-left sm:p-5" data-portal-tab="upload" aria-controls="upload-workspace">
+            <span class="portal-tab-number grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-sm font-bold text-[#000638]">3</span>
+            <span><span class="block text-sm font-bold">Upload grade sheets</span><span class="portal-tab-description mt-1 block text-xs leading-5 text-slate-500">Add summary and attendance workbooks.</span></span>
+        </a>
+    </nav>
 
     @if (session('status'))
         <div class="mb-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
@@ -72,19 +87,81 @@
         </div>
     @endif
 
+    <section id="student-grade-search" class="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" data-portal-panel="student">
+        <div class="border-b border-slate-200 p-6 sm:p-8">
+            <h2 class="text-lg font-bold text-[#000638]">Find student grades</h2>
+            <p class="mt-1 text-sm text-slate-500">Search by student number, LRN, or name. Grades shown below come from imported class summary sheets.</p>
+            <form action="{{ route('grade-portal.index') }}#student-grade-search" method="GET" class="mt-5 flex flex-col gap-3 sm:flex-row">
+                <label for="search-student" class="sr-only">Student number, LRN, or name</label>
+                <input id="search-student" name="search_student" value="{{ $studentSearch ?? '' }}" maxlength="100" placeholder="Student number, LRN, or name" class="fla-field min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none" required>
+                <button class="rounded-lg bg-[#000638] px-6 py-3 text-sm font-bold text-white">Search grades</button>
+            </form>
+        </div>
+        @if (($studentSearch ?? '') !== '')
+            <div class="p-6 sm:p-8">
+                <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+                    <p class="text-sm font-semibold text-slate-600">{{ $matchingStudents->count() }} matching student(s) for “{{ $studentSearch }}”</p>
+                    <a href="{{ route('grade-portal.index') }}#student-grade-search" class="text-sm font-bold text-[#000638] underline">Clear student search</a>
+                </div>
+                @if ($matchingStudents->isEmpty())
+                    <p class="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">No matching student found. Check the name or number and try again.</p>
+                @else
+                    @if ($matchingStudents->count() > 1)
+                        <div class="mb-6 grid gap-2 sm:grid-cols-2" aria-label="Matching students">
+                            @foreach ($matchingStudents as $match)
+                                <a href="{{ route('grade-portal.index', ['search_student' => $studentSearch, 'student_id' => $match->id]) }}#student-grade-search" class="rounded-xl border px-4 py-3 text-sm {{ $selectedStudent?->id === $match->id ? 'border-[#000638] bg-[#fff8d6]' : 'border-slate-200 hover:border-[#000638]' }}">
+                                    <span class="block font-bold text-[#000638]">{{ $match->name }}</span>
+                                    <span class="text-slate-500">{{ $match->student_number ?: $match->lrn }}</span>
+                                </a>
+                            @endforeach
+                        </div>
+                    @endif
+                    @if ($selectedStudent)
+                        <div class="mb-5 rounded-xl bg-[#000638] p-5 text-white">
+                            <h3 class="text-lg font-bold">{{ $selectedStudent->name }}</h3>
+                            <p class="mt-1 text-sm text-slate-200">Student number: {{ $selectedStudent->student_number ?: 'Not recorded' }} &middot; LRN: {{ $selectedStudent->lrn ?: 'Not recorded' }}</p>
+                        </div>
+                        @forelse ($selectedStudent->enrollments as $enrollment)
+                            @php $gradesByArea = $enrollment->grades->groupBy('learning_area')->sortKeys(); @endphp
+                            <div class="mb-5 overflow-hidden rounded-xl border border-slate-200 last:mb-0">
+                                <div class="bg-slate-50 px-5 py-4"><h4 class="font-bold text-[#000638]">{{ $enrollment->school_year }} &middot; {{ $enrollment->level }} - {{ $enrollment->section }}</h4></div>
+                                @if ($gradesByArea->isEmpty())
+                                    <p class="px-5 py-5 text-sm text-slate-500">No imported grades for this class yet.</p>
+                                @else
+                                    <div class="overflow-x-auto"><table class="w-full min-w-[560px] text-left text-sm">
+                                        <thead class="bg-white text-xs uppercase text-slate-500"><tr><th class="px-5 py-3">Learning area</th>@foreach (\App\Support\AcademicPeriod::numbers($enrollment->school_year, $enrollment->level) as $period)<th class="px-4 py-3">{{ \App\Support\AcademicPeriod::usesTerms($enrollment->school_year, $enrollment->level) ? 'Term' : 'Quarter' }} {{ $period }}</th>@endforeach</tr></thead>
+                                        <tbody class="divide-y divide-slate-100">@foreach ($gradesByArea as $area => $grades)<tr><th class="px-5 py-3 font-semibold">{{ $area }}</th>@foreach (\App\Support\AcademicPeriod::numbers($enrollment->school_year, $enrollment->level) as $period)<td class="px-4 py-3">{{ $grades->firstWhere('grading_period', $period)?->grade ?? '—' }}</td>@endforeach</tr>@endforeach</tbody>
+                                    </table></div>
+                                @endif
+                            </div>
+                        @empty
+                            <p class="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">No grade records for this student yet.</p>
+                        @endforelse
+                    @else
+                        <p class="text-sm text-slate-500">Select a student above to view available grades.</p>
+                    @endif
+                @endif
+            </div>
+        @else
+            <p class="px-6 py-5 text-sm text-slate-500 sm:px-8">Enter a student number, LRN, or name to view available grades.</p>
+        @endif
+    </section>
+
     @if(in_array(auth()->user()->role, ['admin', 'registrar'], true))
     @php
         $uploadYear = old('grade_school_year', $schoolYear);
         $uploadLevel = old('grade_level', $level);
-        $uploadSection = old('grade_section', $section === 'Bambi' ? $section : '');
+        $uploadSection = old('grade_section', $section);
+        $gradeSections = config('academics.sections_by_grade', []);
+        $availableUploadSections = $gradeSections[$uploadLevel] ?? [];
         $uploadMode = old('upload_mode', 'quarterly');
         $quarterlyPeriod = (int) old('quarterly_period', 1);
-        $uploadPeriodCount = \App\Support\AcademicPeriod::count($uploadYear);
+        $uploadPeriodCount = \App\Support\AcademicPeriod::count($uploadYear, $uploadLevel);
         $initialSlots = $hasSearch
             ? $uploads->whereIn('grading_period', range(1, $uploadPeriodCount))->keyBy(fn ($upload) => $upload->grading_period.':'.$upload->file_type)
             : collect();
     @endphp
-    <section class="mb-10 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" data-bulk-uploader data-status-url="{{ route('school-forms.grade-sheets.status') }}" data-template-url="{{ route('school-forms.grade-sheets.template', ['type' => '__TYPE__']) }}">
+    <section id="upload-workspace" class="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" data-portal-panel="upload" data-bulk-uploader data-status-url="{{ route('school-forms.grade-sheets.status') }}" data-template-url="{{ route('school-forms.grade-sheets.template', ['type' => '__TYPE__']) }}">
         <div class="flex flex-col gap-4 border-b border-slate-200 p-6 sm:flex-row sm:items-start sm:justify-between sm:p-8">
             <div class="flex items-start gap-4">
                 <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#000638] text-[#ffd22d]">
@@ -100,6 +177,63 @@
                 <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><span data-completion-bar class="block h-full rounded-full bg-emerald-500 transition-all" style="width: {{ ($initialSlots->count() / ($uploadPeriodCount * 2)) * 100 }}%"></span></div>
             </div>
         </div>
+
+        <div class="border-b border-slate-200 bg-blue-50/60 p-6 sm:p-8">
+            <form method="POST" action="{{ route('school-forms.grade-sheets.auto-batch') }}" enctype="multipart/form-data" data-auto-batch-form>
+                @csrf
+                <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div class="max-w-2xl">
+                        <div class="flex items-center gap-3">
+                            <span class="rounded-full bg-blue-600 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white">New</span>
+                            <h3 class="font-bold text-[#000638]">Automatic batch upload</h3>
+                        </div>
+                        <p class="mt-2 text-sm leading-6 text-slate-600">Select workbooks from different school years, grade levels, sections, and periods. The system reads each file and places it in the correct Summary or Attendance slot automatically.</p>
+                        <p class="mt-1 text-xs text-slate-500">Nothing is imported if a file cannot be identified, two files target the same slot, or a workbook header is invalid.</p>
+                    </div>
+                    <div class="flex min-w-72 flex-col gap-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="cursor-pointer rounded-xl border-2 border-dashed border-blue-300 bg-white px-4 py-4 text-center transition hover:border-blue-500">
+                                <span class="block text-sm font-bold text-blue-700">Choose files</span>
+                                <span class="mt-1 block text-[11px] text-slate-500">Select individual workbooks</span>
+                                <input type="file" name="auto_files[]" accept=".xlsx" multiple class="sr-only" data-auto-batch-input>
+                            </label>
+                            <label class="cursor-pointer rounded-xl border-2 border-dashed border-blue-300 bg-white px-4 py-4 text-center transition hover:border-blue-500">
+                                <span class="block text-sm font-bold text-blue-700">Choose folder</span>
+                                <span class="mt-1 block text-[11px] text-slate-500">Includes nested subfolders</span>
+                                <input type="file" name="auto_files[]" accept=".xlsx" multiple webkitdirectory directory class="sr-only" data-auto-batch-input>
+                            </label>
+                        </div>
+                        <p class="text-center text-xs font-semibold text-blue-700" data-auto-batch-label>Choose files or a folder · up to 1,000 workbooks</p>
+                        <label class="flex items-start gap-2 text-xs leading-5 text-slate-600">
+                            <input type="checkbox" name="replace_existing" value="1" class="mt-0.5 rounded border-slate-300">
+                            <span>Replace any slots that already contain a workbook.</span>
+                        </label>
+                        <button class="rounded-lg bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-50" disabled data-auto-batch-submit>Identify and import files</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <details class="border-b border-red-200 bg-red-50/60 px-6 py-4 sm:px-8">
+            <summary class="cursor-pointer text-sm font-bold text-red-800">Remove data for an entire school year</summary>
+            <form method="POST" action="{{ route('school-forms.grade-sheets.destroy-school-year') }}" class="mt-4 grid gap-4 rounded-xl border border-red-200 bg-white p-5 lg:grid-cols-[1fr_1fr_auto] lg:items-end" onsubmit="return confirm('This permanently removes all imported grade portal data for the selected school year. Continue?')">
+                @csrf
+                @method('DELETE')
+                <label>
+                    <span class="mb-2 block text-xs font-bold uppercase tracking-wide text-red-700">School year to remove</span>
+                    <select name="delete_school_year" class="fla-field w-full rounded-lg border border-red-300 bg-white px-3 py-3 text-sm font-semibold" required>
+                        <option value="">Select school year</option>
+                        @foreach ($schoolYears as $option)<option value="{{ $option }}" @selected(old('delete_school_year') === $option)>{{ $option }}</option>@endforeach
+                    </select>
+                </label>
+                <label>
+                    <span class="mb-2 block text-xs font-bold uppercase tracking-wide text-red-700">Type the school year to confirm</span>
+                    <input name="school_year_confirmation" value="{{ old('school_year_confirmation') }}" placeholder="Example: 2023-2024" autocomplete="off" class="fla-field w-full rounded-lg border border-red-300 bg-white px-3 py-3 text-sm font-semibold" required>
+                </label>
+                <button class="rounded-lg bg-red-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-800">Remove school-year data</button>
+                <p class="text-xs leading-5 text-red-700 lg:col-span-3">Removes uploaded workbooks, grades, attendance, and enrollments for that year. Student identities and every other school year remain untouched.</p>
+            </form>
+        </details>
 
         <form id="grade-sheet-upload" method="POST" action="{{ route('school-forms.grade-sheets.store') }}" enctype="multipart/form-data" class="p-6 sm:p-8" data-upload-form>
             @csrf
@@ -128,8 +262,9 @@
                         </select>
                     </label>
                     <label><span class="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Section</span>
-                        <select name="grade_section" data-class-field class="fla-field w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition" required>
-                            <option value="">Select section</option><option @selected($uploadSection === 'Bambi')>Bambi</option>
+                        <select name="grade_section" data-class-field data-section-select class="fla-field w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition" required>
+                            <option value="">Select section</option>
+                            @foreach($availableUploadSections as $option)<option @selected($uploadSection === $option)>{{ $option }}</option>@endforeach
                         </select>
                     </label>
                 </div>
@@ -138,7 +273,7 @@
                     <div class="grid gap-3 md:grid-cols-2">
                         <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-300 bg-white p-4 has-[:checked]:border-[#000638] has-[:checked]:ring-2 has-[:checked]:ring-[#ffd22d]">
                             <input type="radio" name="upload_mode" value="quarterly" class="mt-1" data-upload-mode @checked($uploadMode === 'quarterly')>
-                            <span><strong class="block text-sm text-[#000638]" data-single-period-title>{{ \App\Support\AcademicPeriod::usesTerms($uploadYear) ? 'Single-term upload' : 'Quarterly upload' }}</strong><span class="mt-1 block text-xs leading-5 text-slate-500" data-single-period-description>{{ \App\Support\AcademicPeriod::usesTerms($uploadYear) ? 'Upload after each term. Only one term is shown.' : 'For the usual upload after each grading period. Only one quarter is shown.' }}</span></span>
+                            <span><strong class="block text-sm text-[#000638]" data-single-period-title>{{ \App\Support\AcademicPeriod::usesTerms($uploadYear, $uploadLevel) ? 'Single-term upload' : 'Quarterly upload' }}</strong><span class="mt-1 block text-xs leading-5 text-slate-500" data-single-period-description>{{ \App\Support\AcademicPeriod::usesTerms($uploadYear, $uploadLevel) ? 'Upload after each term. Only one term is shown.' : 'For the usual upload after each grading period. Only one quarter is shown.' }}</span></span>
                         </label>
                         <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-300 bg-white p-4 has-[:checked]:border-[#000638] has-[:checked]:ring-2 has-[:checked]:ring-[#ffd22d]">
                             <input type="radio" name="upload_mode" value="bulk" class="mt-1" data-upload-mode @checked($uploadMode === 'bulk')>
@@ -146,9 +281,9 @@
                         </label>
                     </div>
                     <label class="mt-4 block max-w-sm" data-quarterly-picker>
-                        <span class="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500" data-period-picker-label>{{ \App\Support\AcademicPeriod::usesTerms($uploadYear) ? 'Term to upload' : 'Grading period to upload' }}</span>
+                        <span class="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500" data-period-picker-label>{{ \App\Support\AcademicPeriod::usesTerms($uploadYear, $uploadLevel) ? 'Term to upload' : 'Grading period to upload' }}</span>
                         <select name="quarterly_period" data-quarter-period class="fla-field w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition">
-                            @foreach (range(1, $uploadPeriodCount) as $period)<option value="{{ $period }}" @selected($quarterlyPeriod === $period)>{{ \App\Support\AcademicPeriod::label($uploadYear, $period) }}</option>@endforeach
+                            @foreach (range(1, $uploadPeriodCount) as $period)<option value="{{ $period }}" @selected($quarterlyPeriod === $period)>{{ \App\Support\AcademicPeriod::label($uploadYear, $period, $uploadLevel) }}</option>@endforeach
                         </select>
                     </label>
                 </div>
@@ -172,7 +307,7 @@
                 @foreach (range(1, 4) as $period)
                     <article class="overflow-hidden rounded-xl border border-slate-200 {{ $period > $uploadPeriodCount || ($uploadMode === 'quarterly' && $quarterlyPeriod !== $period) ? 'hidden' : '' }}" data-period-card="{{ $period }}">
                         <header class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-                            <div><p class="font-bold" data-period-label>{{ $period <= $uploadPeriodCount ? \App\Support\AcademicPeriod::label($uploadYear, $period) : "Period {$period}" }}</p><p class="text-xs text-slate-500" data-period-progress>0 of 2 selected</p></div>
+                            <div><p class="font-bold" data-period-label>{{ $period <= $uploadPeriodCount ? \App\Support\AcademicPeriod::label($uploadYear, $period, $uploadLevel) : "Period {$period}" }}</p><p class="text-xs text-slate-500" data-period-progress>0 of 2 selected</p></div>
                             <span class="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600" data-period-state>Incomplete</span>
                         </header>
                         <div class="grid gap-3 p-4 sm:grid-cols-2">
@@ -186,7 +321,7 @@
                                     <input type="file" name="{{ $type }}_files[{{ $period }}]" accept=".xlsx" class="sr-only" id="{{ $type }}-file-{{ $period }}" data-slot-input>
                                     <div class="mt-3 flex flex-wrap gap-2">
                                         <label for="{{ $type }}-file-{{ $period }}" class="cursor-pointer rounded-md bg-[#000638] px-3 py-2 text-[11px] font-bold text-white">Choose file</label>
-                                        <a href="{{ route('school-forms.grade-sheets.template', ['type' => $type, 'school_year' => $uploadYear ?: config('academics.school_years')[0], 'level' => $uploadLevel ?: 'Grade 1', 'section' => $uploadSection ?: 'Bambi', 'period' => $period]) }}" data-template-link data-template-type="{{ $type }}" data-template-period="{{ $period }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-[11px] font-bold text-slate-600">Template</a>
+                                        <a href="{{ route('school-forms.grade-sheets.template', ['type' => $type, 'school_year' => $uploadYear ?: config('academics.school_years')[0], 'level' => $uploadLevel ?: 'Grade 1', 'section' => $uploadSection ?: 'Amity', 'period' => $period]) }}" data-template-link data-template-type="{{ $type }}" data-template-period="{{ $period }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-[11px] font-bold text-slate-600">Template</a>
                                     </div>
                                 </div>
                             @endforeach
@@ -210,7 +345,7 @@
     </section>
     @endif
 
-    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section id="class-records" class="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" data-portal-panel="class">
         <div class="border-b border-slate-200 p-6 sm:p-8">
             <div class="flex items-start gap-4">
                 <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#000638] text-[#ffd22d]">
@@ -279,7 +414,7 @@
                                         <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700">{{ $upload->grading_period }}</span>
                                         <div class="min-w-0">
                                             <p class="break-words text-sm font-bold leading-5">{{ $upload->original_name }}</p>
-                                            <p class="mt-1 text-xs text-slate-500">{{ \App\Support\AcademicPeriod::label($upload->school_year, $upload->grading_period) }} &middot; Excel workbook</p>
+                                            <p class="mt-1 text-xs text-slate-500">{{ \App\Support\AcademicPeriod::label($upload->school_year, $upload->grading_period, $upload->level) }} &middot; Excel workbook</p>
                                         </div>
                                     </div>
                                     <div class="mt-4 flex flex-wrap items-center gap-2 pl-12">
@@ -327,7 +462,7 @@
                                         <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700">{{ $upload->grading_period }}</span>
                                         <div class="min-w-0">
                                             <p class="break-words text-sm font-bold leading-5">{{ $upload->original_name }}</p>
-                                            <p class="mt-1 text-xs text-slate-500">{{ \App\Support\AcademicPeriod::label($upload->school_year, $upload->grading_period) }} &middot; Excel workbook</p>
+                                            <p class="mt-1 text-xs text-slate-500">{{ \App\Support\AcademicPeriod::label($upload->school_year, $upload->grading_period, $upload->level) }} &middot; Excel workbook</p>
                                         </div>
                                     </div>
                                     <div class="mt-4 flex flex-wrap items-center gap-2 pl-12">
@@ -368,6 +503,39 @@
         @endif
     </section>
 </main>
+
+<script>
+    (() => {
+        const navigation = document.querySelector('[data-portal-tabs]');
+        if (!navigation) return;
+
+        const tabs = [...navigation.querySelectorAll('[data-portal-tab]')];
+        const panels = [...document.querySelectorAll('[data-portal-panel]')];
+        const panelForHash = (hash) => {
+            if (hash === '#grade-sheet-upload') return 'upload';
+            if (hash === '#class-records' || hash === '#record-finder') return 'class';
+            if (hash === '#student-grade-search') return 'student';
+            return null;
+        };
+        const showPanel = (name) => {
+            const active = panels.some((panel) => panel.dataset.portalPanel === name) ? name : 'student';
+            panels.forEach((panel) => { panel.hidden = panel.dataset.portalPanel !== active; });
+            tabs.forEach((tab) => {
+                const selected = tab.dataset.portalTab === active;
+                tab.classList.toggle('is-active', selected);
+                if (selected) tab.setAttribute('aria-current', 'page');
+                else tab.removeAttribute('aria-current');
+            });
+        };
+
+        showPanel(panelForHash(window.location.hash) || navigation.dataset.defaultPanel);
+        tabs.forEach((tab) => tab.addEventListener('click', () => showPanel(tab.dataset.portalTab)));
+        window.addEventListener('hashchange', () => {
+            const selected = panelForHash(window.location.hash);
+            if (selected) showPanel(selected);
+        });
+    })();
+</script>
 
 <div id="workbook-preview-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="workbook-preview-title">
     <div class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl">
@@ -414,10 +582,90 @@
 
 <script>
     (() => {
+        const form = document.querySelector('[data-auto-batch-form]');
+        if (!form) return;
+        const inputs = [...form.querySelectorAll('[data-auto-batch-input]')];
+        const label = form.querySelector('[data-auto-batch-label]');
+        const submit = form.querySelector('[data-auto-batch-submit]');
+        let resumeOffset = 0;
+        let batchToken = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+        const refresh = (changedInput) => {
+            resumeOffset = 0;
+            batchToken = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+            inputs.forEach((input) => {
+                if (input !== changedInput) input.value = '';
+            });
+            const files = [...(changedInput.files || [])];
+            const xlsxCount = files.filter((file) => file.name.toLowerCase().endsWith('.xlsx')).length;
+            const ignored = files.length - xlsxCount;
+            label.textContent = xlsxCount
+                ? `${xlsxCount} workbook(s) selected${ignored ? ` · ${ignored} non-XLSX file(s) ignored` : ''}`
+                : 'Choose files or a folder · up to 1,000 workbooks';
+            submit.disabled = xlsxCount === 0 || xlsxCount > 1000;
+            if (xlsxCount > 1000) label.textContent = `${xlsxCount} workbooks selected · maximum is 1,000`;
+        };
+        inputs.forEach((input) => input.addEventListener('change', () => {
+            refresh(input);
+        }));
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const files = inputs.flatMap((input) => [...(input.files || [])])
+                .filter((file) => file.name.toLowerCase().endsWith('.xlsx'));
+            if (!files.length || files.length > 1000) return;
+            submit.disabled = true;
+            const chunkSize = 10;
+            let completed = resumeOffset;
+            try {
+                for (let offset = resumeOffset; offset < files.length; offset += chunkSize) {
+                    const chunk = files.slice(offset, offset + chunkSize);
+                    const payload = new FormData();
+                    payload.append('_token', form.querySelector('[name="_token"]').value);
+                    payload.append('batch_token', batchToken);
+                    payload.append('chunk_number', String(Math.floor(offset / chunkSize)));
+                    if (form.querySelector('[name="replace_existing"]').checked) payload.append('replace_existing', '1');
+                    chunk.forEach((file) => payload.append('auto_files[]', file, file.name));
+                    submit.textContent = `Importing ${completed + 1}–${completed + chunk.length} of ${files.length}…`;
+                    let response;
+                    for (let attempt = 1; attempt <= 4; attempt++) {
+                        try {
+                            const uploadUrl = new URL(form.action, window.location.href);
+                            response = await fetch(uploadUrl.pathname + uploadUrl.search, {
+                                method: 'POST', body: payload, credentials: 'same-origin',
+                                headers: {'Accept': 'application/json'},
+                            });
+                            break;
+                        } catch (networkError) {
+                            if (attempt === 4) throw networkError;
+                            label.textContent = `Connection interrupted at ${completed} of ${files.length}. Retrying (${attempt}/3)…`;
+                            await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+                        }
+                    }
+                    const result = await response.json();
+                    if (!response.ok) {
+                        const errors = Object.values(result.errors || {}).flat();
+                        throw new Error(errors[0] || result.message || 'The batch could not be imported.');
+                    }
+                    completed += chunk.length;
+                    resumeOffset = completed;
+                    label.textContent = `${completed} of ${files.length} workbooks imported`;
+                }
+                window.location.assign('{{ route('school-forms.records') }}?batch_uploaded=' + completed);
+            } catch (error) {
+                label.textContent = `${completed} of ${files.length} imported. ${error.message}`;
+                submit.textContent = completed ? 'Continue remaining upload' : 'Try batch upload again';
+                submit.disabled = false;
+            }
+        });
+    })();
+</script>
+
+<script>
+    (() => {
         const root = document.querySelector('[data-bulk-uploader]');
         if (!root) return;
 
         const form = root.querySelector('[data-upload-form]');
+        const sectionsByGrade = @json(config('academics.sections_by_grade', []));
         const classFields = [...root.querySelectorAll('[data-class-field]')];
         const modeFields = [...root.querySelectorAll('[data-upload-mode]')];
         const quarterSelect = root.querySelector('[data-quarter-period]');
@@ -439,6 +687,7 @@
         const singlePeriodTitle = root.querySelector('[data-single-period-title]');
         const singlePeriodDescription = root.querySelector('[data-single-period-description]');
         const periodPickerLabel = root.querySelector('[data-period-picker-label]');
+        const sectionSelect = root.querySelector('[data-section-select]');
         let statusRequest = 0;
         let initialized = false;
 
@@ -448,7 +697,17 @@
             section: form.elements.grade_section.value,
         });
         const classReady = () => Object.values(details()).every(Boolean);
-        const usesTerms = () => Number(details().school_year.slice(0, 4)) >= 2026;
+        const syncSections = () => {
+            const current = sectionSelect.value;
+            const sections = sectionsByGrade[form.elements.grade_level.value] || [];
+            sectionSelect.replaceChildren(new Option('Select section', ''), ...sections.map((section) => new Option(section, section)));
+            sectionSelect.value = sections.includes(current) ? current : '';
+        };
+        const usesTerms = () => {
+            const startYear = Number(details().school_year.slice(0, 4));
+            const grade = Number((details().level.match(/\d+/) || [0])[0]);
+            return startYear >= (grade === 12 ? 2027 : 2026);
+        };
         const periodCount = () => usesTerms() ? 3 : 4;
         const periodName = (period) => ['First', 'Second', 'Third', 'Fourth'][period - 1] || `Period ${period}`;
         const periodLabel = (period) => `${periodName(period)} ${usesTerms() ? 'term' : 'grading'}`;
@@ -628,6 +887,7 @@
             applyMode();
         });
         classFields.forEach((field) => field.addEventListener('change', () => {
+            if (field === form.elements.grade_level) syncSections();
             if (initialized && slots.some((slot) => slot.querySelector('[data-slot-input]').files?.length)) {
                 slots.forEach((slot) => { slot.querySelector('[data-slot-input]').value = ''; });
                 autoMessage.classList.remove('hidden');

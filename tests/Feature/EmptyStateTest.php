@@ -58,20 +58,17 @@ class EmptyStateTest extends TestCase
         $this->view('school-forms.records', [...$data, 'levels' => collect(['Grade 1'])])
             ->assertSee('Choose a class to view its records')->assertDontSee('No grade sheets uploaded yet');
         $this->view('school-forms.records', [...$data, 'hasSearch' => true,
-            'schoolYear' => '2025-2026', 'level' => 'Grade 1', 'section' => 'Bambi'])
+            'schoolYear' => '2025-2026', 'level' => 'Grade 1', 'section' => 'Amity'])
             ->assertSee('No matching attendance sheets')->assertSee('No matching summary sheets')
             ->assertSee('Clear class filters')->assertDontSee('No grade sheets uploaded yet');
     }
 
-    public function test_legacy_grade_portal_distinguishes_no_search_no_student_and_no_uploads(): void
+    public function test_grade_portal_student_search_has_clear_empty_states(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'registrar']));
-        $this->get(route('grade-portal.index'))->assertOk()->assertSee('Find a student’s grade records');
+        $this->get(route('grade-portal.index'))->assertOk()->assertSee('Enter a student number, LRN, or name');
         $this->get(route('grade-portal.index', ['search_student' => 'missing']))->assertOk()
             ->assertSee('No matching student found')->assertSee('Clear student search');
-        Student::create(['student_number' => 'EMPTY-1', 'name' => 'Empty Student', 'lrn' => '123456789012']);
-        $this->get(route('grade-portal.index', ['search_student' => 'EMPTY-1']))->assertOk()
-            ->assertSee('No grade records for this student')->assertSee('Upload a grade record');
         $this->actingAs(User::factory()->create(['role' => 'records_officer']))
             ->get(route('grade-portal.index'))->assertForbidden();
     }

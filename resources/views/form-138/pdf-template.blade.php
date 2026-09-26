@@ -93,7 +93,9 @@
     </style>
 </head>
 <body>
-    <div class="watermark">DRAFT · NOT YET OFFICIALLY ISSUED</div>
+    @if(($documentMode ?? 'draft') === 'draft')
+        <div class="watermark">DRAFT &middot; NOT YET OFFICIALLY ISSUED</div>
+    @endif
 
     <div class="container">
         <div class="header">
@@ -198,6 +200,17 @@
             <p>This is a computer-generated document. Any alteration voids this certificate.</p>
             <p>Generated on: {{ date('F d, Y h:i A') }}</p>
         </div>
+        @if(($documentMode ?? 'draft') === 'generated')
+            @include('documents.partials.qr', [
+                'qrDocumentType' => 'Form 138',
+                'qrSubject' => $student_name,
+                'qrRequestId' => $qrContext['qrRequestId'] ?? null,
+                'qrHolderIdentifier' => $qrContext['qrHolderIdentifier'] ?? null,
+                'qrIssuedAt' => $qrContext['qrIssuedAt'] ?? now(),
+                'qrPdfWillBeSigned' => true,
+                'qrFields' => ['school_year' => $school_year, 'grade_level' => $grade_level, 'subjects' => $subjects],
+            ])
+        @endif
     </div>
 </body>
 </html>

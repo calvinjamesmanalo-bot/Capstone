@@ -12,20 +12,18 @@ class DashboardQuickActionsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_sees_only_admin_and_shared_staff_quick_actions(): void
+    public function test_admin_sees_a_dedicated_control_center(): void
     {
-        $this->assertQuickActions('admin', [
-            'requests.index',
-            'users.index',
-            'grade-portal.index',
-            'analytics.index',
-            'logs.index',
-            'settings.index',
-        ], [
-            'student.request',
-            'student.my-requests',
-            'school-forms.home',
-        ]);
+        $this->actingAs($this->user('admin'))->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Admin Control Center')
+            ->assertSee('Needs attention')
+            ->assertSee('Request operations')
+            ->assertSee('System administration')
+            ->assertSee('Account overview')
+            ->assertSee('href="'.route('users.index').'"', false)
+            ->assertSee('href="'.route('settings.index').'"', false)
+            ->assertDontSee('Request a Document');
     }
 
     public function test_registrar_sees_only_registrar_and_shared_staff_quick_actions(): void
@@ -99,8 +97,8 @@ class DashboardQuickActionsTest extends TestCase
     {
         $this->actingAs($this->user('admin'))->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('aria-label="0 pending requests"', false)
-            ->assertSee('aria-label="1 users"', false);
+            ->assertSee('New requests')
+            ->assertSee('1 total');
 
         $this->actingAs($this->user('student'))->get(route('dashboard'))
             ->assertOk()

@@ -15,7 +15,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $tcpdfCache = storage_path('framework/cache/tcpdf').DIRECTORY_SEPARATOR;
+        if (! is_dir($tcpdfCache)) {
+            mkdir($tcpdfCache, 0700, true);
+        }
+        if (! defined('K_PATH_CACHE')) {
+            define('K_PATH_CACHE', $tcpdfCache);
+        }
     }
 
     /**

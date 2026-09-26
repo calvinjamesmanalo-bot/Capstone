@@ -8,6 +8,7 @@ use App\Models\SchoolFormStudent as Student;
 use App\Models\SchoolFormUpload as GradeSheetUpload;
 use App\Models\Student as RequestStudent;
 use App\Support\AcademicPeriod;
+use App\Support\CurriculumSubjects;
 use App\Support\DocumentIssuanceService;
 use App\Support\GradeSheetImporter;
 use App\Support\GradeSheetRecordImporter;
@@ -16,6 +17,7 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -25,13 +27,121 @@ use Throwable;
 
 class SchoolFormF138Controller extends Controller
 {
+    public function storeAutoBatch(Request $request, GradeSheetImporter $importer, GradeSheetRecordImporter $recordImporter)
+    {
+        $this->authorizeGradeStaff();
+        // Folder uploads can include README files and other non-workbook assets.
+        // Keep only XLSX candidates, then apply the normal MIME and size checks.
+        $xlsxFiles = collect($request->file('auto_files', []))
+            ->filter(fn ($file) => mb_strtolower($file->getClientOriginalExtension()) === 'xlsx')
+            ->values()
+            ->all();
+        $request->files->set('auto_files', $xlsxFiles);
+        $request->validate([
+            'auto_files' => ['required', 'array', 'min:1', 'max:25'],
+            'auto_files.*' => ['required', 'file', 'mimes:xlsx', 'max:20480'],
+            'replace_existing' => ['nullable', 'boolean'],
+            'batch_token' => ['nullable', 'string', 'max:100'],
+            'chunk_number' => ['nullable', 'integer', 'min:0', 'max:1000'],
+        ], [], ['auto_files' => 'batch workbooks', 'auto_files.*' => 'batch workbook']);
+
+        $cacheKey = null;
+        if ($request->filled('batch_token') && $request->has('chunk_number')) {
+            $cacheKey = 'grade-auto-batch:'.sha1($request->user()->id.'|'.$request->input('batch_token').'|'.$request->integer('chunk_number'));
+            if ($completed = Cache::get($cacheKey)) {
+                return response()->json($completed);
+            }
+        }
+
+        $items = [];
+        $slots = [];
+        foreach ($request->file('auto_files', []) as $file) {
+            try {
+                $destination = $importer->destination($file->getRealPath(), $file->getClientOriginalName());
+            } catch (RuntimeException $exception) {
+                throw ValidationException::withMessages([
+                    'auto_files' => $file->getClientOriginalName().': '.$exception->getMessage(),
+                ]);
+            }
+
+            $slot = implode('|', [$destination['schoolYear'], $destination['level'], $destination['section'], $destination['period'], $destination['type']]);
+            if (isset($slots[$slot])) {
+                throw ValidationException::withMessages([
+                    'auto_files' => "Duplicate destination: {$file->getClientOriginalName()} and {$slots[$slot]} both map to the same workbook slot.",
+                ]);
+            }
+            $slots[$slot] = $file->getClientOriginalName();
+            $items[] = ['file' => $file] + $destination;
+        }
+
+        $existing = GradeSheetUpload::query()->where(function ($query) use ($items) {
+            foreach ($items as $item) {
+                $query->orWhere(fn ($slot) => $slot
+                    ->where('school_year', $item['schoolYear'])
+                    ->where('level', $item['level'])
+                    ->where('section', $item['section'])
+                    ->where('grading_period', $item['period'])
+                    ->where('file_type', $item['type']));
+            }
+        })->get();
+
+        if ($existing->isNotEmpty() && ! $request->boolean('replace_existing')) {
+            throw ValidationException::withMessages([
+                'auto_replace_existing' => $existing->count().' detected destination slot(s) already contain files. Confirm replacement to continue.',
+            ]);
+        }
+
+        $newPaths = [];
+        $oldPaths = [];
+        try {
+            DB::connection('school_forms')->transaction(function () use ($items, $recordImporter, &$newPaths, &$oldPaths): void {
+                foreach ($items as $item) {
+                    [$newPath, $oldPath] = $this->importFile(
+                        $item['file'], $item['type'], $item['period'], $item['schoolYear'],
+                        $item['level'], $item['section'], $recordImporter,
+                    );
+                    $newPaths[] = $newPath;
+                    if ($oldPath && $oldPath !== $newPath) {
+                        $oldPaths[] = $oldPath;
+                    }
+                }
+            });
+        } catch (RuntimeException $exception) {
+            Storage::disk('school_forms_local')->delete($newPaths);
+            throw ValidationException::withMessages(['auto_files' => $exception->getMessage()]);
+        } catch (Throwable $exception) {
+            Storage::disk('school_forms_local')->delete($newPaths);
+            throw $exception;
+        }
+
+        Storage::disk('school_forms_local')->delete(array_unique($oldPaths));
+        $classes = collect($items)->map(fn (array $item) => "{$item['schoolYear']} {$item['level']}-{$item['section']}")->unique()->count();
+
+        $message = count($items)." workbook(s) automatically identified and imported into {$classes} class(es). {$existing->count()} existing slot(s) replaced.";
+        if ($request->expectsJson()) {
+            $result = [
+                'message' => $message,
+                'uploaded' => count($items),
+                'classes' => $classes,
+                'replaced' => $existing->count(),
+            ];
+            if ($cacheKey) {
+                Cache::put($cacheKey, $result, now()->addHours(12));
+            }
+
+            return response()->json($result);
+        }
+
+        return redirect()->route('school-forms.records')->with('status', $message);
+    }
+
     public function storeGradeSheets(Request $request, GradeSheetImporter $importer, GradeSheetRecordImporter $recordImporter)
     {
         $this->authorizeGradeStaff();
         $validated = $request->validate([
             'grade_school_year' => ['required', Rule::in(config('academics.school_years', []))],
             'grade_level' => ['required', Rule::in(config('academics.grade_levels', []))],
-            'grade_section' => ['required', Rule::in(['Bambi'])],
+            'grade_section' => ['required', Rule::in(CurriculumSubjects::sections())],
             'summary_files' => ['nullable', 'array'],
             'summary_files.*' => ['nullable', 'file', 'mimes:xlsx', 'max:20480'],
             'attendance_files' => ['nullable', 'array'],
@@ -53,7 +163,7 @@ class SchoolFormF138Controller extends Controller
         $schoolYear = $validated['grade_school_year'];
         $level = $validated['grade_level'];
         $section = $validated['grade_section'];
-        $periodNumbers = AcademicPeriod::numbers($schoolYear);
+        $periodNumbers = AcademicPeriod::numbers($schoolYear, $level);
         $files = [];
 
         foreach (['summary_files', 'attendance_files'] as $field) {
@@ -107,7 +217,7 @@ class SchoolFormF138Controller extends Controller
                         $item['period'],
                     );
                 } catch (RuntimeException $exception) {
-                    throw new RuntimeException($this->uploadSlotLabel($schoolYear, $item['period'], $item['type']).': '.$exception->getMessage());
+                    throw new RuntimeException($this->uploadSlotLabel($schoolYear, $level, $item['period'], $item['type']).': '.$exception->getMessage());
                 }
             }
         } catch (RuntimeException $exception) {
@@ -125,7 +235,7 @@ class SchoolFormF138Controller extends Controller
         );
 
         if ($replacements->isNotEmpty() && ! $legacyUpload && ! $request->boolean('replace_existing')) {
-            $labels = $replacements->map(fn (array $item) => $this->uploadSlotLabel($schoolYear, $item['period'], $item['type']))->join(', ');
+            $labels = $replacements->map(fn (array $item) => $this->uploadSlotLabel($schoolYear, $level, $item['period'], $item['type']))->join(', ');
             throw ValidationException::withMessages([
                 'replace_existing' => "These slots already contain files: {$labels}. Check the replacement confirmation before uploading.",
             ]);
@@ -161,7 +271,7 @@ class SchoolFormF138Controller extends Controller
 
         Storage::disk('school_forms_local')->delete(array_unique($oldPaths));
         $periods = collect($files)->pluck('period')->unique()->sort()->map(
-            fn (int $period) => AcademicPeriod::label($schoolYear, $period)
+            fn (int $period) => AcademicPeriod::label($schoolYear, $period, $level)
         )->join(', ');
         $uploadedCount = count($files);
         $replacementCount = $replacements->count();
@@ -197,8 +307,8 @@ class SchoolFormF138Controller extends Controller
         $this->authorizeRecordsStaff();
         [$student, $enrollment, $gradeMatrix] = $this->studentEnrollment($request);
         $record = $this->previewRecord($enrollment, $gradeMatrix);
-        $periodNumbers = AcademicPeriod::numbers($enrollment->school_year);
-        $usesTerms = AcademicPeriod::usesTerms($enrollment->school_year);
+        $periodNumbers = AcademicPeriod::numbers($enrollment->school_year, $enrollment->level);
+        $usesTerms = AcademicPeriod::usesTerms($enrollment->school_year, $enrollment->level);
         $requestId = $request->integer('request_id') ?: null;
         $documentRequest = $requestId ? $this->documentRequest($requestId, $student, $enrollment) : null;
         $issuedDocument = $documentRequest?->authenticities()
@@ -216,6 +326,9 @@ class SchoolFormF138Controller extends Controller
     public function pdf(Request $request)
     {
         $this->authorizeRecordsStaff();
+        if ($request->integer('request_id')) {
+            $request->validate(['reviewed' => ['accepted']]);
+        }
         [$student, $enrollment, $gradeMatrix, $attendance] = $this->studentEnrollment($request);
         $fileIdentifier = $student->student_number ?: $student->lrn;
 
@@ -225,6 +338,9 @@ class SchoolFormF138Controller extends Controller
     public function download(Request $request)
     {
         $this->authorizeRecordsStaff();
+        if ($request->integer('request_id')) {
+            $request->validate(['reviewed' => ['accepted']]);
+        }
         [$student, $enrollment, $gradeMatrix, $attendance] = $this->studentEnrollment($request);
         $fileIdentifier = $student->student_number ?: $student->lrn;
 
@@ -233,7 +349,7 @@ class SchoolFormF138Controller extends Controller
 
     public function finalize(Request $request, DocumentIssuanceService $issuance)
     {
-        $this->authorizeRecordsStaff();
+        abort_unless($request->user()?->role === 'admin', 403);
         [$student, $enrollment, $gradeMatrix, $attendance] = $this->studentEnrollment($request);
         $requestId = $request->integer('request_id');
         abort_if(! $requestId, 422, 'An existing Form 138 request is required for official issuance.');
@@ -327,7 +443,7 @@ class SchoolFormF138Controller extends Controller
         $this->ensureTeacherName($enrollment);
 
         $gradeMatrix = LearningAreaNormalizer::matrix($enrollment->grades);
-        $validPeriods = array_flip(AcademicPeriod::numbers($enrollment->school_year));
+        $validPeriods = array_flip(AcademicPeriod::numbers($enrollment->school_year, $enrollment->level));
         $gradeMatrix = array_map(
             fn (array $grades): array => array_intersect_key($grades, $validPeriods),
             $gradeMatrix,
@@ -410,9 +526,9 @@ class SchoolFormF138Controller extends Controller
         return [$path, $oldPath];
     }
 
-    private function uploadSlotLabel(string $schoolYear, int $period, string $type): string
+    private function uploadSlotLabel(string $schoolYear, string $level, int $period, string $type): string
     {
-        return AcademicPeriod::label($schoolYear, $period).' '.ucfirst($type);
+        return AcademicPeriod::label($schoolYear, $period, $level).' '.ucfirst($type);
     }
 
     private function ensureTeacherName(StudentEnrollment $enrollment): void
@@ -445,9 +561,24 @@ class SchoolFormF138Controller extends Controller
             ->where('school_year', $enrollment->school_year)
             ->latest('id')
             ->value('id');
+        $qr = app(\App\Support\DocumentQrCode::class)->make('Form 138', $student->name, [
+            'request_id' => $requestId,
+            'holder_identifier' => $student->student_number ?? $student->lrn,
+            'issued_at' => now(),
+            'fields' => [
+                'school_year' => $enrollment->school_year,
+                'level' => $enrollment->level,
+                'section' => $enrollment->section,
+                'grades' => $gradeMatrix,
+                'attendance' => $attendance,
+            ],
+        ]);
         $disposition = $download ? 'attachment' : 'inline';
-        $bytes = $this->renderPdfBytes($student, $enrollment, $gradeMatrix, $attendance, $requestId, 'draft');
-        $filename = preg_replace('/\.pdf$/i', '-DRAFT.pdf', $filename);
+        $bytes = app(\App\Support\GeneratedPdfProtection::class)->protect(
+            $qr['document'],
+            $this->renderPdfBytes($student, $enrollment, $gradeMatrix, $attendance, $requestId, 'generated', $qr),
+            $filename,
+        );
 
         return response($bytes, 200, [
             'Content-Type' => 'application/pdf',
@@ -469,7 +600,7 @@ class SchoolFormF138Controller extends Controller
         $options->set('isRemoteEnabled', true);
 
         $pdf = new Dompdf($options);
-        $pdf->loadHtml(view($this->pdfView($enrollment->school_year), compact(
+        $pdf->loadHtml(view($this->pdfView($enrollment->school_year, $enrollment->level), compact(
             'student',
             'enrollment',
             'gradeMatrix',
@@ -484,9 +615,14 @@ class SchoolFormF138Controller extends Controller
         return $pdf->output();
     }
 
-    private function pdfView(string $schoolYear): string
+    private function pdfView(string $schoolYear, ?string $level = null): string
     {
-        return AcademicPeriod::usesTerms($schoolYear)
+        $grade = (int) filter_var((string) $level, FILTER_SANITIZE_NUMBER_INT);
+        if ($grade >= 11 && ! AcademicPeriod::usesTerms($schoolYear, $level)) {
+            return 'school-forms.pdf.f138-shs-semester-template';
+        }
+
+        return AcademicPeriod::usesTerms($schoolYear, $level)
             ? 'school-forms.pdf.f138-three-term-template'
             : 'school-forms.pdf.f138-template';
     }

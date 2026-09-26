@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Form138Upload;
 use App\Models\Grade;
 use App\Models\Student;
+use App\Support\DocumentQrCode;
+use App\Support\GeneratedPdfProtection;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
@@ -58,13 +60,24 @@ class Form138Controller extends Controller
         ]);
 
         $student = Student::where('name', $request->student_name)->first();
+        $documentQr = app(DocumentQrCode::class)->make('Form 138', $request->student_name, [
+            'request_id' => $request->integer('request_id') ?: null,
+            'holder_identifier' => $student?->student_number,
+            'issued_at' => now(),
+            'fields' => [
+                'school_year' => $request->school_year,
+                'grade_level' => $request->grade_level,
+                'subjects' => $request->subjects,
+            ],
+        ]);
         $html = view('form-138.pdf-template', [
             'student' => $student,
             'student_name' => $request->student_name,
             'school_year' => $request->school_year,
             'grade_level' => $request->grade_level,
             'subjects' => $request->subjects,
-            'documentMode' => 'draft',
+            'documentMode' => 'generated',
+            'documentQr' => $documentQr,
             'qrContext' => [
                 'qrRequestId' => $request->integer('request_id') ?: null,
                 'qrHolderIdentifier' => $student?->student_number,
@@ -81,8 +94,8 @@ class Form138Controller extends Controller
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
-        $filename = 'Form138_'.str_replace(' ', '_', $request->student_name).'_DRAFT.pdf';
-        $bytes = $dompdf->output();
+        $filename = 'Form138_'.str_replace(' ', '_', $request->student_name).'.pdf';
+        $bytes = app(GeneratedPdfProtection::class)->protect($documentQr['document'], $dompdf->output(), $filename);
         $disposition = $request->has('download') ? 'attachment' : 'inline';
 
         return response($bytes, 200, [

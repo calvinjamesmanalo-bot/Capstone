@@ -10,10 +10,14 @@
         $docRequest = \App\Models\RequestDocument::find(request('request_id'));
     }
     $isProcessed = $docRequest && in_array($docRequest->status, ['processed', 'ready_to_release', 'completed']);
+    $hasPreparedDocument = $docRequest?->hasPreparedDocument() ?? false;
 @endphp
 
 @section('content')
 <div class="max-w-4xl mx-auto">
+    @if(session('error'))
+        <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-800">{{ session('error') }}</div>
+    @endif
     <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
         <div class="p-10 border-b border-slate-50 bg-slate-50/50 flex items-center gap-6">
             <div class="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-indigo-600">
@@ -108,7 +112,7 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                         </svg>
-                        Submit to Registrar
+                        Downloaded — Forward to Registrar
                     </button>
                     @endif
 
@@ -140,17 +144,18 @@
         const previewBtn = document.getElementById('previewBtn');
         const generateBtn = document.getElementById('generateBtn');
         const submitRegistrarBtn = document.getElementById('submitRegistrarBtn');
+        let documentPrepared = @json($hasPreparedDocument);
 
         function updateButtons() {
             const allChecked = Array.from(checkboxes).every(cb => cb.checked);
             previewBtn.disabled = !allChecked;
             generateBtn.disabled = !allChecked;
-            if (submitRegistrarBtn) submitRegistrarBtn.disabled = !allChecked;
+            if (submitRegistrarBtn) submitRegistrarBtn.disabled = !allChecked || !documentPrepared;
             
             if (allChecked) {
                 previewBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 generateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                if (submitRegistrarBtn) submitRegistrarBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                if (submitRegistrarBtn && documentPrepared) submitRegistrarBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             } else {
                 previewBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 generateBtn.classList.add('opacity-50', 'cursor-not-allowed');
@@ -167,6 +172,11 @@
                 }
             });
         }
+
+        generateBtn.addEventListener('click', function() {
+            documentPrepared = true;
+            window.setTimeout(updateButtons, 250);
+        });
 
         checkboxes.forEach(cb => {
             cb.addEventListener('change', updateButtons);

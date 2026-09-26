@@ -6,8 +6,6 @@ use App\Models\Form138Upload;
 use App\Models\Grade;
 use App\Models\RequestDocument;
 use App\Models\Student;
-use App\Support\DocumentQrCode;
-use App\Support\DocumentWorkbookVerification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -232,32 +230,6 @@ class Form137Controller extends Controller
         $xlsxPath = $temporary.'.xlsx';
         @unlink($temporary);
         (new Xlsx($spreadsheet))->save($xlsxPath);
-
-        $requestId = $request->integer('request_id') ?: RequestDocument::query()
-            ->where('student_number', $student->student_number)
-            ->whereIn('document_type', ['Form 137', 'F137'])
-            ->latest('id')
-            ->value('id');
-        $qr = app(DocumentQrCode::class)->make('Form 137', $student->name, [
-            'request_id' => $requestId,
-            'holder_identifier' => $student->student_number,
-            'fields' => [
-                'selected_uploads' => array_values($selectedUploadIds),
-                'manual_records' => $tempGrades['data'] ?? [],
-            ],
-        ]);
-        app(DocumentWorkbookVerification::class)->attachToFile($xlsxPath, $qr, [
-            'document_type' => 'Form 137',
-            'holder_name' => $student->name,
-            'holder_identifier' => $student->student_number,
-            'issue_date' => now()->toDateString(),
-        ]);
-        app(DocumentQrCode::class)->registerArtifactFile(
-            $qr['document'],
-            $xlsxPath,
-            $fileName,
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        );
 
         return response()->download($xlsxPath, $fileName, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

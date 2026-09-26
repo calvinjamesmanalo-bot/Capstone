@@ -7,10 +7,10 @@ use App\Models\SchoolFormStudent as Student;
 use App\Models\SchoolFormUpload as GradeSheetUpload;
 use App\Models\Student as RequestStudent;
 use App\Support\AcademicPeriod;
-use App\Support\DocumentQrCode;
-use App\Support\DocumentWorkbookVerification;
 use App\Support\Form137WorkbookGenerator;
 use App\Support\GradeSheetImporter;
+use App\Support\DocumentQrCode;
+use App\Support\GeneratedPdfProtection;
 use App\Support\LearningAreaNormalizer;
 use App\Support\SchoolProfile;
 use App\Support\XlsxWorkbookReader;
@@ -40,6 +40,9 @@ class SchoolFormF137Controller extends Controller
     {
         $this->authorizeRecordsStaff();
         [$student, $records, $schoolLevel, $requestId] = $this->requestedStudentRecords($request);
+        if ($requestId) {
+            $request->validate(['reviewed' => ['accepted']]);
+        }
         $profile = $schoolProfile->values();
         $nameParts = $this->splitName($student->name);
         $fileIdentifier = $student->student_number ?: $student->lrn;
@@ -60,50 +63,48 @@ class SchoolFormF137Controller extends Controller
         $pdf->setPaper('a4', 'portrait');
         $pdf->render();
 
-        return response($pdf->output(), 200, [
+        $bytes = $pdf->output();
+        if ($requestId) {
+            $qr = app(DocumentQrCode::class)->make('Form 137', $student->name, [
+                'request_id' => $requestId,
+                'holder_identifier' => $student->student_number ?: $student->lrn,
+                'issued_at' => now(),
+                'fields' => [
+                    'school_level' => $schoolLevel,
+                    'records' => $records->all(),
+                ],
+            ]);
+            $bytes = app(GeneratedPdfProtection::class)->protect(
+                $qr['document'],
+                $bytes,
+                "F137-{$fileIdentifier}.pdf",
+            );
+        }
+
+        $disposition = $request->boolean('preview') ? 'inline' : 'attachment';
+
+        return response($bytes, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="F137-'.$fileIdentifier.'.pdf"',
+            'Content-Disposition' => $disposition.'; filename="F137-'.$fileIdentifier.'.pdf"',
         ]);
     }
 
     public function download(
         Request $request,
         Form137WorkbookGenerator $generator,
-        SchoolProfile $schoolProfile,
-        DocumentQrCode $qrCodes,
-        DocumentWorkbookVerification $workbookVerification
+        SchoolProfile $schoolProfile
     ) {
         $this->authorizeRecordsStaff();
         [$student, $records, $schoolLevel, $requestedId] = $this->requestedStudentRecords($request);
+        if ($requestedId) {
+            $request->validate(['reviewed' => ['accepted']]);
+        }
 
         $path = $generator->generate([
             'lrn' => $student->lrn,
             'name_parts' => $this->splitName($student->name),
         ], $records->all(), $schoolProfile->values(), $schoolLevel);
         $fileIdentifier = $student->student_number ?: $student->lrn;
-        $requestId = $requestedId ?: RequestDocument::query()
-            ->where('student_number', $student->student_number)
-            ->whereIn('document_type', ['Form 137', 'F137'])
-            ->latest('id')
-            ->value('id');
-        $qr = $qrCodes->make('Form 137', $student->name, [
-            'request_id' => $requestId,
-            'holder_identifier' => $fileIdentifier,
-            'fields' => ['school_records' => $records->all()],
-        ]);
-        $workbookVerification->attachToFile($path, $qr, [
-            'document_type' => 'Form 137',
-            'holder_name' => $student->name,
-            'holder_identifier' => $fileIdentifier,
-            'issue_date' => now()->toDateString(),
-        ]);
-        $qrCodes->registerArtifactFile(
-            $qr['document'],
-            $path,
-            "F137-{$fileIdentifier}.xlsx",
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        );
-
         return response()->download(
             $path,
             "F137-{$fileIdentifier}.xlsx",
@@ -114,6 +115,36 @@ class SchoolFormF137Controller extends Controller
                 'Expires' => '0',
             ]
         )->deleteFileAfterSend(true);
+    }
+
+    public function excelPreview(
+        Request $request,
+        Form137WorkbookGenerator $generator,
+        SchoolProfile $schoolProfile,
+        XlsxWorkbookReader $reader,
+    ) {
+        $this->authorizeRecordsStaff();
+        [$student, $records, $schoolLevel, $requestId] = $this->requestedStudentRecords($request);
+        if ($requestId) {
+            $request->validate(['reviewed' => ['accepted']]);
+        }
+
+        $path = $generator->generate([
+            'lrn' => $student->lrn,
+            'name_parts' => $this->splitName($student->name),
+        ], $records->all(), $schoolProfile->values(), $schoolLevel);
+
+        try {
+            $sheets = $reader->read($path);
+        } finally {
+            File::delete($path);
+        }
+
+        abort_if($sheets === [], 422, 'The generated workbook does not contain a readable worksheet.');
+
+        return response()
+            ->view('school-forms.f137-excel-preview', compact('student', 'sheets', 'requestId'))
+            ->header('Cache-Control', 'private, no-store, max-age=0');
     }
 
     private function requestedStudentRecords(Request $request): array

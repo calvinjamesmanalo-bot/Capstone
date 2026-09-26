@@ -68,7 +68,32 @@
     }
     $availableFinals = array_values(array_filter($finalRatings, fn ($grade) => $grade !== null));
     $generalAverage = $availableFinals ? round(array_sum($availableFinals) / count($availableFinals)) : null;
-    $nextLevel = isset($enrollment) ? ((int) filter_var($enrollment->level, FILTER_SANITIZE_NUMBER_INT)) + 1 : null;
+    $levelNumber = isset($enrollment) ? (int) filter_var($enrollment->level, FILTER_SANITIZE_NUMBER_INT) : 0;
+    $schoolDivision = $levelNumber >= 11
+        ? 'Senior High School'
+        : ($levelNumber >= 7 ? 'Junior High School' : 'Grade School');
+    if ($generalAverage === null) {
+        $result = '';
+        $promotion = '';
+    } elseif ($generalAverage < 75) {
+        $result = 'RETAINED';
+        $promotion = 'RETAINED IN '.strtoupper($enrollment->level);
+    } elseif (strcasecmp($enrollment->level, 'Kinder') === 0) {
+        $result = 'PROMOTED';
+        $promotion = 'PROMOTED TO GRADE 1';
+    } elseif ($levelNumber >= 12) {
+        $result = 'COMPLETED';
+        $promotion = 'COMPLETED SENIOR HIGH SCHOOL';
+    } elseif ($levelNumber === 11) {
+        $result = 'PROMOTED';
+        $promotion = 'PROMOTED TO GRADE 12';
+    } elseif ($levelNumber === 10) {
+        $result = 'COMPLETED';
+        $promotion = 'COMPLETED JUNIOR HIGH SCHOOL';
+    } else {
+        $result = 'PROMOTED';
+        $promotion = 'PROMOTED TO GRADE '.($levelNumber + 1);
+    }
     $academicMonthOrder = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March', 'April', 'May'];
     $attendanceMonths = array_values(array_filter(
         $academicMonthOrder,
@@ -85,12 +110,12 @@
 <div class="page">
     <div class="school-header">
         <div class="brand">
-            <img class="seal" src="{{ public_path('images/fla-seal.jpg') }}" alt="Fiat Lux Academe seal">
+            <img class="seal" src="{{ public_path('images/fiat.png') }}" alt="Fiat Lux Academe seal">
             <h1 class="school-name">FIAT LUX ACADEME</h1>
             <div class="location">Cavite</div>
         </div>
         <div class="report-title">PROGRESS REPORT CARD</div>
-        <div class="level">Grade School</div>
+        <div class="level">{{ $schoolDivision }}</div>
     </div>
 
     <table class="student-info">
@@ -128,13 +153,13 @@
     </table>
 
     <table class="remarks">
-        <tr><th>REMARKS: {{ $generalAverage !== null ? ($generalAverage >= 75 ? 'PASSED' : 'RETAINED') : '' }}</th><th class="promotion">PROMOTED TO GRADE {{ $generalAverage !== null && $generalAverage >= 75 ? $nextLevel : '______' }}</th></tr>
+        <tr><th>REMARKS: {{ $result }}</th><th class="promotion">{{ $promotion }}</th></tr>
         <tr class="writing"><td></td><td></td></tr>
         <tr class="signatures"><td>{{ isset($enrollment) && $enrollment->adviser_name ? $enrollment->adviser_name : '____________________________' }}</td><td>____________________________</td></tr>
         <tr class="roles"><td>Teacher-in-Charge</td><td>School Head</td></tr>
     </table>
     <div class="muted-note">Blank F138 template preview - values will be supplied from uploaded attendance and student summary workbooks.</div>
-    @if(($documentMode ?? 'draft') === 'official')
+    @if(in_array(($documentMode ?? 'draft'), ['generated', 'official'], true))
         @include('documents.partials.qr', [
             'qrDocumentType' => 'Form 138',
             'qrSubject' => $student->name,

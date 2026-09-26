@@ -13,6 +13,7 @@
         "laravel/tinker": "^2.10.1",
         "phpoffice/phpspreadsheet": "^5.7",
         "setasign/fpdi": "^2.6.7",
+        "smalot/pdfparser": "^2.12",
         "tecnickcom/tcpdf": "6.10"
     },
     "require-dev": {

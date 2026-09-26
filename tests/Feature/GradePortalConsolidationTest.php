@@ -10,21 +10,25 @@ class GradePortalConsolidationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registrar_uses_one_grade_portal_with_student_and_class_sheet_tabs(): void
+    public function test_registrar_uses_one_grade_portal_for_student_search_and_class_sheets(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'registrar']));
 
         $this->get(route('grade-portal.index'))
             ->assertOk()
-            ->assertSee('Class Grade Sheets')
-            ->assertSee(route('school-forms.records'), false)
-            ->assertSee('Grade Portal');
+            ->assertSee('Find student grades')
+            ->assertSee('Browse class sheets')
+            ->assertSee('Upload grade sheets')
+            ->assertSee('data-portal-tabs data-default-panel="student"', false)
+            ->assertSee('data-portal-panel="class"', false)
+            ->assertSee('data-portal-panel="upload"', false)
+            ->assertDontSee('Student Form 138 Records');
 
         $this->get(route('school-forms.records'))
             ->assertOk()
             ->assertSee('Upload grade sheets')
-            ->assertSee('Student Form 138 Records')
-            ->assertSee(route('grade-portal.index'), false);
+            ->assertSee('Find student grades')
+            ->assertDontSee('Student Form 138 Records');
 
         $this->get('/school-forms/records')
             ->assertRedirect(route('school-forms.records'));

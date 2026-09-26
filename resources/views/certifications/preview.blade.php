@@ -17,17 +17,17 @@
             </a>
             <form method="POST" action="{{ route('certifications.pdf') }}" target="_blank">@csrf
                 @foreach(['request_id','certificate_type','student_number','student_name','grade_level','section','school_year','issue_date','expires_at','purpose','recognition'] as $field)<input type="hidden" name="{{ $field }}" value="{{ $form[$field] ?? '' }}">@endforeach
-                <button name="output" value="stream" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">View draft PDF</button>
+                <button name="output" value="stream" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">View protected PDF</button>
             </form>
-            @if($requestId !== '' && in_array(auth()->user()->role, ['admin', 'records_officer']))
-                <button type="button" onclick="document.getElementById('finalize-modal').classList.remove('hidden')" class="rounded-lg bg-[#062b63] px-4 py-2 text-sm font-semibold text-white">Finalize &amp; Issue</button>
-            @endif
         </div>
     </div>
+    @if($requestId !== '' && auth()->user()->role === 'records_officer')
+        <div class="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900">Review the protected PDF. When it is correct, return to the request and choose <strong>Send to registrar for review</strong>.</div>
+    @endif
     <div class="overflow-auto bg-slate-200 py-6"><div class="min-w-[210mm]">@include('certifications.partials.certificate')</div></div>
 </div>
 
-@if($requestId !== '' && in_array(auth()->user()->role, ['admin', 'records_officer']))
+@if($requestId !== '' && auth()->user()->role === 'admin')
 <div id="finalize-modal" class="hidden fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4">
     <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
         <h2 class="text-xl font-black text-slate-900">Finalize Official Document?</h2>

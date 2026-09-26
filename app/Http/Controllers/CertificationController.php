@@ -6,6 +6,8 @@ use App\Models\RequestDocument;
 use App\Models\SchoolFormStudent;
 use App\Models\Student;
 use App\Support\DocumentIssuanceService;
+use App\Support\DocumentQrCode;
+use App\Support\GeneratedPdfProtection;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
@@ -108,9 +110,26 @@ class CertificationController extends Controller
         $this->authorizeStaff();
         $form = $this->validatedForm($request);
         $data = $this->viewData($form);
-        $data['documentMode'] = 'draft';
-        $filename = Str::slug($data['certificate']['label'].' '.$form['student_name'].' '.$form['school_year']).'-draft.pdf';
-        $bytes = $this->renderPdf($data);
+        $data['documentMode'] = 'generated';
+        $data['documentQr'] = app(DocumentQrCode::class)->make($data['certificate']['label'], $form['student_name'], [
+            'request_id' => $form['request_id'] ?: null,
+            'holder_identifier' => $form['student_number'],
+            'purpose' => $form['purpose'],
+            'issued_at' => $form['issue_date'],
+            'expires_at' => $form['expires_at'],
+            'fields' => [
+                'grade_level' => $form['grade_level'],
+                'section' => $form['section'],
+                'school_year' => $form['school_year'],
+                'recognition' => $form['recognition'],
+            ],
+        ]);
+        $filename = Str::slug($data['certificate']['label'].' '.$form['student_name'].' '.$form['school_year']).'.pdf';
+        $bytes = app(GeneratedPdfProtection::class)->protect(
+            $data['documentQr']['document'],
+            $this->renderPdf($data),
+            $filename,
+        );
 
         $disposition = $request->input('output') !== 'stream' ? 'attachment' : 'inline';
 
@@ -192,7 +211,7 @@ class CertificationController extends Controller
 
     private function authorizeIssuer(): void
     {
-        abort_unless(auth()->check() && in_array(auth()->user()->role, ['admin', 'records_officer'], true), 403);
+        abort_unless(auth()->check() && auth()->user()->role === 'admin', 403);
     }
 
     private function validatedForm(Request $request): array

@@ -12,6 +12,7 @@ use App\Models\SchoolFormUpload;
 use App\Models\Student as RequestStudent;
 use App\Models\User;
 use App\Support\GradeSheetImporter;
+use App\Support\GradeSheetRecordImporter;
 use App\Support\XlsxWorkbookReader;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -103,6 +104,34 @@ class SchoolFormsIntegrationTest extends TestCase
         ]);
     }
 
+    public function test_grade_portal_finds_imported_student_grades_by_number_lrn_and_name(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'registrar']));
+
+        foreach (['2020-0001', '424413240015', 'Dela Cruz'] as $search) {
+            $this->get(route('grade-portal.index', ['search_student' => $search]))
+                ->assertOk()
+                ->assertSee('Dela Cruz, Juan Santos')
+                ->assertSee('Mathematics')
+                ->assertSee('>90<', false)
+                ->assertSee('Quarter 1')
+                ->assertDontSee('Student Form 138 Records');
+        }
+    }
+
+    public function test_grade_portal_requires_student_selection_for_ambiguous_name(): void
+    {
+        SchoolFormStudent::create(['student_number' => '2020-0002', 'name' => 'Dela Cruz, Ana']);
+        $this->actingAs(User::factory()->create(['role' => 'registrar']));
+
+        $this->get(route('grade-portal.index', ['search_student' => 'Dela Cruz']))
+            ->assertOk()->assertSee('Select a student above')->assertDontSee('Mathematics');
+
+        $student = SchoolFormStudent::where('student_number', '2020-0001')->sole();
+        $this->get(route('grade-portal.index', ['search_student' => 'Dela Cruz', 'student_id' => $student->id]))
+            ->assertOk()->assertSee('Mathematics')->assertSee('>90<', false);
+    }
+
     public function test_f137_and_f138_run_inside_reghub_without_port_8001(): void
     {
         $staff = User::factory()->create(['role' => 'records_officer']);
@@ -141,7 +170,7 @@ class SchoolFormsIntegrationTest extends TestCase
 
         $this->get(route('school-forms.f138.download', $f138Parameters))
             ->assertOk()
-            ->assertDownload('F138-2020-0001-DRAFT.pdf');
+            ->assertDownload('F138-2020-0001.pdf');
 
         $this->assertStringNotContainsString(':8001', route('school-forms.f137.preview', $parameters));
         $this->assertStringNotContainsString(':8001', route('school-forms.f138.preview', $f138Parameters));
@@ -226,13 +255,24 @@ class SchoolFormsIntegrationTest extends TestCase
         $preview = $this->actingAs($staff)->get(route('school-forms.f137.preview', $parameters));
         $preview->assertOk()
             ->assertSee('Learner Permanent Record for Elementary School')
+            ->assertSee('Final document check')
+            ->assertSee('Preview F137 PDF')
+            ->assertSee('Download F137 Excel')
+            ->assertDontSee('Download F137 PDF')
+            ->assertDontSee('Preview F137 Excel')
             ->assertSeeInOrder(['2020-2021', 'Quarterly Rating', '2026-2027', 'Term Rating']);
 
-        $pdf = $this->get(route('school-forms.f137.pdf', $parameters));
+        $this->get(route('school-forms.f137.excel-preview', $parameters))
+            ->assertSessionHasErrors('reviewed');
+        $this->get(route('school-forms.f137.excel-preview', [...$parameters, 'reviewed' => 1]))
+            ->assertOk()
+            ->assertSee('Read-only workbook preview');
+
+        $pdf = $this->get(route('school-forms.f137.pdf', [...$parameters, 'reviewed' => 1]));
         $pdf->assertOk()->assertDownload('F137-2020-0001.pdf');
         $this->assertStringStartsWith('%PDF', $pdf->getContent());
 
-        $response = $this->get(route('school-forms.f137.download', $parameters));
+        $response = $this->get(route('school-forms.f137.download', [...$parameters, 'reviewed' => 1]));
         $response->assertOk();
         $path = tempnam(sys_get_temp_dir(), 'mixed-elementary-f137-');
         file_put_contents($path, $response->streamedContent());
@@ -279,11 +319,11 @@ class SchoolFormsIntegrationTest extends TestCase
             'student' => '2020-0001',
             'request_id' => $request->id,
         ];
-        $pdf = $this->actingAs($staff)->get(route('school-forms.f137.pdf', $parameters));
+        $pdf = $this->actingAs($staff)->get(route('school-forms.f137.pdf', [...$parameters, 'reviewed' => 1]));
         $pdf->assertOk()->assertDownload('F137-2020-0001.pdf');
         $this->assertPdfPageCount($pdf->getContent(), 2);
 
-        $response = $this->get(route('school-forms.f137.download', $parameters));
+        $response = $this->get(route('school-forms.f137.download', [...$parameters, 'reviewed' => 1]));
         $path = tempnam(sys_get_temp_dir(), 'back-elementary-f137-');
         file_put_contents($path, $response->streamedContent());
 
@@ -322,7 +362,7 @@ class SchoolFormsIntegrationTest extends TestCase
             ->assertSeeInOrder(['2025-2026', 'Quarterly Rating', '2026-2027', 'Term Rating'])
             ->assertDontSee('2020-2021');
 
-        $response = $this->get(route('school-forms.f137.download', $parameters));
+        $response = $this->get(route('school-forms.f137.download', [...$parameters, 'reviewed' => 1]));
         $response->assertOk()->assertDownload('F137-2020-0001.xlsx');
         $path = tempnam(sys_get_temp_dir(), 'mixed-jhs-f137-');
         file_put_contents($path, $response->streamedContent());
@@ -473,7 +513,7 @@ class SchoolFormsIntegrationTest extends TestCase
             'student_id' => $student->id,
             'school_year' => '2026-2027',
             'level' => 'Grade 10',
-            'section' => 'Bambi',
+            'section' => 'Dubnium',
             'adviser_name' => 'Test Adviser',
         ]);
         foreach ([1 => 81, 2 => 90, 3 => 99, 4 => 40] as $period => $grade) {
@@ -518,13 +558,38 @@ class SchoolFormsIntegrationTest extends TestCase
         $this->assertStringContainsString('DRAFT', $pdfHtml);
 
         $pdfParameters = ['student' => '2020-0001', 'school_year' => '2026-2027'];
-        $this->get(route('school-forms.f138.pdf', $pdfParameters))
-            ->assertOk()
+        $generatedResponse = $this->get(route('school-forms.f138.pdf', $pdfParameters));
+        $generatedResponse->assertOk()
             ->assertHeader('content-type', 'application/pdf')
-            ->assertHeader('content-disposition', 'inline; filename="F138-2020-0001-DRAFT.pdf"');
+            ->assertHeader('content-disposition', 'inline; filename="F138-2020-0001.pdf"');
+        $generatedDocument = DocumentAuthenticity::with('artifacts')->sole();
+        $this->assertSame('Form 138', $generatedDocument->document_type);
+        $this->assertSame('2020-0001', $generatedDocument->holder_identifier);
+        $this->assertSame('signed', $generatedDocument->pdf_signature_status);
+        $this->assertCount(1, $generatedDocument->artifacts);
+        $this->assertTrue($generatedDocument->artifacts->sole()->is_pdf_signed);
+        $this->assertStringContainsString('/ByteRange', $generatedResponse->getContent());
+        $this->assertStringContainsString('/Contents', $generatedResponse->getContent());
         $this->get(route('school-forms.f138.download', $pdfParameters))
             ->assertOk()
-            ->assertDownload('F138-2020-0001-DRAFT.pdf');
+            ->assertDownload('F138-2020-0001.pdf');
+
+        $generatedHtml = view($pdfView, [
+            'student' => $student,
+            'enrollment' => $enrollment,
+            'gradeMatrix' => ['Mathematics' => [1 => 81, 2 => 90, 3 => 99]],
+            'attendance' => [],
+            'requestId' => null,
+            'documentMode' => 'generated',
+            'documentQr' => [
+                'data_uri' => 'data:image/png;base64,AA==',
+                'reference' => 'F138-TEST',
+                'document' => (object) ['content_hash' => str_repeat('a', 64)],
+            ],
+        ])->render();
+        $this->assertStringContainsString('SCAN TO VERIFY', $generatedHtml);
+        $this->assertStringContainsString('PDF DIGITALLY SIGNED', $generatedHtml);
+        $this->assertStringNotContainsString('DRAFT', $generatedHtml);
 
         $officialHtml = view($pdfView, [
             'student' => $student,
@@ -568,11 +633,17 @@ class SchoolFormsIntegrationTest extends TestCase
             $this->actingAs($staff)
                 ->get(route('school-forms.f138.preview', $parameters))
                 ->assertOk()
-                ->assertSee('F138 Draft Preview')
-                ->assertSee('Finalize &amp; Issue', false);
+                ->assertSee('F138 Preview')
+                ->assertSee('View protected PDF')
+                ->assertSee('Send to registrar for review')
+                ->assertDontSee('Finalize &amp; Issue', false);
             $this->assertSame(0, DocumentAuthenticity::count());
 
-            $response = $this->post(route('school-forms.f138.finalize'), $parameters);
+            $this->post(route('school-forms.f138.finalize'), $parameters)->assertForbidden();
+            $this->assertSame(0, DocumentAuthenticity::count());
+
+            $response = $this->actingAs(User::factory()->create(['role' => 'admin']))
+                ->post(route('school-forms.f138.finalize'), $parameters);
             $document = DocumentAuthenticity::with('officialArtifact')->sole();
             $signedPdf = Storage::disk('local')->get($document->officialArtifact->storage_path);
 
@@ -622,7 +693,7 @@ class SchoolFormsIntegrationTest extends TestCase
                         'index' => 3,
                         'cells' => [
                             ['column' => 'A', 'value' => 'Academic Year 2021-2022'],
-                            ['column' => 'B', 'value' => 'Grade Four - Bambi'],
+                            ['column' => 'B', 'value' => 'Grade Four - Generosity'],
                             ['column' => 'C', 'value' => 'THIRD GRADING'],
                         ],
                     ]],
@@ -649,7 +720,7 @@ class SchoolFormsIntegrationTest extends TestCase
                         'index' => 3,
                         'cells' => [
                             ['column' => 'A', 'value' => 'Academic Year 2026-2027'],
-                            ['column' => 'B', 'value' => 'Grade Four - Bambi'],
+                            ['column' => 'B', 'value' => 'Grade Four - Generosity'],
                             ['column' => 'C', 'value' => 'TERM 3'],
                         ],
                     ]],
@@ -666,7 +737,7 @@ class SchoolFormsIntegrationTest extends TestCase
     {
         Storage::fake('school_forms_local');
         $recordsOfficer = User::factory()->create(['role' => 'registrar']);
-        $query = ['school_year' => '2026-2027', 'level' => 'Grade 4', 'section' => 'Bambi'];
+        $query = ['school_year' => '2026-2027', 'level' => 'Grade 4', 'section' => 'Generosity'];
 
         $this->actingAs($recordsOfficer)
             ->get(route('school-forms.records', $query))
@@ -685,7 +756,7 @@ class SchoolFormsIntegrationTest extends TestCase
             ->post(route('school-forms.grade-sheets.store'), [
                 'grade_school_year' => '2026-2027',
                 'grade_level' => 'Grade 4',
-                'grade_section' => 'Bambi',
+                'grade_section' => 'Generosity',
                 'summary_files' => [
                     4 => UploadedFile::fake()->create('fourth-term.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
                 ],
@@ -699,7 +770,7 @@ class SchoolFormsIntegrationTest extends TestCase
     public function test_2026_generated_grade_sheet_templates_use_term_metadata_and_months(): void
     {
         $staff = User::factory()->create(['role' => 'registrar']);
-        $query = ['school_year' => '2026-2027', 'level' => 'Grade 4', 'section' => 'Bambi'];
+        $query = ['school_year' => '2026-2027', 'level' => 'Grade 4', 'section' => 'Generosity'];
 
         $summary = $this->actingAs($staff)->get(route('school-forms.grade-sheets.template', [
             'type' => 'summary',
@@ -723,9 +794,9 @@ class SchoolFormsIntegrationTest extends TestCase
         file_put_contents($path, $attendance->streamedContent());
         try {
             $sheet = app(XlsxWorkbookReader::class)->read($path)[0];
-            $heading = collect($sheet['rows'])->firstWhere('index', 3);
+            $heading = collect($sheet['rows'])->firstWhere('index', 6);
             $months = collect($heading['cells'])->pluck('value')->all();
-            $this->assertSame(['No.', 'LRN', 'Learner name', 'June', 'July', 'August', 'September'], $months);
+            $this->assertSame(['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER'], $months);
         } finally {
             @unlink($path);
         }
@@ -878,14 +949,14 @@ class SchoolFormsIntegrationTest extends TestCase
 
         $this->get(route('generator.grade-sheets'))->assertForbidden();
         $this->get(route('school-forms.grade-sheets.status', [
-            'school_year' => '2026-2027', 'level' => 'Grade 4', 'section' => 'Bambi',
+            'school_year' => '2026-2027', 'level' => 'Grade 4', 'section' => 'Generosity',
         ]))->assertForbidden();
 
         $this->actingAs($recordsOfficer)
             ->post(route('school-forms.grade-sheets.store'), [
                 'grade_school_year' => '2010-2011',
                 'grade_level' => 'Grade 2',
-                'grade_section' => 'Bambi',
+                'grade_section' => 'Charity',
                 'grading_period' => 2,
             ])
             ->assertForbidden();
@@ -906,7 +977,7 @@ class SchoolFormsIntegrationTest extends TestCase
             ->post(route('school-forms.grade-sheets.store'), [
                 'grade_school_year' => '2010-2011',
                 'grade_level' => 'Grade 10',
-                'grade_section' => 'Bambi',
+                'grade_section' => 'Dubnium',
                 'summary_files' => [
                     1 => UploadedFile::fake()->create('first-summary.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
                     3 => UploadedFile::fake()->create('third-summary.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
@@ -915,7 +986,7 @@ class SchoolFormsIntegrationTest extends TestCase
             ->assertRedirect(route('school-forms.records', [
                 'school_year' => '2010-2011',
                 'level' => 'Grade 10',
-                'section' => 'Bambi',
+                'section' => 'Dubnium',
             ]))
             ->assertSessionHas('grade_sheet_import_result', fn (array $result) => $result['uploaded'] === 2 && $result['replaced'] === 0);
 
@@ -924,13 +995,124 @@ class SchoolFormsIntegrationTest extends TestCase
         $this->assertDatabaseHas('grade_sheet_uploads', ['grading_period' => 3, 'file_type' => 'summary'], 'school_forms');
     }
 
+    public function test_automatic_batch_upload_routes_files_to_detected_classes(): void
+    {
+        Storage::fake('school_forms_local');
+        $importer = $this->mock(GradeSheetImporter::class);
+        $importer->shouldReceive('destination')->twice()->andReturn(
+            ['schoolYear' => '2010-2011', 'level' => 'Grade 2', 'section' => 'Charity', 'period' => 1, 'type' => 'summary'],
+            ['schoolYear' => '2010-2011', 'level' => 'Grade 10', 'section' => 'Dubnium', 'period' => 3, 'type' => 'summary'],
+        );
+        $importer->shouldReceive('teacherName')->twice()->andReturn('Test Adviser');
+        $importer->shouldReceive('summaries')->twice()->andReturn([]);
+        $registrar = User::factory()->create(['role' => 'registrar']);
+
+        $this->actingAs($registrar)
+            ->post(route('school-forms.grade-sheets.auto-batch'), [
+                'auto_files' => [
+                    UploadedFile::fake()->create('grade-2-summary.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                    UploadedFile::fake()->create('grade-10-summary.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                ],
+            ])
+            ->assertRedirect(route('school-forms.records'))
+            ->assertSessionHas('status', fn (string $status) => str_contains($status, '2 workbook(s) automatically identified'));
+
+        $this->assertDatabaseHas('grade_sheet_uploads', [
+            'school_year' => '2010-2011', 'level' => 'Grade 2', 'section' => 'Charity', 'grading_period' => 1, 'file_type' => 'summary',
+        ], 'school_forms');
+        $this->assertDatabaseHas('grade_sheet_uploads', [
+            'school_year' => '2010-2011', 'level' => 'Grade 10', 'section' => 'Dubnium', 'grading_period' => 3, 'file_type' => 'summary',
+        ], 'school_forms');
+    }
+
+    public function test_automatic_batch_upload_rejects_duplicate_destinations_before_importing(): void
+    {
+        Storage::fake('school_forms_local');
+        $destination = ['schoolYear' => '2010-2011', 'level' => 'Grade 2', 'section' => 'Charity', 'period' => 1, 'type' => 'summary'];
+        $importer = $this->mock(GradeSheetImporter::class);
+        $importer->shouldReceive('destination')->twice()->andReturn($destination);
+        $registrar = User::factory()->create(['role' => 'registrar']);
+
+        $this->actingAs($registrar)
+            ->from(route('school-forms.records'))
+            ->post(route('school-forms.grade-sheets.auto-batch'), [
+                'auto_files' => [
+                    UploadedFile::fake()->create('copy-a.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                    UploadedFile::fake()->create('copy-b.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                ],
+            ])
+            ->assertRedirect(route('school-forms.records'))
+            ->assertSessionHasErrors('auto_files');
+
+        $this->assertDatabaseCount('grade_sheet_uploads', 0, 'school_forms');
+    }
+
+    public function test_import_does_not_merge_different_lrns_that_share_the_same_name(): void
+    {
+        $existing = SchoolFormStudent::create(['lrn' => '880209004005', 'name' => 'Santos, Bianca M.']);
+        SchoolFormEnrollment::create([
+            'student_id' => $existing->id,
+            'school_year' => '2023-2024',
+            'level' => 'Grade 9',
+            'section' => 'Nickel',
+        ]);
+        $reader = $this->mock(GradeSheetImporter::class);
+        $reader->shouldReceive('teacherName')->once()->andReturn('Test Adviser');
+        $reader->shouldReceive('summaries')->once()->andReturn([[
+            'lrn' => '880208004005',
+            'name' => 'Santos, Bianca M.',
+            'grades' => ['Mathematics' => 90],
+        ]]);
+
+        app(GradeSheetRecordImporter::class)->import(
+            'unused.xlsx', 'summary', 1, '2023-2024', 'Grade 8', 'Nickel'
+        );
+
+        $this->assertDatabaseHas('students', ['lrn' => '880208004005', 'name' => 'Santos, Bianca M.'], 'school_forms');
+        $this->assertDatabaseHas('student_enrollments', ['school_year' => '2023-2024', 'level' => 'Grade 8'], 'school_forms');
+        $this->assertDatabaseCount('students', 3, 'school_forms');
+    }
+
+    public function test_staff_can_remove_one_school_year_without_deleting_students_or_other_years(): void
+    {
+        Storage::fake('school_forms_local');
+        $student = SchoolFormStudent::where('student_number', '2020-0001')->sole();
+        $keptEnrollment = SchoolFormEnrollment::create([
+            'student_id' => $student->id, 'school_year' => '2021-2022',
+            'level' => 'Grade 2', 'section' => 'Charity',
+        ]);
+        SchoolFormGrade::create([
+            'student_enrollment_id' => $keptEnrollment->id, 'grading_period' => 1,
+            'learning_area' => 'Mathematics', 'grade' => 91,
+        ]);
+        $path = 'grade-sheets/2020-2021/test.xlsx';
+        Storage::disk('school_forms_local')->put($path, 'workbook');
+        SchoolFormUpload::create([
+            'school_year' => '2020-2021', 'level' => 'Grade 1', 'section' => 'Amity',
+            'grading_period' => 1, 'file_type' => 'summary',
+            'original_name' => 'test.xlsx', 'stored_path' => $path,
+        ]);
+        $registrar = User::factory()->create(['role' => 'registrar']);
+
+        $this->actingAs($registrar)->delete(route('school-forms.grade-sheets.destroy-school-year'), [
+            'delete_school_year' => '2020-2021',
+            'school_year_confirmation' => '2020-2021',
+        ])->assertRedirect(route('school-forms.records'));
+
+        $this->assertDatabaseMissing('student_enrollments', ['school_year' => '2020-2021'], 'school_forms');
+        $this->assertDatabaseMissing('grade_sheet_uploads', ['school_year' => '2020-2021'], 'school_forms');
+        $this->assertDatabaseHas('student_enrollments', ['school_year' => '2021-2022'], 'school_forms');
+        $this->assertDatabaseHas('students', ['student_number' => '2020-0001'], 'school_forms');
+        Storage::disk('school_forms_local')->assertMissing($path);
+    }
+
     public function test_bulk_upload_requires_confirmation_before_replacing_a_stored_slot(): void
     {
         Storage::fake('school_forms_local');
         SchoolFormUpload::create([
             'school_year' => '2010-2011',
             'level' => 'Grade 2',
-            'section' => 'Bambi',
+            'section' => 'Charity',
             'grading_period' => 1,
             'file_type' => 'summary',
             'original_name' => 'original.xlsx',
@@ -945,7 +1127,7 @@ class SchoolFormsIntegrationTest extends TestCase
             ->post(route('school-forms.grade-sheets.store'), [
                 'grade_school_year' => '2010-2011',
                 'grade_level' => 'Grade 2',
-                'grade_section' => 'Bambi',
+                'grade_section' => 'Charity',
                 'summary_files' => [
                     1 => UploadedFile::fake()->create('replacement.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
                 ],
@@ -961,14 +1143,14 @@ class SchoolFormsIntegrationTest extends TestCase
         SchoolFormUpload::create([
             'school_year' => '2010-2011',
             'level' => 'Grade 10',
-            'section' => 'Bambi',
+            'section' => 'Dubnium',
             'grading_period' => 2,
             'file_type' => 'attendance',
             'original_name' => 'attendance.xlsx',
             'stored_path' => 'grade-sheets/attendance.xlsx',
         ]);
         $recordsOfficer = User::factory()->create(['role' => 'registrar']);
-        $query = ['school_year' => '2010-2011', 'level' => 'Grade 10', 'section' => 'Bambi'];
+        $query = ['school_year' => '2010-2011', 'level' => 'Grade 10', 'section' => 'Dubnium'];
 
         $this->actingAs($recordsOfficer)
             ->getJson(route('school-forms.grade-sheets.status', $query))
@@ -989,7 +1171,7 @@ class SchoolFormsIntegrationTest extends TestCase
             'student_id' => $student->id,
             'school_year' => $schoolYear,
             'level' => $level,
-            'section' => 'Bambi',
+            'section' => config("academics.sections_by_grade.{$level}.0"),
             'adviser_name' => 'Test Adviser',
         ]);
         foreach ($grades as $period => $grade) {

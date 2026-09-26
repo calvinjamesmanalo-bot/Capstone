@@ -17,17 +17,21 @@ class GradeSheetRecordImporter
         $records = $type === 'summary' ? $this->reader->summaries($path) : $this->reader->attendance($path);
 
         foreach ($records as $record) {
-            $identifierColumn = $type === 'summary' ? 'student_number' : 'lrn';
-            $identifier = $record[$identifierColumn];
+            $identifierColumn = $type === 'summary' && isset($record['student_number']) ? 'student_number' : 'lrn';
+            $identifier = trim((string) ($record[$identifierColumn] ?? ''));
             $student = SchoolFormStudent::findByIdentifier($identifier);
-            if (! $student && $record['name'] !== '') {
+            // LRN/student number is authoritative. Different learners can have
+            // identical names, especially in large batch test datasets. A name
+            // match is safe only for legacy rows that contain no identifier.
+            if (! $student && $identifier === '' && $record['name'] !== '') {
                 $student = SchoolFormStudent::findByName($record['name']);
             }
             if (! $student) {
-                $student = SchoolFormStudent::create([
-                    $identifierColumn => $identifier,
-                    'name' => $record['name'] ?: $identifier,
-                ]);
+                $attributes = ['name' => $record['name'] ?: $identifier];
+                if ($identifier !== '') {
+                    $attributes[$identifierColumn] = $identifier;
+                }
+                $student = SchoolFormStudent::create($attributes);
             } elseif (! $student->{$identifierColumn}) {
                 $student->update([$identifierColumn => $identifier]);
             }

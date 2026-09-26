@@ -12,25 +12,21 @@
 @include('documents.partials.verifier-header')
 
 <main class="verify-shell verify-main">
-    <div class="lookup-layout">
-        <section class="lookup-intro">
-            <p class="eyebrow">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3 4 6v5c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
-                Official document verifier
-            </p>
-            <h1>Confirm a school document with confidence.</h1>
-            <p>Use the printed control number or scan the QR code to check the issuer record, document status, and cryptographic proof.</p>
-            <div class="trust-list">
-                <div class="trust-item"><span class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg></span>Signed issuer record verification</div>
-                <div class="trust-item"><span class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4zM8 8h8v8H8z"/></svg></span>SHA-256 protected document data</div>
-                <div class="trust-item"><span class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M4 7h16M4 17h16"/></svg></span>Audited verification activity</div>
-            </div>
-        </section>
+    <div class="lookup-page-heading">
+        <p>Office of the Registrar</p>
+        <h1>Document verification</h1>
+        <span>Check whether a document was issued by {{ config('document_verification.issuer') }}.</span>
+    </div>
 
-        <section class="lookup-card">
-            <span class="lookup-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span>
-            <h2>Verify a document</h2>
-            <p>Enter the control number exactly as printed on the official copy.</p>
+    <div class="lookup-layout">
+        <section class="lookup-card" aria-labelledby="verification-form-title">
+            <div class="lookup-card-heading">
+                <span class="lookup-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5M10 13h5M10 17h5"/></svg></span>
+                <div>
+                    <h2 id="verification-form-title">Enter the document control number</h2>
+                    <p>The control number is printed on the document, usually beside the QR code.</p>
+                </div>
+            </div>
             @if ($notFound)
                 <div class="verify-error">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>
@@ -38,18 +34,25 @@
                 </div>
             @endif
             <form class="lookup-form" method="GET" action="{{ route('documents.lookup') }}">
-                <label for="reference">Document control number</label>
+                <label for="reference">Control number</label>
                 <div class="lookup-input-wrap">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h16v16H4zM8 8h8v8H8z"/></svg>
                     <input id="reference" name="reference" value="{{ $reference }}" placeholder="FLA-2026-XXXXXXXX" required autocomplete="off" spellcheck="false">
                 </div>
                 <button class="primary-button" type="submit">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3 4 6v5c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
-                    Verify document
+                    Check document
                 </button>
             </form>
-            <p class="lookup-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg><span>Always compare the displayed holder and document details with the copy presented to you.</span></p>
         </section>
+
+        <aside class="lookup-help" aria-labelledby="lookup-help-title">
+            <h2 id="lookup-help-title">Before you continue</h2>
+            <ol>
+                <li>Enter the complete control number, including the dashes.</li>
+                <li>Compare the name and document details shown in the result.</li>
+                <li>Make sure the status is marked <strong>Authentic</strong>.</li>
+            </ol>
+            <p>For printed copies, you may also scan the QR code to open the verification record directly.</p>
+        </aside>
     </div>
 </main>
 

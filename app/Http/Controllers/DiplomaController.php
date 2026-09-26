@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\RequestDocument;
 use App\Models\Student;
 use App\Support\DocumentQrCode;
+use App\Support\GeneratedPdfProtection;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
@@ -68,7 +69,7 @@ class DiplomaController extends Controller
 
         $filename = "Diploma_{$name}.pdf";
         $bytes = $dompdf->output();
-        app(DocumentQrCode::class)->registerArtifact($documentQr['document'], $bytes, $filename, 'application/pdf');
+        $bytes = app(GeneratedPdfProtection::class)->protect($documentQr['document'], $bytes, $filename);
 
         $disposition = $request->has('preview') ? 'inline' : 'attachment';
 
@@ -90,6 +91,11 @@ class DiplomaController extends Controller
         ]);
 
         $docRequest = RequestDocument::findOrFail($request->request_id);
+
+        if ($request->delivery_mode === 'generator' && ! $docRequest->hasPreparedDocument()) {
+            return redirect()->back()->withInput()
+                ->with('error', 'Download the protected PDF before submitting it for approval.');
+        }
 
         $remarks = 'Mode: '.strtoupper($request->delivery_mode);
         if ($request->delivery_mode === 'generator') {
@@ -156,7 +162,7 @@ class DiplomaController extends Controller
 
         $filename = "Diploma_{$name}.pdf";
         $bytes = $dompdf->output();
-        app(DocumentQrCode::class)->registerArtifact($documentQr['document'], $bytes, $filename, 'application/pdf');
+        $bytes = app(GeneratedPdfProtection::class)->protect($documentQr['document'], $bytes, $filename);
 
         return response($bytes, 200, [
             'Content-Type' => 'application/pdf',

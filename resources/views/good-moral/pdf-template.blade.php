@@ -97,6 +97,7 @@
         'qrDocumentType' => 'Certificate of Good Moral Character',
         'qrSubject' => $name,
         'qrPurpose' => $purpose,
+        'qrPdfWillBeSigned' => true,
     ], $qrContext ?? []))
 </body>
 </html>

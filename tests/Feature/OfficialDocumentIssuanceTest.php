@@ -121,17 +121,23 @@ class OfficialDocumentIssuanceTest extends TestCase
         $this->assertSame('processing', $requestDocument->fresh()->status);
     }
 
-    public function test_certificate_preview_is_a_draft_and_finalization_uses_the_existing_request(): void
+    public function test_records_officer_reviews_certificate_before_admin_only_finalization(): void
     {
         [$requestDocument, $staff, $form] = $this->certificateRequestAndForm();
         $this->actingAs($staff)
             ->post(route('certifications.preview'), $form)
             ->assertOk()
             ->assertSee('DRAFT')
-            ->assertSee('Finalize &amp; Issue', false);
+            ->assertSee('View protected PDF')
+            ->assertSee('Send to registrar for review')
+            ->assertDontSee('Finalize &amp; Issue', false);
         $this->assertSame(0, DocumentAuthenticity::count());
 
-        $response = $this->post(route('certifications.finalize'), $form);
+        $this->post(route('certifications.finalize'), $form)->assertForbidden();
+        $this->assertSame(0, DocumentAuthenticity::count());
+
+        $response = $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->post(route('certifications.finalize'), $form);
         $document = DocumentAuthenticity::with('officialArtifact')->sole();
 
         $response->assertRedirect(route('documents.issued', $document));
@@ -150,6 +156,39 @@ class OfficialDocumentIssuanceTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame(0, DocumentAuthenticity::count());
+    }
+
+    public function test_generated_certificate_pdf_contains_a_registered_anti_tamper_record(): void
+    {
+        [$requestDocument, $staff, $form] = $this->certificateRequestAndForm();
+
+        $response = $this->actingAs($staff)->post(route('certifications.pdf'), $form + ['output' => 'stream']);
+        $document = DocumentAuthenticity::with('artifacts')->sole();
+
+        $response->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertSame('Certificate of Enrollment', $document->document_type);
+        $this->assertSame('2026-0002', $document->holder_identifier);
+        $this->assertSame('signed', $document->pdf_signature_status);
+        $this->assertCount(1, $document->artifacts);
+        $this->assertTrue($document->artifacts->sole()->is_pdf_signed);
+        $this->assertStringContainsString('/ByteRange', $response->getContent());
+        $this->assertStringContainsString('/Contents', $response->getContent());
+        $this->assertSame(hash('sha256', $response->getContent()), $document->artifacts->sole()->sha256_hash);
+
+        $requestDocument->update(['status' => 'processed']);
+        $registrar = User::factory()->create(['role' => 'registrar']);
+        $reviewPage = $this->actingAs($registrar)->get(route('requests.index'));
+        $reviewPage->assertOk()
+            ->assertSee('Quick View Document')
+            ->assertDontSee('Review accounting receipt')
+            ->assertDontSee('Confirm document payment')
+            ->assertDontSee('Accounting clearance');
+
+        $quickView = $this->get(route('requests.document-preview', $requestDocument));
+        $quickView->assertOk()
+            ->assertHeader('content-type', 'application/pdf')
+            ->assertHeader('content-disposition', 'inline; filename="'.$document->artifacts->sole()->original_filename.'"');
+        Storage::disk('local')->assertExists($document->artifacts->sole()->storage_path);
     }
 
     private function issue(RequestDocument $requestDocument, string $content): DocumentAuthenticity

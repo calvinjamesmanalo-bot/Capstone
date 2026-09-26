@@ -139,6 +139,7 @@
         @include('documents.partials.qr', array_merge([
             'qrDocumentType' => 'Diploma',
             'qrSubject' => $name,
+            'qrPdfWillBeSigned' => true,
             'qrFields' => ['course' => $course, 'graduation_date' => $date],
         ], $qrContext ?? []))
     </div>

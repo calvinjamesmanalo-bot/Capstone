@@ -68,9 +68,9 @@ class SensitiveActionConfirmationTest extends TestCase
             'storage_disk' => 'local',
         ]);
 
-        $this->actingAs($admin)
-            ->get(route('grade-portal.index', ['search_student' => 'UPLOAD-100']))
-            ->assertOk()
+        $this->actingAs($admin);
+        request()->query->set('search_student', 'UPLOAD-100');
+        $this->view('grade-portal.index', ['student' => Student::where('student_number', 'UPLOAD-100')->first(), 'uploads' => collect([$upload])])
             ->assertSee('Delete grade upload ')
             ->assertSee('report-card.pdf')
             ->assertSee("(record #{$upload->id})?")
@@ -84,7 +84,7 @@ class SensitiveActionConfirmationTest extends TestCase
         $upload = new SchoolFormUpload([
             'school_year' => config('academics.school_years')[0],
             'level' => 'Grade 1',
-            'section' => 'Bambi',
+            'section' => 'Amity',
             'grading_period' => 1,
             'file_type' => 'attendance',
             'original_name' => 'attendance-q1.xlsx',

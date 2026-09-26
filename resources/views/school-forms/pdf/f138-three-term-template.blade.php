@@ -56,7 +56,7 @@
 @endif
 @php
     $gradeMatrix = $gradeMatrix ?? [];
-    $periodNumbers = \App\Support\AcademicPeriod::numbers($enrollment->school_year);
+    $periodNumbers = \App\Support\AcademicPeriod::numbers($enrollment->school_year, $enrollment->level);
     $areas = array_keys(array_filter($gradeMatrix, fn ($grades) => collect($periodNumbers)->contains(fn ($period) => ($grades[$period] ?? null) !== null)));
     natcasesort($areas);
     $areas = array_values($areas);
@@ -72,7 +72,9 @@
     $availableFinals = array_values(array_filter($finalRatings, fn ($grade) => $grade !== null));
     $generalAverage = $availableFinals ? round(array_sum($availableFinals) / count($availableFinals)) : null;
     $levelNumber = (int) filter_var($enrollment->level, FILTER_SANITIZE_NUMBER_INT);
-    $schoolDivision = $levelNumber >= 7 ? 'Junior High School' : 'Grade School';
+    $schoolDivision = $levelNumber >= 11
+        ? 'Senior High School'
+        : ($levelNumber >= 7 ? 'Junior High School' : 'Grade School');
     if ($generalAverage === null) {
         $result = '';
         $promotion = '';
@@ -82,7 +84,13 @@
     } elseif (strcasecmp($enrollment->level, 'Kinder') === 0) {
         $result = 'PROMOTED';
         $promotion = 'PROMOTED TO GRADE 1';
-    } elseif ($levelNumber >= 10) {
+    } elseif ($levelNumber >= 12) {
+        $result = 'COMPLETED';
+        $promotion = 'COMPLETED SENIOR HIGH SCHOOL';
+    } elseif ($levelNumber === 11) {
+        $result = 'PROMOTED';
+        $promotion = 'PROMOTED TO GRADE 12';
+    } elseif ($levelNumber === 10) {
         $result = 'COMPLETED';
         $promotion = 'COMPLETED JUNIOR HIGH SCHOOL';
     } else {
@@ -105,7 +113,7 @@
 <div class="page">
     <div class="school-header">
         <div class="brand">
-            <img class="seal" src="{{ public_path('images/fla-seal.jpg') }}" alt="Fiat Lux Academe seal">
+            <img class="seal" src="{{ public_path('images/fiat.png') }}" alt="Fiat Lux Academe seal">
             <h1 class="school-name">FIAT LUX ACADEME</h1>
             <div class="location">Cavite</div>
         </div>
@@ -153,7 +161,7 @@
         <tr class="signatures"><td>{{ $enrollment->adviser_name ?: '____________________________' }}</td><td>____________________________</td></tr>
         <tr class="roles"><td>Teacher-in-Charge</td><td>School Head</td></tr>
     </table>
-    @if(($documentMode ?? 'draft') === 'official')
+    @if(in_array(($documentMode ?? 'draft'), ['generated', 'official'], true))
         @include('documents.partials.qr', [
             'qrDocumentType' => 'Form 138',
             'qrSubject' => $student->name,

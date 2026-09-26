@@ -57,6 +57,28 @@ class ResponsiveInterfaceTest extends TestCase
             ->assertSee('aria-label="Open certification maker for request', false);
     }
 
+    public function test_records_officer_sees_clear_request_cards_and_named_next_steps(): void
+    {
+        $request = $this->documentRequest();
+        $response = $this->actingAs(User::factory()->create(['role' => 'records_officer']))
+            ->get(route('requests.index'));
+
+        $response->assertOk()
+            ->assertSee('aria-label="Active request cards"', false)
+            ->assertSee('xl:grid-cols-2', false)
+            ->assertSee('border-l-amber-300', false)
+            ->assertDontSee('border-b-4 border-[#ffd22d]', false)
+            ->assertSee('All active')
+            ->assertSee('Ticket '.$request->ticket_number)
+            ->assertSee('Requested document')
+            ->assertSee('Accounting check')
+            ->assertSee('Next step')
+            ->assertSee('Start processing')
+            ->assertSee('Reject request')
+            ->assertSee('More filters: status, document, payment, delivery, school year')
+            ->assertDontSee('aria-label="Request management table"', false);
+    }
+
     public function test_student_request_pages_have_labeled_choices_and_mobile_controls(): void
     {
         $student = $this->studentUser();

@@ -137,7 +137,7 @@
     </div>
 
     <div class="seal-note">Not Valid<br>Without<br>School Seal</div>
-    @if(($documentMode ?? 'draft') === 'official')
+    @if(in_array(($documentMode ?? 'draft'), ['generated', 'official'], true))
         <div class="certificate-qr">
             @include('documents.partials.qr', [
             'qrDocumentType' => $certificate['label'],
@@ -147,7 +147,7 @@
             'qrPurpose' => $form['purpose'],
             'qrIssuedAt' => $form['issue_date'],
             'qrExpiresAt' => $form['expires_at'],
-            'qrPdfWillBeSigned' => true,
+            'qrPdfWillBeSigned' => in_array(($documentMode ?? 'draft'), ['generated', 'official'], true),
             'qrFields' => [
                 'grade_level' => $form['grade_level'],
                 'section' => $form['section'],

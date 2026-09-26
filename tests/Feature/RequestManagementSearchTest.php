@@ -55,6 +55,38 @@ class RequestManagementSearchTest extends TestCase
             ->assertSee('search=shared', false);
     }
 
+    public function test_active_requests_can_be_sorted_newest_or_oldest(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'records_officer']));
+        $older = $this->documentRequest('SORT-1', 'Older Student', '111111111101', 'SORT-OLDER');
+        $newer = $this->documentRequest('SORT-2', 'Newer Student', '111111111102', 'SORT-NEWER');
+        $older->forceFill(['created_at' => now()->subDays(2)])->save();
+        $newer->forceFill(['created_at' => now()->subDay()])->save();
+
+        $this->get(route('requests.index'))
+            ->assertOk()
+            ->assertSee('Newest first')
+            ->assertViewHas('requests', fn ($requests) => $requests->pluck('ticket_number')->all() === ['SORT-NEWER', 'SORT-OLDER']);
+        $this->get(route('requests.index', ['sort' => 'oldest']))
+            ->assertOk()
+            ->assertSee('value="oldest" selected', false)
+            ->assertViewHas('requests', fn ($requests) => $requests->pluck('ticket_number')->all() === ['SORT-OLDER', 'SORT-NEWER']);
+    }
+
+    public function test_sort_order_survives_pagination_and_rejects_invalid_values(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'records_officer']));
+        foreach (range(1, 16) as $index) {
+            $this->documentRequest(sprintf('SORT-PAGE-%02d', $index), 'Sort Student '.$index,
+                sprintf('22222222%04d', $index), 'SORT-PAGE-'.$index);
+        }
+
+        $this->get(route('requests.index', ['sort' => 'oldest']))
+            ->assertOk()->assertSee('sort=oldest', false);
+        $this->getJson(route('requests.index', ['sort' => 'random']))
+            ->assertUnprocessable()->assertJsonValidationErrors('sort');
+    }
+
     public function test_request_search_keeps_existing_staff_authorization(): void
     {
         $this->get(route('requests.index', ['search' => 'student']))
@@ -118,6 +150,27 @@ class RequestManagementSearchTest extends TestCase
                 ->assertSee('Apply Filters')
                 ->assertSee('Clear Filters');
         }
+    }
+
+    public function test_records_officer_has_separate_work_queues_for_forwarded_and_reviewed_requests(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'records_officer']));
+        $forReview = $this->documentRequest('QUEUE-1', 'For Review Student', '510000000001', 'QUEUE-REVIEW');
+        $ready = $this->documentRequest('QUEUE-2', 'Ready Student', '510000000002', 'QUEUE-READY');
+        $forReview->update(['status' => 'processed']);
+        $ready->update(['status' => 'ready_to_release']);
+
+        $this->get(route('requests.index', ['status' => 'processed']))
+            ->assertOk()
+            ->assertSee('For registrar review')
+            ->assertSee('For Review Student')
+            ->assertDontSee('Ready Student');
+
+        $this->get(route('requests.index', ['status' => 'ready_to_release']))
+            ->assertOk()
+            ->assertSee('Reviewed / Ready')
+            ->assertSee('Ready Student')
+            ->assertDontSee('For Review Student');
     }
 
     public function test_filters_combine_with_search_and_survive_pagination(): void

@@ -24,6 +24,22 @@ class DashboardController extends Controller
             $data['recent_logs'] = ActivityLog::with('user')->latest()->limit(5)->get();
             $data['recent_requests'] = RequestDocument::with('student')->latest()->limit(5)->get();
             $data['total_grades'] = Grade::count();
+            if ($role === 'admin') {
+                $data['request_statuses'] = RequestDocument::query()
+                    ->selectRaw('status, COUNT(*) as total')
+                    ->groupBy('status')
+                    ->pluck('total', 'status');
+                $data['user_roles'] = User::query()
+                    ->selectRaw('role, COUNT(*) as total')
+                    ->groupBy('role')
+                    ->pluck('total', 'role');
+                $data['unverified_users'] = User::whereNull('email_verified_at')->count();
+                $data['completed_today'] = RequestDocument::where('status', 'completed')
+                    ->whereDate('updated_at', today())
+                    ->count();
+                $data['recent_logs'] = ActivityLog::with('user')->latest()->limit(8)->get();
+                $data['recent_requests'] = RequestDocument::with('student')->latest()->limit(8)->get();
+            }
         } elseif ($role === 'student') {
             $student_number = $user->student_number ?? session('student_number');
 
@@ -51,6 +67,6 @@ class DashboardController extends Controller
             }
         }
 
-        return view('dashboard', compact('data', 'role'));
+        return view($role === 'admin' ? 'dashboard-admin' : 'dashboard', compact('data', 'role'));
     }
 }

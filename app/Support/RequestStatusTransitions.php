@@ -21,7 +21,11 @@ class RequestStatusTransitions
     {
         $targets = self::FLOW[$request->status ?? 'pending'] ?? [];
 
-        return array_values(array_filter($targets, function (string $target) use ($actor): bool {
+        return array_values(array_filter($targets, function (string $target) use ($request, $actor): bool {
+            if ($target === 'processed' && ! $request->hasPreparedDocument()) {
+                return false;
+            }
+
             return match ($actor->role) {
                 'admin' => true,
                 'registrar' => in_array($target, ['processing', 'ready_to_release', 'completed', 'rejected'], true),
@@ -38,6 +42,12 @@ class RequestStatusTransitions
         }
 
         if (! in_array($target, $this->allowed($request, $actor), true)) {
+            if ($target === 'processed' && ! $request->hasPreparedDocument()) {
+                throw ValidationException::withMessages([
+                    'status' => 'Generate and download the protected document before forwarding it to the registrar.',
+                ]);
+            }
+
             throw ValidationException::withMessages([
                 'status' => 'This status change is not allowed for your role or the current request state.',
             ]);
@@ -47,10 +57,5 @@ class RequestStatusTransitions
             throw ValidationException::withMessages(['remarks' => 'A reason is required to reject a request.']);
         }
 
-        if ($target === 'ready_to_release' && (! $request->payment_confirmed || $request->clearance_status !== 'cleared')) {
-            throw ValidationException::withMessages([
-                'status' => 'Confirm payment and clear the balance before approving release.',
-            ]);
-        }
     }
 }

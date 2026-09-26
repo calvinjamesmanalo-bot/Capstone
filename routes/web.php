@@ -129,6 +129,8 @@ Route::middleware(['auth', 'student.verified'])->group(function () {
     Route::middleware('role:admin,registrar,records_officer')->group(function () {
         Route::get('/requests', [RequestController::class, 'index'])->name('requests.index');
         Route::get('/requests/history', [RequestController::class, 'history'])->name('requests.history');
+        Route::get('/requests/{requestDocument}/document-preview', [RequestController::class, 'documentQuickView'])->name('requests.document-preview');
+        Route::get('/requests/{requestDocument}/document-download', [RequestController::class, 'documentDownload'])->name('requests.document-download');
         Route::post('/requests/{request_id}/update-status', [RequestController::class, 'updateStatus'])->name('requests.update-status');
         Route::post('/requests/{request_id}/confirm-payment', [RequestController::class, 'confirmPayment'])->name('requests.confirm-payment');
     });
@@ -147,6 +149,7 @@ Route::middleware(['auth', 'student.verified'])->group(function () {
         Route::get('/school-forms/f137/preview', [SchoolFormF137Controller::class, 'preview'])->name('school-forms.f137.preview');
         Route::get('/school-forms/f137/pdf', [SchoolFormF137Controller::class, 'pdf'])->name('school-forms.f137.pdf');
         Route::get('/school-forms/f137/download', [SchoolFormF137Controller::class, 'download'])->name('school-forms.f137.download');
+        Route::get('/school-forms/f137/excel-preview', [SchoolFormF137Controller::class, 'excelPreview'])->name('school-forms.f137.excel-preview');
         Route::get('/school-forms/f137/template', [SchoolFormF137Controller::class, 'template'])->name('school-forms.f137.template');
         Route::get('/school-forms/f138/preview', [SchoolFormF138Controller::class, 'preview'])->name('school-forms.f138.preview');
         Route::get('/school-forms/f138/pdf', [SchoolFormF138Controller::class, 'pdf'])->name('school-forms.f138.pdf');
@@ -156,20 +159,22 @@ Route::middleware(['auth', 'student.verified'])->group(function () {
     Route::middleware('role:admin,registrar')->group(function () {
         Route::get('/school-forms/grade-sheets', [GeneratorController::class, 'gradeSheets'])->name('generator.grade-sheets');
         Route::post('/school-forms/grade-sheets', [SchoolFormF138Controller::class, 'storeGradeSheets'])->name('school-forms.grade-sheets.store');
+        Route::post('/school-forms/grade-sheets/auto-batch', [SchoolFormF138Controller::class, 'storeAutoBatch'])->name('school-forms.grade-sheets.auto-batch');
         Route::get('/school-forms/grade-sheets/status', [SchoolFormRecordController::class, 'status'])->name('school-forms.grade-sheets.status');
         Route::get('/school-forms/grade-sheets/template/{type}', [SchoolFormRecordController::class, 'template'])->name('school-forms.grade-sheets.template');
         Route::get('/grade-portal/class-sheets', [SchoolFormRecordController::class, 'index'])->name('school-forms.records');
         Route::get('/school-forms/records', fn () => redirect()->route('school-forms.records', request()->query()));
         Route::get('/school-forms/uploads/{upload}', [SchoolFormRecordController::class, 'download'])->name('school-forms.uploads.download');
         Route::get('/school-forms/uploads/{upload}/preview', [SchoolFormRecordController::class, 'preview'])->name('school-forms.uploads.preview');
+        Route::delete('/school-forms/grade-sheets/school-year', [SchoolFormRecordController::class, 'destroySchoolYear'])->name('school-forms.grade-sheets.destroy-school-year');
     });
     Route::delete('/school-forms/uploads/{upload}', [SchoolFormRecordController::class, 'destroy'])
         ->middleware('role:admin,registrar')
         ->name('school-forms.uploads.destroy');
 
-    // Legacy Grade Portal
+    // The Grade Portal now opens the class-sheet workspace and its student-grade finder.
     Route::middleware('role:admin,registrar')->group(function () {
-        Route::get('/grade-portal', [GradeController::class, 'index'])->name('grade-portal.index');
+        Route::get('/grade-portal', [SchoolFormRecordController::class, 'index'])->name('grade-portal.index');
         Route::post('/grade-portal/upload', [GradeController::class, 'upload'])->name('grade-portal.upload');
         Route::delete('/grade-portal/delete/{id}', [GradeController::class, 'deleteUpload'])->name('grade-portal.delete');
     });

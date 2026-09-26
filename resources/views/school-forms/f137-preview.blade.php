@@ -60,6 +60,13 @@
         .signature-line { border-top: 1px solid #000; padding-top: 3px; }
         .footer { position: absolute; right: 9mm; bottom: 5mm; font-size: 6px; }
         .limit-warning { margin: 6px 0; border: 1px solid #f59e0b; background: #fffbeb; padding: 6px; color: #92400e; font-size: 8px; }
+        .review-checker { max-width: 1120px; margin: 0 auto 36px; border: 1px solid #cbd5e1; border-radius: 12px; padding: 22px; background: #fff; box-shadow: 0 8px 24px rgba(15,23,42,.08); }
+        .review-checker h2 { margin: 0; font-size: 18px; }
+        .review-checker p { margin: 7px 0 0; color: #64748b; font-size: 13px; }
+        .review-confirm { display: flex; gap: 11px; align-items: flex-start; margin-top: 18px; border: 1px solid #dbe2ea; border-radius: 9px; padding: 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
+        .review-confirm input { width: 19px; height: 19px; margin: 0; flex: 0 0 auto; }
+        .review-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+        .review-actions button:disabled, .review-actions a.is-disabled { opacity: .45; pointer-events: none; cursor: not-allowed; }
         @media (max-width: 850px) {
             .preview-toolbar { align-items: flex-start; flex-direction: column; padding: 12px 14px; }
             .preview-toolbar h1 { font-size: 17px; }
@@ -71,7 +78,7 @@
         @media print {
             @page { size: A4 portrait; margin: 0; }
             body { background: #fff; }
-            .preview-toolbar, .preview-note { display: none !important; }
+            .preview-toolbar, .preview-note, .review-checker { display: none !important; }
             .sheet-wrap { overflow: visible; padding: 0; }
             .sheet { width: 210mm; min-height: 297mm; margin: 0; box-shadow: none; page-break-after: always; }
             .sheet:last-child { page-break-after: auto; }
@@ -100,8 +107,10 @@
     <div class="toolbar-actions">
         <a class="action" href="{{ route('school-forms.home', ['student' => $identifier, 'form' => 'f137']) }}">Back</a>
         <button class="action" type="button" onclick="window.print()">Print preview</button>
-        <a class="action primary" href="{{ route('school-forms.f137.pdf', $downloadParameters) }}">Download F137 PDF</a>
-        <a class="action" href="{{ route('school-forms.f137.download', $downloadParameters) }}">Download F137 Excel</a>
+        @unless($requestId)
+            <a class="action primary" href="{{ route('school-forms.f137.pdf', $downloadParameters) }}">Download F137 PDF</a>
+            <a class="action" href="{{ route('school-forms.f137.download', $downloadParameters) }}">Download F137 Excel</a>
+        @endunless
     </div>
 </header>
 
@@ -210,6 +219,52 @@
         <div class="footer">{{ $isJhs ? 'Revised 2025' : 'SFRT Revised 2017' }}</div>
     </section>
 </main>
+@if($requestId && auth()->user()->role === 'records_officer')
+<section class="review-checker" aria-labelledby="f137-review-title">
+    <h2 id="f137-review-title">Final document check</h2>
+    <p>Confirm the details, preview the protected PDF, then download the Excel file before forwarding it for approval.</p>
+    <label class="review-confirm">
+        <input id="f137-correct" type="checkbox">
+        <span>I reviewed the learner information, school years, subjects, grades, and school details. Everything is correct.</span>
+    </label>
+    <div class="review-actions">
+        <a id="f137-preview-pdf" class="action review-gated is-disabled" target="_blank" rel="noopener" aria-disabled="true"
+           href="{{ route('school-forms.f137.pdf', [...$downloadParameters, 'reviewed' => 1, 'preview' => 1]) }}">Preview F137 PDF</a>
+        <a id="f137-download-excel" class="action primary is-disabled" aria-disabled="true"
+           href="{{ route('school-forms.f137.download', [...$downloadParameters, 'reviewed' => 1]) }}">Download F137 Excel</a>
+        <form method="POST" action="{{ route('requests.update-status', $requestId) }}">
+            @csrf
+            <input type="hidden" name="status" value="processed">
+            <button id="f137-forward" class="action" type="submit" disabled>Downloaded - forward to registrar</button>
+        </form>
+    </div>
+</section>
+<script>
+    (() => {
+        const checkbox = document.getElementById('f137-correct');
+        const gatedActions = document.querySelectorAll('.review-gated');
+        const previewPdf = document.getElementById('f137-preview-pdf');
+        const downloadExcel = document.getElementById('f137-download-excel');
+        const forward = document.getElementById('f137-forward');
+        checkbox.addEventListener('change', () => {
+            gatedActions.forEach((action) => {
+                action.classList.toggle('is-disabled', !checkbox.checked);
+                action.setAttribute('aria-disabled', checkbox.checked ? 'false' : 'true');
+            });
+            if (!checkbox.checked) {
+                downloadExcel.classList.add('is-disabled');
+                downloadExcel.setAttribute('aria-disabled', 'true');
+                forward.disabled = true;
+            }
+        });
+        previewPdf.addEventListener('click', () => window.setTimeout(() => {
+            downloadExcel.classList.remove('is-disabled');
+            downloadExcel.setAttribute('aria-disabled', 'false');
+        }, 700));
+        downloadExcel.addEventListener('click', () => window.setTimeout(() => { forward.disabled = false; }, 700));
+    })();
+</script>
+@endif
 @include('partials.loading-overlay')
 </body>
 </html>

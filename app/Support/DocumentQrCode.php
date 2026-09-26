@@ -288,7 +288,7 @@ class DocumentQrCode
 
     private function signingKey(): string
     {
-        $key = (string) config('document_verification.signing_key');
+        $key = (string) (config('document_verification.signing_key') ?: config('app.key'));
 
         if ($key === '') {
             throw new RuntimeException('Set DOCUMENT_SIGNING_KEY or APP_KEY before issuing documents.');
