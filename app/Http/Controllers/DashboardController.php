@@ -41,6 +41,7 @@ class DashboardController extends Controller
                 $data['recent_requests'] = RequestDocument::with('student')->latest()->limit(8)->get();
             }
         } elseif ($role === 'student') {
+            $data['announcements'] = \App\Models\Announcement::latest('id')->get();
             $student_number = $user->student_number ?? session('student_number');
 
             if ($student_number) {

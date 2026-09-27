@@ -102,7 +102,7 @@ class DocumentQrCode
 
             $token = (string) Str::uuid();
             $controlNumber = $this->newControlNumber($documentType, $issuedAt);
-            $issuer = (string) config('document_verification.issuer', config('app.name'));
+            $issuer = SystemContent::issuer();
 
             $claims = $this->normalize([
                 'version' => 1,

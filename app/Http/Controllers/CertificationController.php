@@ -260,7 +260,7 @@ class CertificationController extends Controller
             ],
             'assets' => [
                 'template' => $this->imageDataUri(public_path('certificates/certificate-template.svg')),
-                'seal' => $this->imageDataUri(public_path('certificates/fla-seal.jpg')),
+                'seal' => $this->imageDataUri(\App\Support\SystemContent::logoPath(public_path('certificates/fla-seal.jpg'))),
             ],
         ];
     }

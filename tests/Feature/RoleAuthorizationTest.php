@@ -64,13 +64,13 @@ class RoleAuthorizationTest extends TestCase
             $this->actingAs($user)->get(route('analytics.index'))->assertForbidden();
             $this->actingAs($user)->get(route('logs.index'))->assertForbidden();
             $this->actingAs($user)->delete(route('logs.clear'))->assertForbidden();
-            $this->actingAs($user)->get(route('settings.index'))->assertForbidden();
+            $this->actingAs($user)->get(route('settings.index'))->assertStatus($role === 'registrar' ? 200 : 403);
         }
 
         $admin = $this->user('admin');
         $this->actingAs($admin)->get(route('analytics.index'))->assertOk();
         $this->actingAs($admin)->get(route('logs.index'))->assertOk();
-        $this->actingAs($admin)->get(route('settings.index'))->assertOk();
+        $this->actingAs($admin)->get(route('settings.index'))->assertForbidden();
     }
 
     public function test_legacy_grade_portal_is_limited_to_admin_and_registrar(): void

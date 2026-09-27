@@ -101,7 +101,7 @@
         <div class="header">
             <p>Republic of the Philippines</p>
             <p>Department of Education</p>
-            <h1>{{ \App\Models\Setting::where('key', 'institution_name')->first()->value ?? 'Fiat Lux Academe' }}</h1>
+            <h1>{{ \App\Support\SystemContent::schoolName() }}</h1>
             <p>Report on Learning Progress and Achievements</p>
             <p><strong>FORM 138-A</strong></p>
         </div>

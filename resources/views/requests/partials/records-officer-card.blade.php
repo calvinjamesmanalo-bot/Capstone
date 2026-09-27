@@ -42,6 +42,7 @@
         <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
             <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Requested document</p>
             <p class="mt-1 text-base font-bold text-[#000638]">{{ $req->document_type }}</p>
+            @include('requests.partials.dynamic-answers')
             @if($req->school_year)<p class="mt-1 text-sm text-slate-600">School year: {{ $req->school_year }}</p>@endif
             @if($req->school_level)<p class="mt-1 text-sm text-slate-600">School level: {{ strtoupper($req->school_level) }}</p>@endif
             @if($req->document_price !== null)<p class="mt-1 text-sm text-slate-600">Document fee: ₱{{ number_format($req->document_price, 2) }}</p>@endif
@@ -63,19 +64,22 @@
 
     <div class="grid gap-4 border-t border-slate-200 bg-white px-4 pb-5 pt-1 sm:px-5">
         <div class="pt-1">@include('requests.partials.status-timeline', ['histories' => $req->statusHistories, 'staff' => true])</div>
+        @if($req->request_type_id)
+            <p class="text-sm text-slate-600">This custom request is prepared manually by the registrar.</p>
+        @else
         <div class="order-2 border-t border-slate-200 px-1 pt-4">
             <p class="text-xs font-bold uppercase tracking-wide text-[#000638]">Document tools</p>
             <p class="mt-1 text-sm text-slate-600">Generate and download the protected document before forwarding it to the registrar.</p>
-            @if(str_starts_with($req->document_type, 'Certificate of '))
+            @if(!$req->request_type_id && str_starts_with($req->document_type, 'Certificate of '))
                 <a href="{{ route('certifications.index', ['request_id' => $req->id]) }}" class="mt-3 inline-flex rounded-lg border border-[#000638] bg-white px-4 py-2 text-sm font-bold text-[#000638] hover:bg-slate-100">Open Certification Maker</a>
-            @elseif(str_contains($documentName, 'good moral'))
+            @elseif(!$req->request_type_id && str_contains($documentName, 'good moral'))
                 <a href="{{ route('good-moral.index', ['request_id' => $req->id]) }}" class="mt-3 inline-flex rounded-lg border border-[#000638] bg-white px-4 py-2 text-sm font-bold text-[#000638] hover:bg-slate-100">Open Good Moral Maker</a>
-            @elseif(in_array($documentName, ['form 137', 'form 138', 'f137', 'f138']))
+            @elseif(!$req->request_type_id && in_array($documentName, ['form 137', 'form 138', 'f137', 'f138']))
                 @php
                     $schoolForm = str_contains($documentName, '137') ? 'f137' : 'f138';
                 @endphp
                 <a href="{{ route('school-forms.'.$schoolForm.'.preview', array_filter(['student' => $req->student_number, 'school_year' => $schoolForm === 'f138' ? $req->school_year : null, 'request_id' => $req->id])) }}" class="mt-3 inline-flex rounded-lg border border-[#000638] bg-white px-4 py-2 text-sm font-bold text-[#000638] hover:bg-slate-100">Continue processing {{ $req->document_type }}</a>
-            @elseif(str_contains($documentName, 'diploma'))
+            @elseif(!$req->request_type_id && str_contains($documentName, 'diploma'))
                 <a href="{{ route('diploma.index', ['request_id' => $req->id]) }}" class="mt-3 inline-flex rounded-lg border border-[#000638] bg-white px-4 py-2 text-sm font-bold text-[#000638] hover:bg-slate-100">Open Diploma Maker</a>
             @endif
             @if($hasPreparedDocument)
@@ -85,9 +89,10 @@
                 </div>
             @endif
         </div>
+        @endif
         <div class="order-1 rounded-xl border border-slate-200 bg-[#f8f9fc] p-4">
             <p class="text-xs font-bold uppercase tracking-wide text-[#000638]">Next step</p>
-            <p class="mt-1 text-sm text-slate-600">{{ $nextStep }}</p>
+            <p class="mt-1 text-sm text-slate-600">{{ $req->request_type_id ? 'The registrar handles preparation and release.' : $nextStep }}</p>
             @if($allowedStatuses !== [])
                 <form action="{{ route('requests.update-status', $req->id) }}" method="POST" class="mt-3"
                       data-request-identifier="{{ $req->ticket_number ?? '#'.$req->id }}"
@@ -112,7 +117,7 @@
             @else
                 <p class="mt-3 rounded-lg bg-white px-4 py-3 text-sm text-slate-600">No status change is available for the records officer at this stage.</p>
             @endif
-            @if($req->status === 'processing' && ! $hasPreparedDocument)
+            @if(!$req->request_type_id && $req->status === 'processing' && ! $hasPreparedDocument)
                 <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">The forwarding button will appear after a protected PDF has been generated and downloaded.</p>
             @endif
         </div>

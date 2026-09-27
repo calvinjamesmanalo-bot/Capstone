@@ -120,7 +120,6 @@
                         ['grade-portal.index', 'Academic records', 'Grade sheets and uploaded records'],
                         ['analytics.index', 'Reports & analytics', 'Request volume and trends'],
                         ['logs.index', 'Audit & security', 'System actions and verification events'],
-                        ['settings.index', 'System settings', 'School profile and portal configuration'],
                     ] as [$routeName, $label, $description])
                         <a href="{{ route($routeName) }}" class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 hover:border-indigo-300 hover:bg-indigo-50/40">
                             <span>

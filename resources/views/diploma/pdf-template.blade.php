@@ -104,8 +104,8 @@
 <body>
     <div class="diploma-container">
         <div class="header">
-            <div class="school-name">Fiat Lux Academe</div>
-            <div class="school-address">Dasmariñas City, Cavite, Philippines</div>
+            <div class="school-name">{{ \App\Support\SystemContent::schoolName() }}</div>
+            <div class="school-address">{{ \App\Support\SystemContent::get('school_address', 'Dasmariñas City, Cavite, Philippines') }}</div>
         </div>
 
         <div class="award-text">This certifies that</div>
@@ -119,7 +119,7 @@
         <div class="course-text">{{ $course }}</div>
 
         <div class="date-text">
-            Given this {{ $date }} at Fiat Lux Academe, Dasmariñas City, Cavite.
+            Given this {{ $date }} at {{ \App\Support\SystemContent::schoolName() }}, {{ \App\Support\SystemContent::get('school_address', 'Dasmariñas City, Cavite') }}.
         </div>
 
         <div class="signatures">

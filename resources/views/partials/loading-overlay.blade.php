@@ -70,7 +70,7 @@
     <div class="fla-loader-mark" role="status" aria-label="Loading">
         <span class="fla-loader-orbit" aria-hidden="true"></span>
         <span class="fla-loader-ring" aria-hidden="true"></span>
-        <img class="fla-loader-logo" src="{{ asset('images/fiat.png') }}" alt="">
+        <img class="fla-loader-logo" src="{{ \App\Support\SystemContent::logoUrl() }}" alt="">
     </div>
 </div>
 

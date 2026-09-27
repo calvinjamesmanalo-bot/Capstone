@@ -27,7 +27,7 @@
         <div class="p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border-l-4 border-[#d59b11]">
             <div class="flex items-center gap-4">
                 <div class="w-16 h-16 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden">
-                    <img src="{{ asset('images/fiat.png') }}" alt="Fiat Lux Academe logo" class="w-14 h-14 object-contain" />
+                    <img src="{{ \App\Support\SystemContent::logoUrl() }}" alt="Fiat Lux Academe logo" class="w-14 h-14 object-contain" />
                 </div>
                 <div>
                     <h2 class="text-2xl font-semibold text-[#062b63]">Form 137 Generator</h2>

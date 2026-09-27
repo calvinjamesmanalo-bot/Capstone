@@ -63,7 +63,7 @@ class DocumentWorkbookVerification
             $sheet->getColumnDimension($column)->setWidth(18);
         }
 
-        $sheet->mergeCells('B2:F2')->setCellValue('B2', config('document_verification.issuer'));
+        $sheet->mergeCells('B2:F2')->setCellValue('B2', SystemContent::issuer());
         $sheet->mergeCells('B3:F3')->setCellValue('B3', 'SECURE DOCUMENT VERIFICATION');
         $sheet->getStyle('B2:F2')->getFont()->setBold(true)->setSize(18)->getColor()->setRGB('000638');
         $sheet->getStyle('B3:F3')->getFont()->setBold(true)->getColor()->setRGB('667085');

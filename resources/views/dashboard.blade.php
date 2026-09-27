@@ -6,6 +6,25 @@
 
 @section('content')
 <div class="request-a11y min-w-0 space-y-8">
+    @if($role === 'student')
+        <section aria-labelledby="announcement-heading" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex items-center gap-3">
+                <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#000638] text-[#ffd22d]" aria-hidden="true">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5L6 9H3v6h3l5 4V5zm4 3a5 5 0 010 8m3-11a9 9 0 010 14" /></svg>
+                </span>
+                <h2 id="announcement-heading" class="text-lg font-semibold text-slate-900">Announcement</h2>
+            </div>
+            <div class="mt-4 divide-y divide-slate-200">
+                @forelse($data['announcements'] as $announcement)
+                    <article class="py-4 first:pt-0 last:pb-0">
+                        <p class="whitespace-pre-line break-words text-sm leading-6 text-slate-600">{{ $announcement->body }}</p>
+                    </article>
+                @empty
+                    <p class="text-sm text-slate-600">No announcements at this time.</p>
+                @endforelse
+            </div>
+        </section>
+    @endif
     @php
         $quickActions = match ($role) {
             'admin' => [
@@ -14,9 +33,10 @@
                 ['route' => 'grade-portal.index', 'title' => 'Grade Portal', 'description' => 'Find and manage student grade uploads.', 'count' => null],
                 ['route' => 'analytics.index', 'title' => 'View Analytics', 'description' => 'Review request and system trends.', 'count' => null],
                 ['route' => 'logs.index', 'title' => 'Activity Logs', 'description' => 'Review system and verification activity.', 'count' => null],
-                ['route' => 'settings.index', 'title' => 'System Settings', 'description' => 'Configure school and portal settings.', 'count' => null],
             ],
             'registrar' => [
+                ['route' => 'request-types.index', 'title' => 'Request Forms', 'description' => 'Manage student request types and form fields.', 'count' => null],
+                ['route' => 'settings.index', 'title' => 'System Settings', 'description' => 'Configure school and portal settings.', 'count' => null],
                 ['route' => 'requests.index', 'title' => 'Review Requests', 'description' => 'Review processed requests awaiting action.', 'count' => null],
                 ['route' => 'requests.history', 'title' => 'Request History', 'description' => 'View released and rejected requests.', 'count' => null],
                 ['route' => 'grade-portal.index', 'title' => 'Grade Portal', 'description' => 'Upload student records and class grade sheets.', 'count' => null],

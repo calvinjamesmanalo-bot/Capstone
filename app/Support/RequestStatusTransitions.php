@@ -21,8 +21,13 @@ class RequestStatusTransitions
     {
         $targets = self::FLOW[$request->status ?? 'pending'] ?? [];
 
+        // Custom documents are prepared manually by the registrar, without a generator or signature prerequisite.
+        if ($request->request_type_id !== null) {
+            return in_array($actor->role, ['admin', 'registrar'], true) ? $targets : [];
+        }
+
         return array_values(array_filter($targets, function (string $target) use ($request, $actor): bool {
-            if ($target === 'processed' && ! $request->hasPreparedDocument()) {
+            if ($target === 'processed' && ! $request->request_type_id && ! $request->hasPreparedDocument()) {
                 return false;
             }
 
@@ -42,7 +47,7 @@ class RequestStatusTransitions
         }
 
         if (! in_array($target, $this->allowed($request, $actor), true)) {
-            if ($target === 'processed' && ! $request->hasPreparedDocument()) {
+            if ($target === 'processed' && ! $request->request_type_id && ! $request->hasPreparedDocument()) {
                 throw ValidationException::withMessages([
                     'status' => 'Generate and download the protected document before forwarding it to the registrar.',
                 ]);
