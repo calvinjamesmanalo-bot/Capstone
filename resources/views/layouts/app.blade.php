@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    @include('partials.favicon')
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fiat Lux Academe Document Request Hub - @yield('title', 'Dashboard')</title>
+    <title>{{ \App\Support\SystemContent::schoolName() }} Document Request Hub - @yield('title', 'Dashboard')</title>
     <script>
         (() => {
             const savedTheme = localStorage.getItem('fla-theme');
@@ -15,7 +16,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     @include('partials.responsive-foundation')
     <style>
-        :root { --fla-navy: #000638; --fla-gold: #ffd22d; --fla-ink: #10152f; }
+        :root { --fla-navy: {{ \App\Support\SystemContent::get('portal_primary_color', '#000638') }}; --fla-gold: {{ \App\Support\SystemContent::get('portal_accent_color', '#ffd22d') }}; --fla-ink: #10152f; }
         body { font-family: 'Inter', sans-serif; background: #f6f7fb; }
         button, a, input, select, textarea { touch-action: manipulation; }
         .request-a11y :is(a, button, input, select, textarea, [tabindex="0"]):focus-visible,
@@ -63,6 +64,48 @@
         .theme-toggle-icon-sun { display: none; }
         html.dark .theme-toggle-icon-sun { display: block; }
         html.dark .theme-toggle-icon-moon { display: none; }
+        #primary-sidebar > nav {
+            min-height: 0;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        #primary-sidebar > nav::-webkit-scrollbar {
+            display: none;
+            width: 0;
+            height: 0;
+        }
+
+        #primary-sidebar > nav[data-spacing] {
+            padding-bottom: 1rem;
+        }
+        #primary-sidebar > nav > .sidebar-link {
+            transition-property: color, background-color, border-color, box-shadow;
+        }
+        #primary-sidebar > nav[data-spacing] > .sidebar-link {
+            padding-top: 0.625rem;
+            padding-bottom: 0.625rem;
+        }
+        #primary-sidebar > nav[data-spacing] > .sidebar-link {
+            margin-top: 0.125rem;
+            margin-bottom: 0;
+        }
+        #primary-sidebar > nav > p {
+            margin-top: 1.125rem;
+            margin-bottom: 0.25rem;
+        }
+        #primary-sidebar > nav[data-spacing] > p {
+            margin-top: 1rem;
+            margin-bottom: 0.1875rem;
+        }
+        #primary-sidebar > nav[data-spacing="compact"] > .sidebar-link {
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        #primary-sidebar > nav[data-spacing="compact"] > p {
+            margin-top: 0.875rem;
+            margin-bottom: 0.125rem;
+        }
+
         .sidebar-link.active {
             background-color: var(--fla-gold);
             color: var(--fla-navy);
@@ -183,9 +226,9 @@
         <aside id="primary-sidebar" data-mobile-sidebar class="fixed inset-y-0 left-0 z-[60] flex h-full -translate-x-full flex-col border-r border-[#10175a] bg-[#000638] text-slate-200 shadow-2xl transition-transform duration-200 ease-out lg:z-50 lg:w-64 lg:translate-x-0 lg:shadow-none" aria-label="Primary navigation">
             <!-- Brand -->
             <div class="px-5 py-5 flex items-center gap-3 border-b border-white/10">
-                <img src="{{ asset('images/fiat.png') }}" alt="Fiat Lux Academe seal" class="w-12 h-12 rounded-full bg-white object-contain ring-2 ring-[#ffd22d]">
+                <img src="{{ \App\Support\SystemContent::logoUrl() }}" alt="Fiat Lux Academe seal" class="w-12 h-12 rounded-full bg-white object-contain ring-2 ring-[#ffd22d]">
                 <div class="min-w-0 flex-1">
-                    <h1 class="text-white font-bold text-base leading-tight">FIAT LUX ACADEME</h1>
+                    <h1 class="text-white font-bold text-base leading-tight">{{ \App\Support\SystemContent::schoolName() }}</h1>
                     <p class="text-xs text-[#ffd22d] mt-1">Document Request Hub</p>
                 </div>
                 <button type="button" data-mobile-sidebar-close class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#ffd22d] lg:hidden" aria-label="Close navigation menu">
@@ -212,8 +255,8 @@
                     $role = auth()->user()->role ?? 'admin'; // Default to admin for now if not logged in
                 @endphp
 
-                <p class="px-4 mb-3 mt-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">Main Menu</p>
-                
+                <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">Main Menu</p>
+
                 <a href="{{ route('dashboard') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('dashboard') ? 'active' : 'hover:bg-slate-800/50' }}">
                     <div class="w-5 h-5 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -224,7 +267,7 @@
                 </a>
 
                 @if(in_array($role, ['admin', 'registrar', 'records_officer']))
-                <p class="px-4 mb-3 mt-6 text-xs font-semibold text-slate-400 uppercase tracking-wide">Administrative</p>
+                <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">Administrative</p>
 
                 @if($role === 'admin')
                 <a href="{{ route('users.index') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('users.index') ? 'active' : 'hover:bg-slate-800/50' }}">
@@ -267,7 +310,7 @@
                 @endif
 
                 @if($role === 'student')
-                <p class="px-4 mb-3 mt-6 text-xs font-semibold text-slate-400 uppercase tracking-wide">Student Services</p>
+                <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">Student Services</p>
                 <a href="{{ route('student.request') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('student.request') ? 'active' : 'hover:bg-slate-800/50' }}">
                     <div class="w-5 h-5 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -297,7 +340,7 @@
                 @endif
 
                 @if($role === 'registrar')
-                <p class="px-4 mb-3 mt-6 text-xs font-semibold text-slate-400 uppercase tracking-wide">Academic Records</p>
+                <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">Academic Records</p>
 
                 <a href="{{ route('grade-portal.index') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('grade-portal.*', 'school-forms.records') ? 'active' : 'hover:bg-slate-800/50' }}">
                     <div class="w-5 h-5 flex items-center justify-center">
@@ -348,7 +391,7 @@
                 @endif
 
                 @if($role === 'admin')
-                <p class="px-4 mb-3 mt-6 text-xs font-semibold text-slate-400 uppercase tracking-wide">System</p>
+                <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">System</p>
 
                 <a href="{{ route('analytics.index') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('analytics.index') ? 'active' : 'hover:bg-slate-800/50' }}">
                     <div class="w-5 h-5 flex items-center justify-center">
@@ -368,6 +411,34 @@
                     <span class="text-base font-semibold">Audit &amp; Security Logs</span>
                 </a>
 
+                <a href="{{ route('settings.index') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('settings.index') ? 'active' : 'hover:bg-slate-800/50' }}">
+                    <div class="w-5 h-5 flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        </svg>
+                    </div>
+                    <span class="text-base font-semibold">Settings</span>
+                </a>
+                @endif
+
+                @if($role === 'registrar')
+                <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">System</p>
+
+                <a href="{{ route('request-types.index') }}" class="sidebar-link flex items-center justify-between gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('request-types.*') ? 'active' : '' }}">
+                    <div class="flex items-center gap-4">
+                        <div class="w-5 h-5 flex items-center justify-center">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h8l6-6V8l-6-6z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13.5 15.5l5-5a1.414 1.414 0 012 2l-5 5-3 1 1-3z" />
+                            </svg>
+                        </div>
+                            <span class="text-base font-semibold">Manage School Forms</span>
+                    </div>
+                </a>
+
+
                 <a href="{{ route('settings.index') }}" class="sidebar-link flex items-center justify-between gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('settings.index') ? 'active' : 'hover:bg-slate-800/50' }}">
                     <div class="flex items-center gap-4">
                         <div class="w-5 h-5 flex items-center justify-center">
@@ -375,7 +446,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                             </svg>
                         </div>
-                            <span class="text-base font-semibold">System Settings</span>
+                            <span class="text-base font-semibold">Announcements</span>
                     </div>
                 </a>
                 @endif
@@ -461,7 +532,7 @@
 
             <!-- Footer -->
             <footer class="mt-auto border-t border-slate-200 bg-white px-4 py-5 text-xs text-slate-500 sm:px-6 lg:px-8">
-                <p>&copy; {{ date('Y') }} Fiat Lux Academe Document Request Hub</p>
+                <p>&copy; {{ date('Y') }} {{ \App\Support\SystemContent::get('portal_footer_text', \App\Support\SystemContent::schoolName().' Document Request Hub') }}</p>
             </footer>
         </main>
     </div>
@@ -479,6 +550,35 @@
         setInterval(updateFiatLuxClock, 1000);
     </script>
     @endif
+    <script>
+        (() => {
+            const navigation = document.querySelector('#primary-sidebar > nav');
+            if (!navigation) return;
+
+            let frame;
+            const fitNavigation = () => {
+                frame = null;
+                const scrollTop = navigation.scrollTop;
+                // Always try the comfortable layout first, including after growing the window.
+                navigation.removeAttribute('data-spacing');
+                for (const spacing of ['comfortable', 'compact']) {
+                    if (navigation.scrollHeight <= navigation.clientHeight + 1) break;
+                    navigation.dataset.spacing = spacing;
+                }
+                navigation.scrollTop = scrollTop;
+            };
+            const scheduleFit = () => {
+                if (frame == null) frame = requestAnimationFrame(fitNavigation);
+            };
+
+            new ResizeObserver(scheduleFit).observe(navigation);
+            new MutationObserver(scheduleFit).observe(navigation, { childList: true, subtree: true, characterData: true });
+            window.addEventListener('resize', scheduleFit);
+            window.addEventListener('load', scheduleFit);
+            document.fonts?.ready.then(scheduleFit);
+            scheduleFit();
+        })();
+    </script>
     <script>
         (() => {
             const root = document.documentElement;

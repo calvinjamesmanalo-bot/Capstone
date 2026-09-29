@@ -1,4 +1,4 @@
-<?php
+`<?php
 
 use App\Models\LoginAttemptLog;
 use App\Models\StudentAccountActivation;

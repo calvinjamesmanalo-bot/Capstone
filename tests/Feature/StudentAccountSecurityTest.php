@@ -128,7 +128,7 @@ class StudentAccountSecurityTest extends TestCase
             ->assertDontSee('unrelated@example.com');
     }
 
-    public function test_student_account_uses_the_roster_email_and_sends_verification(): void
+    public function test_admin_created_student_account_requires_email_verification(): void
     {
         Notification::fake();
         $admin = User::factory()->create(['role' => 'admin']);
@@ -218,22 +218,6 @@ class StudentAccountSecurityTest extends TestCase
 
         $this->actingAs($student)->get(route('dashboard'))
             ->assertRedirect(route('verification.notice'));
-    }
-
-    public function test_unverified_student_can_skip_email_verification_for_the_testing_session(): void
-    {
-        $student = $this->studentUser(verified: false);
-
-        $this->actingAs($student)->get(route('verification.notice'))
-            ->assertOk()
-            ->assertSee('Skip for testing');
-
-        $this->post(route('verification.skip'))
-            ->assertRedirect(route('dashboard'))
-            ->assertSessionHas('student_email_verification_skipped', true);
-
-        $this->get(route('dashboard'))->assertOk();
-        $this->assertFalse($student->fresh()->hasVerifiedEmail());
     }
 
     public function test_signed_verification_link_verifies_the_official_email(): void

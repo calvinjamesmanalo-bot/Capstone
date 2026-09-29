@@ -57,7 +57,7 @@
     <article class="receipt-page min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-labelledby="receipt-title">
         <header class="receipt-section border-b border-slate-200 px-6 py-7 sm:px-10">
             <div class="flex items-center gap-4">
-                <img src="{{ asset('images/fiat.png') }}" alt="{{ $schoolProfile['school'] }} seal" class="h-16 w-16 rounded-full object-contain">
+                <img src="{{ \App\Support\SystemContent::logoUrl() }}" alt="{{ $schoolProfile['school'] }} seal" class="h-16 w-16 rounded-full object-contain">
                 <div class="min-w-0">
                     <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Official Request Receipt</p>
                     <h1 id="receipt-title" class="mt-1 break-words text-xl font-black text-[#000638] sm:text-2xl">{{ $schoolProfile['school'] }}</h1>
@@ -71,6 +71,7 @@
             </div>
         </header>
 
+        <div class="px-6">@include('requests.partials.dynamic-answers', ['req' => $requestDocument])</div>
         <section class="receipt-section grid gap-px bg-slate-200 sm:grid-cols-2" aria-label="Receipt reference">
             <div class="bg-slate-50 px-6 py-5 sm:px-10">
                 <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Ticket Number</p>

@@ -46,7 +46,13 @@ return [
 
         'school_forms' => [
             'driver' => 'sqlite',
-            'database' => env('SCHOOL_FORMS_DB_DATABASE', base_path('generator/database/database.sqlite')),
+            'database' => (static function (): string {
+                $path = (string) env('SCHOOL_FORMS_DB_DATABASE', 'generator/database/database.sqlite');
+
+                return preg_match('/^(?:[A-Za-z]:[\\\\\/]|[\\\\\/]{2}|\/)/', $path)
+                    ? $path
+                    : base_path($path);
+            })(),
             'prefix' => '',
             'foreign_key_constraints' => true,
             'busy_timeout' => 5000,

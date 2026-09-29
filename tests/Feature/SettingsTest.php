@@ -20,48 +20,26 @@ class SettingsTest extends TestCase
             ->assertDontSee('fla-loader-message', false);
     }
 
-    public function test_admin_can_save_the_f137_school_profile(): void
+    public function test_registrar_settings_only_contains_announcements(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs(User::factory()->create(['role' => 'registrar']));
+        $page = $this->get(route('settings.index'))->assertOk();
+        $page->assertSee('Announcements')
+            ->assertDontSee('School Logo')
+            ->assertDontSee('General Configuration');
+        $this->post(route('settings.update'), ['office_hours' => '9 to 5'])->assertForbidden();
+    }
 
-        $this->actingAs($admin)->get(route('settings.index'))
-            ->assertOk()
-            ->assertSee('F137 School Profile')
-            ->assertSee('name="school_name"', false)
-            ->assertSee('name="school_district"', false)
-            ->assertSee('name="school_id"', false)
-            ->assertSee('name="school_division"', false)
-            ->assertSee('name="school_region"', false);
+    public function test_admin_can_view_and_update_system_settings_without_announcements(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $this->get(route('settings.index'))->assertOk()
+            ->assertSee('School Logo')
+            ->assertSee('General Configuration')
+            ->assertDontSee('Create Announcement');
 
-        $response = $this->actingAs($admin)->post(route('settings.update'), [
-            'institution_name' => 'Fiat Lux Academe',
-            'school_name' => 'Fiat Lux Academe',
-            'school_district' => 'Imus District',
-            'school_id' => '401234',
-            'school_division' => 'City Schools Division of Imus',
-            'school_region' => 'Region IV-A',
-            'student_idle_timeout_minutes' => 15,
-            'price_certificate_enrollment' => 100,
-            'price_certificate_completion' => 120,
-            'price_good_moral' => 100,
-            'price_certificate_recognition' => 120,
-            'price_diploma' => 150,
-        ]);
-
-        $response->assertRedirect()->assertSessionHas('success');
-
-        foreach ([
-            'school_name' => 'Fiat Lux Academe',
-            'school_district' => 'Imus District',
-            'school_id' => '401234',
-            'school_division' => 'City Schools Division of Imus',
-            'school_region' => 'Region IV-A',
-        ] as $key => $value) {
-            $this->assertDatabaseHas('settings', [
-                'key' => $key,
-                'value' => $value,
-                'group' => 'school_profile',
-            ]);
-        }
+        $this->post(route('settings.update'), ['office_hours' => '9 to 5'])
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('settings', ['key' => 'office_hours', 'value' => '9 to 5']);
     }
 }

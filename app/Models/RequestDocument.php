@@ -12,6 +12,9 @@ class RequestDocument extends Model
     use HasFactory;
 
     protected $fillable = [
+        'request_type_id',
+        'form_snapshot',
+        'dynamic_values',
         'ticket_number',
         'student_number',
         'document_type',
@@ -37,6 +40,8 @@ class RequestDocument extends Model
     ];
 
     protected $casts = [
+        'form_snapshot' => 'array',
+        'dynamic_values' => 'array',
         'payment_confirmed' => 'boolean',
         'payment_confirmed_at' => 'datetime',
         'financial_balance' => 'decimal:2',
@@ -74,6 +79,11 @@ class RequestDocument extends Model
     public function student()
     {
         return $this->belongsTo(Student::class, 'student_number', 'student_number');
+    }
+
+    public function requestType()
+    {
+        return $this->belongsTo(RequestType::class)->withTrashed();
     }
 
     public function authenticities()

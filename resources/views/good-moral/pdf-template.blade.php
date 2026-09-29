@@ -66,8 +66,8 @@
 </head>
 <body>
     <div class="header">
-        <h1>FIAT LUX ACADEME</h1>
-        <p>Don Placido Campos Ave., Barangay San Jose, Dasmariñas City, Cavite</p>
+        <h1>{{ mb_strtoupper(\App\Support\SystemContent::schoolName()) }}</h1>
+        <p>{{ \App\Support\SystemContent::get('school_address', 'Don Placido Campos Ave., Barangay San Jose, Dasmariñas City, Cavite') }}</p>
     </div>
 
     <div class="title">
@@ -81,7 +81,7 @@
 
         <p>This certification is issued upon the request of the above-named student for <strong>{{ $purpose }}</strong>.</p>
 
-        <p>Given this {{ $date }} at Fiat Lux Academe, Dasmariñas City, Cavite, Philippines.</p>
+        <p>Given this {{ $date }} at {{ \App\Support\SystemContent::schoolName() }}, {{ \App\Support\SystemContent::get('school_address', 'Dasmariñas City, Cavite, Philippines') }}.</p>
     </div>
 
     <div class="signature-section">

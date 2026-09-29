@@ -3,6 +3,7 @@
 use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\EnforceProductionHttps;
 use App\Http\Middleware\EnsureStudentAccountIsVerified;
+use App\Http\Middleware\EnforceConfiguredPortalState;
 use App\Http\Middleware\RequireRole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -22,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             EnforceProductionHttps::class,
         ]);
         $middleware->web(append: [
+            EnforceConfiguredPortalState::class,
             AddSecurityHeaders::class,
             'throttle:web',
         ]);

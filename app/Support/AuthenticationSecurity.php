@@ -37,7 +37,7 @@ class AuthenticationSecurity
         $attemptTtl = max(60, (int) config('security.authentication.attempt_window_seconds', 900));
         $accountAttempts = $this->increment($this->accountAttemptsKey($identifier), $attemptTtl);
         $ipAttempts = $this->increment($this->ipAttemptsKey($ipAddress), $attemptTtl);
-        $maxAttempts = max(1, (int) config('security.authentication.max_attempts', 5));
+        $maxAttempts = max(1, (int) \App\Support\SystemContent::get('login_max_attempts', (string) config('security.authentication.max_attempts', 5)));
 
         if ($accountAttempts >= $maxAttempts) {
             $this->startAccountLock($identifier);
@@ -82,8 +82,9 @@ class AuthenticationSecurity
         $level = max(1, (int) $this->cache()->increment($levelKey));
         $this->cache()->put($levelKey, $level, now()->addDay());
 
+        $configuredInitial = max(1, (int) \App\Support\SystemContent::get('login_lockout_minutes', '15'));
         $durations = array_values(array_filter(
-            config('security.authentication.lockout_minutes', [15, 30, 60]),
+            [$configuredInitial, $configuredInitial * 2, $configuredInitial * 4],
             fn ($minutes) => (int) $minutes > 0
         ));
         $durations = $durations === [] ? [15] : $durations;
@@ -95,8 +96,7 @@ class AuthenticationSecurity
 
     private function startIpLock(string $ipAddress): void
     {
-        $durations = config('security.authentication.lockout_minutes', [15]);
-        $minutes = max(1, (int) ($durations[0] ?? 15));
+        $minutes = max(1, (int) \App\Support\SystemContent::get('login_lockout_minutes', '15'));
 
         $this->putLock($this->ipLockKey($ipAddress), $minutes);
         $this->cache()->forget($this->ipAttemptsKey($ipAddress));

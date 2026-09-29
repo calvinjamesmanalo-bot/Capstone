@@ -28,8 +28,8 @@
     <div class="certificate-inner">
         <header class="school-header">
             <div class="school-brand" aria-label="Fiat Lux Academe Cavite">
-                <div class="school-name">FIAT LUX ACADEME</div>
-                <div class="school-location">Cavite</div>
+                <div class="school-name">{{ mb_strtoupper(\App\Support\SystemContent::schoolName()) }}</div>
+                <div class="school-location">{{ \App\Support\SystemContent::get('school_address', 'Cavite') }}</div>
             </div>
 
             <div class="school-seal">

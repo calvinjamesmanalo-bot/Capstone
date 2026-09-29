@@ -27,6 +27,7 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
+Route::get('/school-logo', fn () => response()->file(\App\Support\SystemContent::logoPath(), ['X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'no-cache']))->name('school.logo');
 Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:login');
 Route::get('/staff/login', [LoginController::class, 'showStaffLoginForm'])->name('login.staff');
 Route::post('/staff/login', [LoginController::class, 'loginStaff'])->middleware('throttle:login')->name('login.staff.submit');
@@ -116,6 +117,7 @@ Route::middleware(['auth', 'student.verified'])->group(function () {
     });
 
     // Student Requests
+    Route::get('/requests/{requestDocument}/attachments/{field}', [RequestController::class, 'dynamicAttachment'])->name('requests.dynamic-attachment');
     Route::middleware('role:student')->group(function () {
         Route::get('/student/request', [RequestController::class, 'studentIndex'])->name('student.request');
         Route::get('/student/my-requests', [RequestController::class, 'myRequests'])->name('student.my-requests');
@@ -221,8 +223,24 @@ Route::middleware(['auth', 'student.verified'])->group(function () {
         Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
         Route::get('/logs', [ActivityLogController::class, 'index'])->name('logs.index');
         Route::delete('/logs/clear', [ActivityLogController::class, 'clear'])->name('logs.clear');
+    });
+    Route::middleware('role:registrar')->group(function () {
+        Route::patch('/request-types/built-in/{key}/price', [\App\Http\Controllers\RequestTypeController::class, 'updateBuiltInPrice'])->name('request-types.built-in.price');
+        Route::patch('/request-types/built-in/{key}/availability', [\App\Http\Controllers\RequestTypeController::class, 'setBuiltInAvailability'])->name('request-types.built-in.availability');
+        Route::patch('/request-types/{requestType}/availability', [\App\Http\Controllers\RequestTypeController::class, 'toggle'])->name('request-types.toggle');
+        Route::resource('request-types', \App\Http\Controllers\RequestTypeController::class)->except(['show', 'create', 'edit']);
+        Route::post('/settings/announcements', [\App\Http\Controllers\AnnouncementController::class, 'store'])->name('announcements.store');
+        Route::patch('/settings/announcements/{announcement}', [\App\Http\Controllers\AnnouncementController::class, 'update'])->name('announcements.update');
+        Route::patch('/settings/announcements/{announcement}/archive', [\App\Http\Controllers\AnnouncementController::class, 'archive'])->name('announcements.archive');
+    });
+    Route::middleware('role:admin,registrar')->group(function () {
         Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
+    });
+    Route::middleware('role:admin')->group(function () {
         Route::post('/settings', [SettingController::class, 'update'])->name('settings.update');
+        Route::post('/settings/backup', [\App\Http\Controllers\AdminOperationsController::class, 'backup'])->name('settings.backup');
+        Route::get('/settings/backup/{file}', [\App\Http\Controllers\AdminOperationsController::class, 'downloadBackup'])->name('settings.backup.download');
+        Route::post('/settings/test-email', [\App\Http\Controllers\AdminOperationsController::class, 'testEmail'])->name('settings.test-email');
     });
     Route::post('/documents/authenticity/{document}/revoke', [DocumentVerificationController::class, 'revoke'])
         ->middleware('role:admin,registrar,records_officer')

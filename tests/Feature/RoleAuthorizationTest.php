@@ -64,7 +64,7 @@ class RoleAuthorizationTest extends TestCase
             $this->actingAs($user)->get(route('analytics.index'))->assertForbidden();
             $this->actingAs($user)->get(route('logs.index'))->assertForbidden();
             $this->actingAs($user)->delete(route('logs.clear'))->assertForbidden();
-            $this->actingAs($user)->get(route('settings.index'))->assertForbidden();
+            $this->actingAs($user)->get(route('settings.index'))->assertStatus($role === 'registrar' ? 200 : 403);
         }
 
         $admin = $this->user('admin');

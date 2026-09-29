@@ -3,16 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\RequestDocument;
-use App\Models\Setting;
+use App\Models\RequestType;
 use App\Models\Student;
 use App\Models\User;
-use App\Support\SchoolProfile;
+use App\Support\RequestCatalog;
+use App\Support\RequestNotificationService;
 use App\Support\RequestStatusTransitions;
+use App\Support\SchoolProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class RequestController extends Controller
 {
@@ -21,7 +24,7 @@ class RequestController extends Controller
     {
         $filterOptions = [
             'statuses' => ['pending', 'processing', 'processed', 'ready_to_release', 'completed', 'rejected'],
-            'document_types' => ['Form 137', 'Form 138', 'Certificate of Enrollment', 'Certificate of Completion', 'Certificate of Good Moral Character', 'Certificate of Recognition', 'Diploma'],
+            'document_types' => array_values(array_unique([...array_keys(RequestCatalog::BUILT_INS), ...RequestType::withTrashed()->pluck('name')->all(), ...RequestDocument::distinct()->pluck('document_type')->all()])),
             'payment_methods' => ['cash', 'gcash', 'bank_transfer'],
             'delivery_methods' => ['pickup', 'delivery'],
             'school_years' => config('academics.school_years', []),
@@ -53,8 +56,12 @@ class RequestController extends Controller
         $query = RequestDocument::with(['student', 'statusHistories.changedBy', 'authenticities.artifacts']);
 
         if ($user->role === 'registrar') {
-            // Registrar only sees processed requests that need approval
-            $query->whereIn('status', ['processed', 'ready_to_release']);
+            // Built-in documents still arrive after processing; custom requests go directly to the registrar.
+            $query->where(function ($query) {
+                $query->whereIn('status', ['processed', 'ready_to_release'])
+                    ->orWhere(fn ($custom) => $custom->whereNotNull('request_type_id')
+                        ->whereIn('status', ['pending', 'processing']));
+            });
         } elseif ($user->role === 'admin') {
             // Admin sees all active requests
             $query->whereNotIn('status', ['completed', 'rejected']);
@@ -132,9 +139,13 @@ class RequestController extends Controller
                 ->get();
         }
 
-        $documentPrices = $this->documentPrices();
+        $documentPrices = RequestCatalog::availablePrices();
+        $dynamicTypes = RequestType::where('is_active', true)->orderBy('name')->get();
+        foreach ($dynamicTypes as $type) {
+            $documentPrices[$type->name] = (float) $type->fee;
+        }
 
-        return view('requests.student', compact('activeRequests', 'requestHistory', 'studentNumber', 'documentPrices'));
+        return view('requests.student', compact('activeRequests', 'requestHistory', 'studentNumber', 'documentPrices', 'dynamicTypes'));
     }
 
     public function myRequests()
@@ -162,13 +173,15 @@ class RequestController extends Controller
         return view('requests.my-requests', compact('activeRequests', 'requestHistory', 'studentNumber'));
     }
 
-    public function store(Request $request, \App\Support\RequestNotificationService $notifications)
+    public function store(Request $request, RequestNotificationService $notifications)
     {
         $user = auth()->user();
+        $request->validate(['document_type' => ['required', 'string', 'max:160']]);
+        $type = RequestType::where('is_active', true)->where('name', $request->input('document_type'))->first();
 
         // Validation changes based on user role and payment method
         $rules = [
-            'document_type' => 'required|string|in:Form 137,Form 138,Certificate of Enrollment,Certificate of Completion,Certificate of Good Moral Character,Certificate of Recognition,Diploma',
+            'document_type' => ['required', 'string', Rule::in([...array_keys(RequestCatalog::availablePrices()), ...($type ? [$type->name] : [])])],
             'school_year' => ['required_if:document_type,Form 138', 'nullable', Rule::in(config('academics.school_years', []))],
             'school_level' => ['required_if:document_type,Form 137', 'nullable', Rule::in(['kinder', 'elementary', 'jhs', 'shs'])],
             'delivery_method' => 'required|string|in:pickup,delivery',
@@ -207,7 +220,7 @@ class RequestController extends Controller
 
         // Check for duplicate active requests
         $existingRequest = RequestDocument::where('student_number', $studentNumber)
-            ->where('document_type', $request->document_type)
+            ->when($type, fn ($query) => $query->where('request_type_id', $type->id), fn ($query) => $query->where('document_type', $request->document_type))
             ->whereNotIn('status', ['completed', 'rejected'])
             ->first();
 
@@ -247,29 +260,47 @@ class RequestController extends Controller
             'local'
         );
 
-        $documentPrice = $this->documentPrices()[$request->document_type];
+        $documentPrice = $type ? (float) $type->fee : $this->documentPrices()[$request->document_type];
 
-        $createdRequest = DB::transaction(fn (): RequestDocument => RequestDocument::create([
-            'ticket_number' => $ticketNumber,
-            'student_number' => $studentNumber,
-            'document_type' => $request->document_type,
-            'school_year' => $request->document_type === 'Form 138' ? $request->school_year : null,
-            'school_level' => $request->document_type === 'Form 137' ? $request->school_level : null,
-            'document_price' => $documentPrice,
-            'delivery_method' => $request->delivery_method,
-            'payment_method' => $request->payment_method,
-            'release_location' => $request->release_location,
-            'payment_proof_path' => $transcriptReceiptPath,
-            'payment_proof_disk' => 'local',
-            'payment_proof_original_name' => $receipt->getClientOriginalName(),
-            'payment_proof_mime_type' => $receipt->getMimeType(),
-            'payment_proof_size' => $receipt->getSize(),
-            'payment_proof_sha256' => hash_file('sha256', $receipt->getRealPath()),
-            'clearance_status' => $clearanceStatus,
-            'financial_balance' => $financialBalance,
-            'payment_confirmed' => false,
-            'status' => 'pending',
-        ]));
+        $storedPaths = [$transcriptReceiptPath];
+        try {
+            $createdRequest = DB::transaction(function () use ($request, $type, $ticketNumber, $studentNumber, $documentPrice, $transcriptReceiptPath, $receipt, $clearanceStatus, $financialBalance): RequestDocument {
+                if ($type) {
+                    $current = RequestType::lockForUpdate()->find($type->id);
+                    if (! $current || ! $current->is_active || $current->version !== $type->version) {
+                        throw ValidationException::withMessages(['document_type' => 'This form changed or became unavailable. Reload the page before submitting.']);
+                    }
+                }
+
+                return RequestDocument::create([
+                    'request_type_id' => $type?->id,
+                    'form_snapshot' => $type ? $type->only(['name', 'fee', 'version']) : null,
+                    'dynamic_values' => null,
+                    'ticket_number' => $ticketNumber,
+                    'student_number' => $studentNumber,
+                    'document_type' => $request->document_type,
+                    'school_year' => $request->document_type === 'Form 138' ? $request->school_year : null,
+                    'school_level' => $request->document_type === 'Form 137' ? $request->school_level : null,
+                    'document_price' => $documentPrice,
+                    'delivery_method' => $request->delivery_method,
+                    'payment_method' => $request->payment_method,
+                    'release_location' => $request->release_location,
+                    'payment_proof_path' => $transcriptReceiptPath,
+                    'payment_proof_disk' => 'local',
+                    'payment_proof_original_name' => $receipt->getClientOriginalName(),
+                    'payment_proof_mime_type' => $receipt->getMimeType(),
+                    'payment_proof_size' => $receipt->getSize(),
+                    'payment_proof_sha256' => hash_file('sha256', $receipt->getRealPath()),
+                    'clearance_status' => $clearanceStatus,
+                    'financial_balance' => $financialBalance,
+                    'payment_confirmed' => false,
+                    'status' => 'pending',
+                ]);
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($storedPaths);
+            throw $exception;
+        }
 
         $notifications->statusChanged($createdRequest);
 
@@ -312,6 +343,20 @@ class RequestController extends Controller
             ->header('Cache-Control', 'private, no-store, max-age=0')
             ->header('Pragma', 'no-cache')
             ->header('X-Content-Type-Options', 'nosniff');
+    }
+
+    public function dynamicAttachment(Request $request, RequestDocument $requestDocument, string $field)
+    {
+        $this->authorizeReceiptViewer($request, $requestDocument);
+        $definition = collect($requestDocument->form_snapshot['fields'] ?? [])->firstWhere('key', $field);
+        abort_unless(($definition['type'] ?? null) === 'file', 404);
+        $file = $requestDocument->dynamic_values[$field] ?? null;
+        abort_unless(is_array($file) && str_starts_with($file['path'] ?? '', 'request-attachments/') && ! str_contains($file['path'], '..'), 404);
+        abort_unless(Storage::disk('local')->exists($file['path']), 404);
+
+        return Storage::disk('local')->download($file['path'], $file['name'], [
+            'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function uploadedReceipt(Request $request, RequestDocument $requestDocument)
@@ -429,38 +474,13 @@ class RequestController extends Controller
             );
             abort(403);
         }
+
         return $user;
     }
 
     private function documentPrices(): array
     {
-        $defaults = [
-            'Form 137' => 150,
-            'Form 138' => 100,
-            'Certificate of Enrollment' => 100,
-            'Certificate of Completion' => 120,
-            'Certificate of Good Moral Character' => 100,
-            'Certificate of Recognition' => 120,
-            'Diploma' => 150,
-        ];
-
-        $keys = [
-            'Form 137' => 'price_form_137',
-            'Form 138' => 'price_form_138',
-            'Certificate of Enrollment' => 'price_certificate_enrollment',
-            'Certificate of Completion' => 'price_certificate_completion',
-            'Certificate of Good Moral Character' => 'price_good_moral',
-            'Certificate of Recognition' => 'price_certificate_recognition',
-            'Diploma' => 'price_diploma',
-        ];
-
-        $settings = Setting::whereIn('key', array_values($keys))->pluck('value', 'key');
-
-        foreach ($keys as $document => $key) {
-            $defaults[$document] = (float) ($settings[$key] ?? $defaults[$document]);
-        }
-
-        return $defaults;
+        return RequestCatalog::prices();
     }
 
     public function confirmPayment(Request $request, $request_id)
@@ -512,7 +532,7 @@ class RequestController extends Controller
         return redirect()->back()->with('success', 'Clearance status updated successfully.');
     }
 
-    public function updateStatus(Request $request, $request_id, RequestStatusTransitions $transitions, \App\Support\RequestNotificationService $notifications)
+    public function updateStatus(Request $request, $request_id, RequestStatusTransitions $transitions, RequestNotificationService $notifications)
     {
         $user = auth()->user();
         abort_unless(in_array($user?->role, ['registrar', 'admin', 'records_officer'], true), 403);
@@ -554,6 +574,7 @@ class RequestController extends Controller
 
         if (
             $request->status === 'processing'
+            && ! $requestDoc->request_type_id
             && in_array($user->role, ['records_officer', 'admin'], true)
             && in_array(strtolower($requestDoc->document_type), ['form 137', 'form 138', 'f137', 'f138'], true)
         ) {

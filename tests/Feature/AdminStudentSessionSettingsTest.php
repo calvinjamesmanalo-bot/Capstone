@@ -44,27 +44,22 @@ class AdminStudentSessionSettingsTest extends TestCase
             ->assertSee('Are you still there?');
     }
 
-    public function test_admin_sidebar_keeps_core_tools_and_hides_document_maker_shortcuts(): void
+    public function test_admin_sidebar_includes_system_settings_but_hides_registrar_forms(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('User Management')
-            ->assertSee('Active Requests')
+            ->assertSee('Accounts &amp; Roles', false)
+            ->assertSee('Request Oversight')
             ->assertSee('Data Analytics')
             ->assertSee('Audit &amp; Security Logs', false)
-            ->assertSee('System Settings')
-            ->assertDontSee('Academic Records')
-            ->assertDontSee('Grade Sheet Upload')
-            ->assertDontSee('Form 137 Maker')
-            ->assertDontSee('Form 138 Maker')
-            ->assertDontSee('Certification Maker')
-            ->assertDontSee('Good Moral Maker');
+            ->assertSee('href="'.route('settings.index').'"', false)
+            ->assertDontSee('href="'.route('request-types.index').'"', false);
     }
 
-    public function test_non_admin_cannot_change_the_student_idle_timeout(): void
+    public function test_registrar_cannot_change_the_admin_managed_student_idle_timeout(): void
     {
         $registrar = User::factory()->create(['role' => 'registrar']);
 

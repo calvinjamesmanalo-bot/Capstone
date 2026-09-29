@@ -9,7 +9,7 @@
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
         <div class="p-6 md:p-8 border-l-4 border-[#d59b11] bg-slate-50">
             <div class="flex items-center gap-4">
-                <img src="{{ asset('images/fiat.png') }}" alt="Fiat Lux Academe logo" class="w-14 h-14 object-contain">
+                <img src="{{ \App\Support\SystemContent::logoUrl() }}" alt="Fiat Lux Academe logo" class="w-14 h-14 object-contain">
                 <div>
                     <h2 class="text-2xl font-semibold text-[#062b63]">Create a certificate</h2>
                     <p class="mt-1 text-sm text-slate-600">Choose a type, enter the student details, then review the document before printing.</p>

@@ -32,7 +32,7 @@ class OfficialDocumentIssuanceTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (['certificate.crt', 'private.key'] as $file) {
+        foreach (['certificate.crt', 'private.key', 'signature.der', 'signed-content.bin'] as $file) {
             $path = $this->certificateDirectory.DIRECTORY_SEPARATOR.$file;
             if (is_file($path)) {
                 unlink($path);
@@ -259,7 +259,7 @@ class OfficialDocumentIssuanceTest extends TestCase
             'private_key_type' => OPENSSL_KEYTYPE_RSA,
             'digest_alg' => 'sha256',
         ];
-        $xamppConfig = 'C:\\xampp\\php\\extras\\ssl\\openssl.cnf';
+        $xamppConfig = dirname(PHP_BINARY).DIRECTORY_SEPARATOR.'extras/ssl/openssl.cnf';
         if (is_file($xamppConfig)) {
             $opensslOptions['config'] = $xamppConfig;
         }
@@ -311,7 +311,7 @@ class OfficialDocumentIssuanceTest extends TestCase
         file_put_contents($contentPath, $signedContent);
 
         $candidates = PHP_OS_FAMILY === 'Windows'
-            ? ['C:\\xampp\\apache\\bin\\openssl.exe', 'C:\\xampp\\php\\extras\\openssl\\openssl.exe']
+            ? [dirname(PHP_BINARY, 2).'/apache/bin/openssl.exe', dirname(PHP_BINARY).'/extras/openssl/openssl.exe', 'C:\\xampp\\apache\\bin\\openssl.exe']
             : ['/usr/bin/openssl', '/usr/local/bin/openssl'];
         $openssl = collect($candidates)->first(fn (string $path) => is_file($path));
         if ($openssl === null) {

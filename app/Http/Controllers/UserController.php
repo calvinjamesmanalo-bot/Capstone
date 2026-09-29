@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -129,17 +130,29 @@ class UserController extends Controller
             return User::create([
                 'name' => $name,
                 'email' => $validated['email'],
+                'email_verified_at' => null,
                 'password' => Hash::make($validated['password']),
                 'role' => $validated['role'],
                 'student_number' => $validated['role'] === 'student' ? $validated['student_number'] : null,
             ]);
         });
 
-        $user->sendEmailVerificationNotification();
+        $verificationSent = true;
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (\Throwable $exception) {
+            $verificationSent = false;
+            Log::warning('Verification email for an administrator-created account could not be sent.', ['exception' => $exception::class]);
+        }
 
         record_log('Created User', 'User Management', "Created account for {$user->display_name} ({$user->role})");
 
-        return redirect()->route('users.index')->with('success', 'User created successfully.');
+        return redirect()->route('users.index')->with(
+            $verificationSent ? 'success' : 'warning',
+            $verificationSent
+                ? 'User created. The student must verify their email before signing in.'
+                : 'User created, but the verification email could not be sent. Configure SMTP, then resend verification.'
+        );
     }
 
     public function edit(User $user)

@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    @include('partials.favicon')
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $portal['title'] }} - Fiat Lux Academe Document Request Hub</title>
+    <title>{{ $portal['title'] }} - {{ \App\Support\SystemContent::schoolName() }} Document Request Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     @include('partials.responsive-foundation')
     <script>
@@ -80,10 +81,10 @@
 
             <div class="absolute inset-x-0 bottom-0 p-8 text-white">
                 <div class="mb-4 flex items-center gap-3">
-                    <img src="{{ asset('images/fiat.png') }}" alt="Fiat Lux Academe seal" class="h-14 w-14 rounded-full bg-white ring-2 ring-[#ffd22d]">
+                    <img src="{{ \App\Support\SystemContent::logoUrl() }}" alt="Fiat Lux Academe seal" class="h-14 w-14 rounded-full bg-white ring-2 ring-[#ffd22d]">
                     <div>
-                        <p class="text-sm font-bold">FIAT LUX ACADEME</p>
-                        <p class="mt-1 text-xs text-[#ffd22d]">Cavite</p>
+                        <p class="text-sm font-bold">{{ mb_strtoupper(\App\Support\SystemContent::schoolName()) }}</p>
+                        <p class="mt-1 text-xs text-[#ffd22d]">{{ \App\Support\SystemContent::get('school_address', 'Cavite') }}</p>
                     </div>
                 </div>
                 <h1 class="text-3xl font-semibold leading-tight">Document Request Hub</h1>
@@ -97,10 +98,10 @@
             <div class="mb-3 shrink-0">
                 <div class="flex items-center gap-3">
                     <div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[#ffd22d] bg-white shadow-sm">
-                        <img src="{{ asset('images/fiat.png') }}" alt="Fiat Lux Academe seal" class="h-full w-full object-contain">
+                        <img src="{{ \App\Support\SystemContent::logoUrl() }}" alt="Fiat Lux Academe seal" class="h-full w-full object-contain">
                     </div>
                     <p class="text-sm font-semibold text-slate-500">
-                        {{ \App\Models\Setting::where('key', 'institution_name')->first()->value ?? 'Fiat Lux Academe' }}
+                        {{ \App\Support\SystemContent::schoolName() }}
                     </p>
                 </div>
                 <h2 class="mt-2 text-2xl font-bold text-[#000638]">{{ $portal['title'] }}</h2>

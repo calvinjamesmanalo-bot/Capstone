@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
+use Throwable;
 
 class EmailVerificationController extends Controller
 {
@@ -40,7 +42,15 @@ class EmailVerificationController extends Controller
         }
 
         abort_unless($request->user()->hasMatchingOfficialStudentRecord(), 403);
-        $request->user()->sendEmailVerificationNotification();
+        try {
+            $request->user()->sendEmailVerificationNotification();
+        } catch (Throwable $exception) {
+            Log::warning('Student verification email could not be resent.', ['exception' => $exception::class]);
+
+            return back()->withErrors([
+                'email' => 'The verification email could not be sent. Ask the administrator to configure the SMTP email service.',
+            ]);
+        }
 
         return back()->with('status', 'A new verification link has been sent to your official email address.');
     }
@@ -55,4 +65,5 @@ class EmailVerificationController extends Controller
         return redirect()->route('dashboard')
             ->with('success', 'Email verification was skipped for this testing session.');
     }
+
 }

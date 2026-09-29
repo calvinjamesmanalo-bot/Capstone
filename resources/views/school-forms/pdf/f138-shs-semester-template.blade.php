@@ -71,8 +71,8 @@
     $semesterMonths = [1 => ['June','July','August','September','October','November'], 2 => ['December','January','February','March','April','May']];
 @endphp
 <div class="header">
-    <img class="seal" src="{{ public_path('images/fiat.png') }}" alt="Fiat Lux Academe seal">
-    <h1>FIAT LUX ACADEME</h1><div class="location">Cavite</div>
+    <img class="seal" src="{{ \App\Support\SystemContent::logoPath() }}" alt="Fiat Lux Academe seal">
+    <h1> {{ mb_strtoupper(\App\Support\SystemContent::schoolName()) }}</h1><div class="location">{{ \App\Support\SystemContent::get('school_address', 'Cavite') }}</div>
     <div class="title">PROGRESS REPORT CARD</div><div class="division">Senior High School</div>
 </div>
 <table class="student">

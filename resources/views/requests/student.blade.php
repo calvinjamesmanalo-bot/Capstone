@@ -19,6 +19,7 @@
         'Diploma' => 'Official graduation credential',
     ];
     $initialStep = $errors->hasAny(['delivery_method', 'release_location', 'payment_method', 'transcript_receipt']) ? 2 : 1;
+    foreach ($dynamicTypes as $type) { $documentDescriptions[$type->name] = 'Prepared manually by the registrar'; }
 @endphp
 
 <style>
@@ -57,6 +58,7 @@
 </style>
 
 <div class="request-a11y mx-auto w-full min-w-0 max-w-[1440px]">
+    @include('requests.partials.school-content')
     @if($errors->any())
         <div class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800" role="alert">
             <div class="flex items-start gap-3">

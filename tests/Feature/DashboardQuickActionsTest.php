@@ -23,12 +23,15 @@ class DashboardQuickActionsTest extends TestCase
             ->assertSee('Account overview')
             ->assertSee('href="'.route('users.index').'"', false)
             ->assertSee('href="'.route('settings.index').'"', false)
+            ->assertDontSee('href="'.route('request-types.index').'"', false)
             ->assertDontSee('Request a Document');
     }
 
     public function test_registrar_sees_only_registrar_and_shared_staff_quick_actions(): void
     {
         $this->assertQuickActions('registrar', [
+            'settings.index',
+            'request-types.index',
             'requests.index',
             'requests.history',
             'grade-portal.index',
@@ -37,7 +40,6 @@ class DashboardQuickActionsTest extends TestCase
             'users.index',
             'analytics.index',
             'logs.index',
-            'settings.index',
             'school-forms.home',
             'student.request',
             'student.my-requests',

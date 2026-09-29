@@ -195,13 +195,15 @@
                                     </div>
                                     <div class="text-base font-black text-slate-800 tracking-tight">{{ $req->student->name }}</div>
                                     <div class="text-xs font-black text-[#000638] uppercase tracking-widest mt-1">{{ $req->student_number }}</div>
+                                    @include('requests.partials.dynamic-answers')
                                     @include('requests.partials.status-timeline', ['histories' => $req->statusHistories, 'staff' => true])
                                 </div>
                             </div>
                         </td>
                         <td class="px-5 py-6 align-top text-sm font-bold leading-6 text-slate-700">
                             {{ $req->document_type }}
-                            @if(in_array(strtolower($req->document_type), ['form 137', 'f137']) && $req->school_level)
+                            @if($req->request_type_id)<p class="mt-2 text-xs text-slate-500">Custom request — prepared manually by the registrar.</p>@endif
+                            @if(!$req->request_type_id && in_array(strtolower($req->document_type), ['form 137', 'f137']) && $req->school_level)
                                 <div class="mt-2 text-xs font-black uppercase tracking-wider text-blue-700">
                                     School level: {{ match($req->school_level) {
                                         'kinder', 'elementary' => 'Kinder and Elementary',
@@ -211,7 +213,7 @@
                                     } }}
                                 </div>
                             @endif
-                            @if(in_array(strtolower($req->document_type), ['form 138', 'f138']) && $req->school_year)
+                            @if(!$req->request_type_id && in_array(strtolower($req->document_type), ['form 138', 'f138']) && $req->school_year)
                                 <div class="mt-2 text-xs font-black uppercase tracking-wider text-blue-700">
                                     School year: {{ $req->school_year }}
                                 </div>
@@ -303,21 +305,23 @@
                                                          )
                                                  );
                                              @endphp
-                                             @if($reviewDocument)
+                                             @if($req->request_type_id)
+                                                <p class="text-sm text-slate-600">Prepared manually by the registrar.</p>
+                                             @elseif($reviewDocument)
                                                 <a href="{{ route('requests.document-preview', $req) }}" target="_blank" rel="noopener" class="w-full rounded-xl bg-[#062b63] px-4 py-2.5 text-center text-xs font-black uppercase tracking-wider text-white hover:bg-[#041d45]">Quick View Document</a>
                                              @else
                                                 <span class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-center text-xs font-bold text-amber-800">No generated document available</span>
                                              @endif
                                              {{-- Preview Buttons (Direct PDF) --}}
-                                             @if(str_starts_with($req->document_type, 'Certificate of '))
+                                             @if(!$req->request_type_id && str_starts_with($req->document_type, 'Certificate of '))
                                                 <a href="{{ route('certifications.index', ['request_id' => $req->id]) }}" class="w-full px-4 py-2.5 bg-[#062b63] text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-[#041d45] transition-all text-center">
                                                     Open Certification Maker
                                                 </a>
-                                             @elseif(str_contains(strtolower($req->document_type), 'good moral'))
+                                             @elseif(!$req->request_type_id && str_contains(strtolower($req->document_type), 'good moral'))
                                                 <a href="{{ route('good-moral.preview-request', $req->id) }}" target="_blank" class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-100 transition-all text-center border border-indigo-100">
                                                     Preview Good Moral
                                                 </a>
-                                             @elseif(str_contains(strtolower($req->document_type), 'diploma'))
+                                             @elseif(!$req->request_type_id && str_contains(strtolower($req->document_type), 'diploma'))
                                                 @php
                                                     $isPickup = str_contains(strtoupper($req->remarks ?? ''), 'MODE: PICKUP');
                                                 @endphp
@@ -330,7 +334,7 @@
                                                         For Pickup
                                                     </span>
                                                 @endif
-                                             @elseif(in_array(strtolower($req->document_type), ['form 137', 'form 138', 'f137', 'f138']))
+                                             @elseif(!$req->request_type_id && in_array(strtolower($req->document_type), ['form 137', 'form 138', 'f137', 'f138']))
                                                 <a href="{{ route('generator.maker', ['documentRequest' => $req->id, 'form' => str_contains(strtolower($req->document_type), '137') ? 'f137' : 'f138']) }}" target="_blank" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-100 transition-all text-center border border-blue-100">
                                                     Open {{ $req->document_type }} Maker
                                                 </a>
@@ -358,7 +362,7 @@
                                         <input type="hidden" name="status" value="completed">
                                         <button type="submit" class="w-full rounded-xl bg-emerald-600 px-4 py-3 text-xs font-bold text-white hover:bg-emerald-700" onclick="return confirm('Mark ticket {{ $req->ticket_number }} as released?')">Mark as Released</button>
                                     </form>
-                                @elseif(in_array(auth()->user()->role, ['records_officer', 'admin']) && $transitions->allowed($req, auth()->user()) !== [])
+                                @elseif($transitions->allowed($req, auth()->user()) !== [])
                                     <div class="flex flex-col gap-2 w-full">
                                         <!-- Status Update -->
                                         <form action="{{ route('requests.update-status', $req->id) }}" method="POST" class="flex flex-col gap-2"
@@ -404,13 +408,13 @@
                                         </div>
                                     </div>
 
-                                    @if(str_starts_with($req->document_type, 'Certificate of '))
+                                    @if(!$req->request_type_id && str_starts_with($req->document_type, 'Certificate of '))
                                     <a href="{{ route('certifications.index', ['request_id' => $req->id]) }}" class="w-12 h-12 flex items-center justify-center bg-[#062b63] text-white rounded-xl shadow-lg transition-all hover:bg-[#041d45]" title="Open Certification Maker" aria-label="Open certification maker for request {{ $req->ticket_number ?? '#'.$req->id }}">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 01.707.293l5.414 5.414A1 1 0 0118 9.414V19a2 2 0 01-2 2z" />
                                         </svg>
                                     </a>
-                                    @elseif(str_contains(strtolower($req->document_type), 'good moral'))
+                                    @elseif(!$req->request_type_id && str_contains(strtolower($req->document_type), 'good moral'))
                                     <a href="{{ route('good-moral.index', ['request_id' => $req->id]) }}" class="w-12 h-12 flex items-center justify-center bg-indigo-500 text-white rounded-xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 transition-all" title="Open Good Moral Maker" aria-label="Open good moral maker for request {{ $req->ticket_number ?? '#'.$req->id }}">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -418,7 +422,7 @@
                                     </a>
                                     @endif
 
-                                    @if(in_array(strtolower($req->document_type), ['form 137', 'form 138', 'f137', 'f138']))
+                                    @if(!$req->request_type_id && in_array(strtolower($req->document_type), ['form 137', 'form 138', 'f137', 'f138']))
                                     <a href="{{ route('generator.maker', ['documentRequest' => $req->id, 'form' => str_contains(strtolower($req->document_type), '137') ? 'f137' : 'f138']) }}" target="_blank" class="w-12 h-12 flex items-center justify-center bg-blue-600 text-white rounded-xl shadow-lg hover:bg-blue-700 transition-all" title="Open {{ $req->document_type }} Maker" aria-label="Open {{ $req->document_type }} maker for request {{ $req->ticket_number ?? '#'.$req->id }}">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0118 9.414V19a2 2 0 01-2 2z" />
@@ -426,7 +430,7 @@
                                     </a>
                                     @endif
 
-                                    @if(str_contains(strtolower($req->document_type), 'diploma'))
+                                    @if(!$req->request_type_id && str_contains(strtolower($req->document_type), 'diploma'))
                                     <a href="{{ route('diploma.index', ['request_id' => $req->id]) }}" class="w-12 h-12 flex items-center justify-center bg-amber-500 text-white rounded-xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all" title="Open Diploma Maker" aria-label="Open diploma maker for request {{ $req->ticket_number ?? '#'.$req->id }}">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path d="M12 14l9-5-9-5-9 5 9 5z" />
@@ -449,7 +453,7 @@
                 @elseif($activeParameters)
                     <x-empty-state heading="No matching requests found" description="Try different search terms or clear the filters to view active requests." :action-url="route('requests.index')" action-label="Clear search and filters" />
                 @else
-                    <x-empty-state heading="No active requests" :description="auth()->user()->role === 'registrar' ? 'Requests will appear here when they have been processed and are ready for your review.' : 'New student document requests will appear here. Released and rejected requests are available in history.'" :action-url="route('requests.history')" action-label="View request history" />
+                    <x-empty-state heading="No active requests" :description="auth()->user()->role === 'registrar' ? 'New custom requests and processed built-in documents will appear here. Released and rejected requests are available in history.' : 'New student document requests will appear here. Released and rejected requests are available in history.'" :action-url="route('requests.history')" action-label="View request history" />
                 @endif
             @endif
 
