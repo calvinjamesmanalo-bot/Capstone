@@ -61,6 +61,19 @@ class StudentAccountSecurityTest extends TestCase
         ]);
     }
 
+    public function test_create_account_form_has_accessible_password_visibility_controls(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)->get(route('users.create'))
+            ->assertOk()
+            ->assertSee('data-password-toggle="password"', false)
+            ->assertSee('data-password-toggle="password_confirmation"', false)
+            ->assertSee('aria-label="Show password"', false)
+            ->assertSee('aria-label="Show confirm password"', false)
+            ->assertSee('pr-14', false);
+    }
+
     public function test_only_administrators_can_manage_student_accounts(): void
     {
         $registrar = User::factory()->create(['role' => 'registrar']);

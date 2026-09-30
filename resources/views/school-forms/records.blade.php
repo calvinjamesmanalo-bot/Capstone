@@ -307,22 +307,25 @@
             <div class="mt-4 grid gap-4 lg:grid-cols-2">
                 @foreach (range(1, 4) as $period)
                     <article class="overflow-hidden rounded-xl border border-slate-200 {{ $period > $uploadPeriodCount || ($uploadMode === 'quarterly' && $quarterlyPeriod !== $period) ? 'hidden' : '' }}" data-period-card="{{ $period }}">
-                        <header class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-                            <div><p class="font-bold" data-period-label>{{ $period <= $uploadPeriodCount ? \App\Support\AcademicPeriod::label($uploadYear, $period, $uploadLevel) : "Period {$period}" }}</p><p class="text-xs text-slate-500" data-period-progress>0 of 2 selected</p></div>
-                            <span class="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600" data-period-state>Incomplete</span>
+                        <header class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                            <div class="min-w-0"><p class="font-bold" data-period-label>{{ $period <= $uploadPeriodCount ? \App\Support\AcademicPeriod::label($uploadYear, $period, $uploadLevel) : "Period {$period}" }}</p><p class="text-xs text-slate-500" data-period-progress>0 of 2 selected</p></div>
+                            <span class="shrink-0 whitespace-nowrap rounded-full bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600" data-period-state>Incomplete</span>
                         </header>
-                        <div class="grid gap-3 p-4 sm:grid-cols-2">
+                        <div class="grid gap-3 p-4">
                             @foreach (['summary' => 'Summary', 'attendance' => 'Attendance'] as $type => $label)
                                 @php $existingUpload = $initialSlots->get($period.':'.$type); @endphp
-                                <div class="rounded-lg border border-slate-200 p-3" data-upload-slot data-period="{{ $period }}" data-type="{{ $type }}" data-existing="{{ $existingUpload ? '1' : '0' }}">
-                                    <div class="flex items-start justify-between gap-2">
-                                        <div><p class="text-sm font-bold">{{ $label }}</p><p class="mt-0.5 truncate text-[11px] text-slate-500" data-file-name>{{ $existingUpload?->original_name ?? 'No file selected' }}</p></div>
-                                        <span class="rounded-full px-2 py-1 text-[10px] font-bold {{ $existingUpload ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500' }}" data-slot-status>{{ $existingUpload ? 'Stored' : 'Missing' }}</span>
+                                <div class="rounded-xl border border-slate-200 bg-white p-4" data-upload-slot data-period="{{ $period }}" data-type="{{ $type }}" data-existing="{{ $existingUpload ? '1' : '0' }}" data-existing-name="{{ $existingUpload?->original_name }}">
+                                    <div class="flex min-w-0 items-start justify-between gap-3">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-bold text-slate-800">{{ $label }}</p>
+                                            <p class="mt-1 break-all text-[11px] leading-4 text-slate-500" data-file-name title="{{ $existingUpload?->original_name }}">{{ $existingUpload?->original_name ?? 'No file selected' }}</p>
+                                        </div>
+                                        <span class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold {{ $existingUpload ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500' }}" data-slot-status>{{ $existingUpload ? 'Stored' : 'Missing' }}</span>
                                     </div>
                                     <input type="file" name="{{ $type }}_files[{{ $period }}]" accept=".xlsx" class="sr-only" id="{{ $type }}-file-{{ $period }}" data-slot-input>
-                                    <div class="mt-3 flex flex-wrap gap-2">
-                                        <label for="{{ $type }}-file-{{ $period }}" class="cursor-pointer rounded-md bg-[#000638] px-3 py-2 text-[11px] font-bold text-white">Choose file</label>
-                                        <a href="{{ route('school-forms.grade-sheets.template', ['type' => $type, 'school_year' => $uploadYear ?: config('academics.school_years')[0], 'level' => $uploadLevel ?: 'Grade 1', 'section' => $uploadSection ?: 'Amity', 'period' => $period]) }}" data-template-link data-template-type="{{ $type }}" data-template-period="{{ $period }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-[11px] font-bold text-slate-600">Template</a>
+                                    <div class="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                                        <label for="{{ $type }}-file-{{ $period }}" class="inline-flex cursor-pointer items-center justify-center rounded-lg bg-[#000638] px-4 py-2 text-[11px] font-bold text-white transition hover:bg-[#10175a]">Choose file</label>
+                                        <a href="{{ route('school-forms.grade-sheets.template', ['type' => $type, 'school_year' => $uploadYear ?: config('academics.school_years')[0], 'level' => $uploadLevel ?: 'Grade 1', 'section' => $uploadSection ?: 'Amity', 'period' => $period]) }}" data-template-link data-template-type="{{ $type }}" data-template-period="{{ $period }}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">Template</a>
                                     </div>
                                 </div>
                             @endforeach
@@ -354,30 +357,30 @@
                 </span>
                 <div>
                     <h2 class="text-lg font-bold">Record Finder</h2>
-                    <p class="mt-1 text-sm leading-6 text-slate-500">Select a class to view its attendance and summary sheets separately.</p>
+                    <p class="mt-1 text-sm leading-6 text-slate-500">Select from classes that have imported grade sheets. Each dropdown shows only available records.</p>
                 </div>
             </div>
 
             <form id="record-finder" method="GET" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <label>
                     <span class="sr-only">School year</span>
-                    <select name="school_year" class="fla-field w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition" required>
+                    <select name="school_year" data-record-year class="fla-field w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition" required>
                         <option value="">School year</option>
-                        @foreach ($schoolYears as $option)<option @selected($schoolYear === $option)>{{ $option }}</option>@endforeach
+                        @foreach ($schoolYears as $option)<option value="{{ $option }}" @selected($schoolYear === $option)>{{ $option }}</option>@endforeach
                     </select>
                 </label>
                 <label>
                     <span class="sr-only">Grade level</span>
-                    <select name="level" class="fla-field w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition" required>
+                    <select name="level" data-record-level class="fla-field w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition disabled:cursor-not-allowed disabled:bg-slate-100" required @disabled($schoolYear === '')>
                         <option value="">Grade level</option>
-                        @foreach ($levels as $option)<option @selected($level === $option)>{{ $option }}</option>@endforeach
+                        @foreach ($levels as $option)<option value="{{ $option }}" @selected($level === $option)>{{ $option }}</option>@endforeach
                     </select>
                 </label>
                 <label>
                     <span class="sr-only">Section</span>
-                    <select name="section" class="fla-field w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition" required>
+                    <select name="section" data-record-section class="fla-field w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition disabled:cursor-not-allowed disabled:bg-slate-100" required @disabled($schoolYear === '' || $level === '')>
                         <option value="">Section</option>
-                        @foreach ($sections as $option)<option @selected($section === $option)>{{ $option }}</option>@endforeach
+                        @foreach ($sections as $option)<option value="{{ $option }}" @selected($section === $option)>{{ $option }}</option>@endforeach
                     </select>
                 </label>
                 <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-[#000638] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#10175a] focus:outline-none focus:ring-4 focus:ring-[#ffd22d]/40">
@@ -496,7 +499,7 @@
                 </div>
             </div>
         @else
-            @if($levels->isEmpty())
+            @if($schoolYears->isEmpty() || (!isset($recordClassOptions) && $levels->isEmpty()))
                 <x-empty-state heading="No grade sheets uploaded yet" description="Uploaded attendance and summary sheets will appear here, organized by class." :action-url="in_array(auth()->user()->role, ['admin', 'registrar'], true) ? '#grade-sheet-upload' : null" action-label="Upload grade sheets" />
             @else
                 <x-empty-state heading="Choose a class to view its records" description="Select a school year, grade level, and section in the Record Finder to see matching sheets." action-url="#record-finder" action-label="Choose class filters" />
@@ -504,6 +507,36 @@
         @endif
     </section>
 </main>
+
+<script>
+    (() => {
+        const form = document.getElementById('record-finder');
+        if (!form) return;
+        const classes = @json($recordClassOptions ?? []);
+        const yearSelect = form.querySelector('[data-record-year]');
+        const levelSelect = form.querySelector('[data-record-level]');
+        const sectionSelect = form.querySelector('[data-record-section]');
+        const unique = (values) => [...new Set(values)].sort((left, right) => left.localeCompare(right, undefined, {numeric: true}));
+        const replaceOptions = (select, placeholder, values, selected = '') => {
+            select.replaceChildren(new Option(placeholder, ''), ...values.map((value) => new Option(value, value)));
+            select.value = values.includes(selected) ? selected : '';
+            select.disabled = values.length === 0;
+        };
+        const refreshSections = (selected = '') => {
+            const sections = unique(classes
+                .filter((item) => item.schoolYear === yearSelect.value && item.level === levelSelect.value)
+                .map((item) => item.section));
+            replaceOptions(sectionSelect, 'Section', sections, selected);
+        };
+        const refreshLevels = (selectedLevel = '', selectedSection = '') => {
+            const levels = unique(classes.filter((item) => item.schoolYear === yearSelect.value).map((item) => item.level));
+            replaceOptions(levelSelect, 'Grade level', levels, selectedLevel);
+            refreshSections(selectedSection);
+        };
+        yearSelect.addEventListener('change', () => refreshLevels());
+        levelSelect.addEventListener('change', () => refreshSections());
+    })();
+</script>
 
 <script>
     (() => {
@@ -614,15 +647,22 @@
                 .filter((file) => file.name.toLowerCase().endsWith('.xlsx'));
             if (!files.length || files.length > 1000) return;
             submit.disabled = true;
-            const chunkSize = 10;
             let completed = resumeOffset;
             try {
-                for (let offset = resumeOffset; offset < files.length; offset += chunkSize) {
-                    const chunk = files.slice(offset, offset + chunkSize);
+                for (let offset = resumeOffset; offset < files.length;) {
+                    const chunk = [];
+                    let chunkBytes = 0;
+                    const maximumChunkBytes = 30 * 1024 * 1024;
+                    while (offset + chunk.length < files.length && chunk.length < 5) {
+                        const candidate = files[offset + chunk.length];
+                        if (chunk.length && chunkBytes + candidate.size > maximumChunkBytes) break;
+                        chunk.push(candidate);
+                        chunkBytes += candidate.size;
+                    }
                     const payload = new FormData();
                     payload.append('_token', form.querySelector('[name="_token"]').value);
                     payload.append('batch_token', batchToken);
-                    payload.append('chunk_number', String(Math.floor(offset / chunkSize)));
+                    payload.append('chunk_number', String(offset));
                     if (form.querySelector('[name="replace_existing"]').checked) payload.append('replace_existing', '1');
                     chunk.forEach((file) => payload.append('auto_files[]', file, file.name));
                     submit.textContent = `Importing ${completed + 1}–${completed + chunk.length} of ${files.length}…`;
@@ -641,6 +681,13 @@
                             await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
                         }
                     }
+                    const responseType = response.headers.get('content-type') || '';
+                    if (!responseType.includes('application/json')) {
+                        if (response.status === 413 || response.status === 419) {
+                            throw new Error('The upload batch was too large or the session expired. Refresh the page and try again.');
+                        }
+                        throw new Error(`The server returned an unexpected response (HTTP ${response.status}).`);
+                    }
                     const result = await response.json();
                     if (!response.ok) {
                         const errors = Object.values(result.errors || {}).flat();
@@ -648,6 +695,7 @@
                     }
                     completed += chunk.length;
                     resumeOffset = completed;
+                    offset += chunk.length;
                     label.textContent = `${completed} of ${files.length} workbooks imported`;
                 }
                 window.location.assign('{{ route('school-forms.records') }}?batch_uploaded=' + completed);
@@ -740,13 +788,13 @@
                     name.textContent = file.name;
                     name.title = file.name;
                     status.textContent = exists ? 'Will replace' : 'Ready';
-                    status.className = 'rounded-full px-2 py-1 text-[10px] font-bold ' + (exists ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700');
+                    status.className = 'shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold ' + (exists ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700');
                 } else {
                     if (exists) stored++;
                     name.textContent = slot.dataset.existingName || 'No file selected';
                     name.title = slot.dataset.existingName || '';
                     status.textContent = exists ? 'Stored' : 'Missing';
-                    status.className = 'rounded-full px-2 py-1 text-[10px] font-bold ' + (exists ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500');
+                    status.className = 'shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold ' + (exists ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500');
                 }
             });
 
@@ -756,7 +804,7 @@
                 card.querySelector('[data-period-progress]').textContent = `${ready} of 2 available`;
                 const state = card.querySelector('[data-period-state]');
                 state.textContent = ready === 2 ? 'Complete' : ready === 1 ? 'Partial' : 'Incomplete';
-                state.className = 'rounded-full px-2.5 py-1 text-xs font-bold ' + (ready === 2 ? 'bg-emerald-100 text-emerald-700' : ready === 1 ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600');
+                state.className = 'shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ' + (ready === 2 ? 'bg-emerald-100 text-emerald-700' : ready === 1 ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600');
             });
 
             const totalSlots = periodCount() * 2;

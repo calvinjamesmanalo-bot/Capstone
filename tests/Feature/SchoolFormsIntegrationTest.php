@@ -1047,6 +1047,69 @@ class SchoolFormsIntegrationTest extends TestCase
         $this->assertDatabaseCount('grade_sheet_uploads', 0, 'school_forms');
     }
 
+    public function test_automatic_batch_chunk_retry_is_idempotent(): void
+    {
+        Storage::fake('school_forms_local');
+        $importer = $this->mock(GradeSheetImporter::class);
+        $importer->shouldReceive('destination')->once()->andReturn([
+            'schoolYear' => '2010-2011', 'level' => 'Grade 2', 'section' => 'Charity', 'period' => 1, 'type' => 'summary',
+        ]);
+        $importer->shouldReceive('teacherName')->once()->andReturn('Test Adviser');
+        $importer->shouldReceive('summaries')->once()->andReturn([]);
+        $registrar = User::factory()->create(['role' => 'registrar']);
+        $payload = [
+            'auto_files' => [UploadedFile::fake()->create('grade-2-summary.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
+            'batch_token' => 'stable-browser-batch-token',
+            'chunk_number' => 0,
+        ];
+
+        $this->actingAs($registrar)->postJson(route('school-forms.grade-sheets.auto-batch'), $payload)
+            ->assertOk()->assertJson(['uploaded' => 1, 'replaced' => 0]);
+
+        $retryPayload = [
+            'auto_files' => [UploadedFile::fake()->create('grade-2-summary.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
+            'batch_token' => 'stable-browser-batch-token',
+            'chunk_number' => 0,
+        ];
+        $this->postJson(route('school-forms.grade-sheets.auto-batch'), $retryPayload)
+            ->assertOk()->assertJson(['uploaded' => 1, 'replaced' => 0]);
+
+        $this->assertDatabaseCount('grade_sheet_uploads', 1, 'school_forms');
+    }
+
+    public function test_record_finder_only_offers_existing_database_class_combinations(): void
+    {
+        foreach ([
+            ['2024-2025', 'Grade 2', 'Charity', 'one.xlsx'],
+            ['2025-2026', 'Grade 10', 'Dubnium', 'two.xlsx'],
+        ] as [$year, $level, $section, $filename]) {
+            SchoolFormUpload::create([
+                'school_year' => $year, 'level' => $level, 'section' => $section,
+                'grading_period' => 1, 'file_type' => 'summary',
+                'original_name' => $filename, 'stored_path' => $filename,
+            ]);
+        }
+        $this->actingAs(User::factory()->create(['role' => 'registrar']));
+
+        $this->get(route('grade-portal.index'))->assertOk()
+            ->assertSee('<option value="2024-2025"', false)
+            ->assertSee('<option value="2025-2026"', false)
+            ->assertDontSee('<option value="2026-2027"', false);
+
+        $this->get(route('grade-portal.index', ['school_year' => '2024-2025']))->assertOk()
+            ->assertSee('<option value="Grade 2"', false)
+            ->assertDontSee('<option value="Grade 10"', false)
+            ->assertDontSee('<option value="Charity"', false);
+
+        $this->get(route('grade-portal.index', ['school_year' => '2024-2025', 'level' => 'Grade 2']))->assertOk()
+            ->assertSee('<option value="Charity"', false)
+            ->assertDontSee('<option value="Dubnium"', false);
+
+        $this->get(route('grade-portal.index', [
+            'school_year' => '2024-2025', 'level' => 'Grade 2', 'section' => 'Dubnium',
+        ]))->assertOk()->assertDontSee('Selected class');
+    }
+
     public function test_import_does_not_merge_different_lrns_that_share_the_same_name(): void
     {
         $existing = SchoolFormStudent::create(['lrn' => '880209004005', 'name' => 'Santos, Bianca M.']);
@@ -1151,6 +1214,13 @@ class SchoolFormsIntegrationTest extends TestCase
         ]);
         $recordsOfficer = User::factory()->create(['role' => 'registrar']);
         $query = ['school_year' => '2010-2011', 'level' => 'Grade 10', 'section' => 'Dubnium'];
+
+        $this->actingAs($recordsOfficer)
+            ->get(route('school-forms.records', $query))
+            ->assertOk()
+            ->assertSee('data-existing-name="attendance.xlsx"', false)
+            ->assertSee('shrink-0 whitespace-nowrap rounded-full', false)
+            ->assertSee('break-all text-[11px]', false);
 
         $this->actingAs($recordsOfficer)
             ->getJson(route('school-forms.grade-sheets.status', $query))

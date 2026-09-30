@@ -293,7 +293,7 @@ class LoginSecurityTest extends TestCase
             ->assertSee('id="turnstile-start"', false)
             ->assertSee('Verify you are human')
             ->assertSee("window.turnstile.execute('#turnstile-widget')", false)
-            ->assertSee('id="quick-access-panel"', false)
+            ->assertDontSee('Quick access for testing')
             ->assertSee('Remember me')
             ->assertSee('Create Student Account')
             ->assertDontSee('overflow-y-auto', false)
@@ -302,9 +302,6 @@ class LoginSecurityTest extends TestCase
             ->assertDontSee('test-secret', false)
             ->assertDontSee('admin_access_code', false)
             ->assertDontSee('Admin Access Code');
-
-        $html = $studentResponse->getContent();
-        $this->assertGreaterThan(strpos($html, '</main>'), strpos($html, 'id="quick-access-panel"'));
 
         $this->get(route('login.staff'))
             ->assertOk()
@@ -391,29 +388,12 @@ class LoginSecurityTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_quick_access_supports_admin_only_in_local_or_testing_environments(): void
+    public function test_quick_access_is_completely_removed(): void
     {
-        $this->get(route('login'));
-        $beforeLogin = session()->getId();
-
-        $this->get(route('login.as', 'registrar'))->assertRedirect(route('dashboard'));
-        $this->assertAuthenticated();
-        $this->assertNotSame($beforeLogin, session()->getId());
-
-        $this->post('/logout');
-        $this->get(route('login.as', 'admin'))->assertRedirect(route('dashboard'));
-        $this->assertAuthenticatedAs(User::where('email', 'admin@example.com')->firstOrFail());
-
-        $this->post('/logout');
-        $this->get(route('login.as', 'super-admin'))->assertNotFound();
-    }
-
-    public function test_quick_access_and_its_admin_button_are_unavailable_in_production(): void
-    {
-        $this->app->detectEnvironment(fn () => 'production');
-
         $this->get(route('login'))->assertOk()->assertDontSee('Quick access for testing');
-        $this->get(route('login.as', 'admin'))->assertNotFound();
+        foreach (['student', 'registrar', 'records_officer', 'admin'] as $role) {
+            $this->get("/login/as/{$role}")->assertNotFound();
+        }
         $this->assertGuest();
     }
 

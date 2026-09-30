@@ -44,22 +44,44 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
-        'school_forms' => [
-            'driver' => 'sqlite',
-            'database' => (static function (): string {
+        'school_forms' => (static function (): array {
+            $driver = (string) env('SCHOOL_FORMS_DB_CONNECTION', 'sqlite');
+
+            if (in_array($driver, ['mysql', 'mariadb'], true)) {
+                return [
+                    'driver' => $driver,
+                    'host' => env('SCHOOL_FORMS_DB_HOST', '127.0.0.1'),
+                    'port' => env('SCHOOL_FORMS_DB_PORT', '3306'),
+                    'database' => env('SCHOOL_FORMS_DB_DATABASE', 'school_forms'),
+                    'username' => env('SCHOOL_FORMS_DB_USERNAME', 'root'),
+                    'password' => env('SCHOOL_FORMS_DB_PASSWORD', ''),
+                    'unix_socket' => env('SCHOOL_FORMS_DB_SOCKET', ''),
+                    'charset' => env('SCHOOL_FORMS_DB_CHARSET', 'utf8mb4'),
+                    'collation' => env('SCHOOL_FORMS_DB_COLLATION', 'utf8mb4_unicode_ci'),
+                    'prefix' => '',
+                    'prefix_indexes' => true,
+                    'strict' => true,
+                    'engine' => null,
+                ];
+            }
+
+            return [
+                'driver' => 'sqlite',
+                'database' => (static function (): string {
                 $path = (string) env('SCHOOL_FORMS_DB_DATABASE', 'generator/database/database.sqlite');
 
                 return preg_match('/^(?:[A-Za-z]:[\\\\\/]|[\\\\\/]{2}|\/)/', $path)
                     ? $path
                     : base_path($path);
-            })(),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => null,
-            'synchronous' => null,
-            'transaction_mode' => 'DEFERRED',
-        ],
+                })(),
+                'prefix' => '',
+                'foreign_key_constraints' => true,
+                'busy_timeout' => 5000,
+                'journal_mode' => null,
+                'synchronous' => null,
+                'transaction_mode' => 'DEFERRED',
+            ];
+        })(),
 
         'mysql' => [
             'driver' => 'mysql',

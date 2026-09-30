@@ -69,7 +69,7 @@
         @else
         <div class="order-2 border-t border-slate-200 px-1 pt-4">
             <p class="text-xs font-bold uppercase tracking-wide text-[#000638]">Document tools</p>
-            <p class="mt-1 text-sm text-slate-600">Generate and download the protected document before forwarding it to the registrar.</p>
+            <p class="mt-1 text-sm text-slate-600">Prepare the requested document, then forward it to the registrar.</p>
             @if(!$req->request_type_id && str_starts_with($req->document_type, 'Certificate of '))
                 <a href="{{ route('certifications.index', ['request_id' => $req->id]) }}" class="mt-3 inline-flex rounded-lg border border-[#000638] bg-white px-4 py-2 text-sm font-bold text-[#000638] hover:bg-slate-100">Open Certification Maker</a>
             @elseif(!$req->request_type_id && str_contains($documentName, 'good moral'))
@@ -80,7 +80,10 @@
                 @endphp
                 <a href="{{ route('school-forms.'.$schoolForm.'.preview', array_filter(['student' => $req->student_number, 'school_year' => $schoolForm === 'f138' ? $req->school_year : null, 'request_id' => $req->id])) }}" class="mt-3 inline-flex rounded-lg border border-[#000638] bg-white px-4 py-2 text-sm font-bold text-[#000638] hover:bg-slate-100">Continue processing {{ $req->document_type }}</a>
             @elseif(!$req->request_type_id && str_contains($documentName, 'diploma'))
-                <a href="{{ route('diploma.index', ['request_id' => $req->id]) }}" class="mt-3 inline-flex rounded-lg border border-[#000638] bg-white px-4 py-2 text-sm font-bold text-[#000638] hover:bg-slate-100">Open Diploma Maker</a>
+                <div class="mt-3">
+                    <p class="text-sm font-semibold text-amber-800">Physical copy only; no digital diploma is generated.</p>
+                    <a href="{{ route('diploma.index', ['request_id' => $req->id]) }}" class="mt-2 inline-flex rounded-lg border border-[#000638] bg-white px-4 py-2 text-sm font-bold text-[#000638] hover:bg-slate-100">Process physical diploma</a>
+                </div>
             @endif
             @if($hasPreparedDocument)
                 <div class="mt-3 flex flex-wrap gap-2">

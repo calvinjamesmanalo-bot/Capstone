@@ -17,7 +17,9 @@ return new class extends Migration
             $table->string('holder_name');
             $table->string('holder_identifier')->nullable();
             $table->string('purpose')->nullable();
-            $table->timestamp('issued_at');
+            // DATETIME avoids MariaDB's legacy first-TIMESTAMP behavior, which
+            // can silently add ON UPDATE CURRENT_TIMESTAMP to this immutable value.
+            $table->dateTime('issued_at');
             $table->timestamp('expires_at')->nullable();
             $table->string('status', 24)->default('valid');
             $table->char('content_hash', 64);

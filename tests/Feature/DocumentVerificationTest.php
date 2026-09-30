@@ -95,6 +95,27 @@ class DocumentVerificationTest extends TestCase
             ->assertSee('Verification data mismatch');
     }
 
+    public function test_signing_metadata_updates_do_not_change_the_protected_issue_time(): void
+    {
+        $document = app(DocumentQrCode::class)->issue('Form 138', 'Freshly Generated Holder', [
+            'issued_at' => '2026-09-30 03:01:29',
+            'fields' => ['school_year' => '2024-2025'],
+        ]);
+        $originalIssuedAt = $document->issued_at->toIso8601String();
+
+        $document->update([
+            'pdf_signature_status' => 'signed',
+            'pdf_signed_at' => now(),
+            'pdf_signer_name' => 'Fiat Lux Academe',
+        ]);
+
+        $document->refresh();
+        $this->assertSame($originalIssuedAt, $document->issued_at->toIso8601String());
+        $this->get(app(DocumentQrCode::class)->verificationUrl($document))
+            ->assertOk()
+            ->assertSee('Issuance record is authentic');
+    }
+
     public function test_reissuing_revoked_content_creates_a_new_valid_record(): void
     {
         $first = app(DocumentQrCode::class)->issue('Diploma', 'Reissue Holder', [

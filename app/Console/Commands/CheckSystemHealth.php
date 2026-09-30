@@ -51,7 +51,14 @@ class CheckSystemHealth extends Command
         $backupCount = is_dir($backupDirectory) ? count(File::glob($backupDirectory.'/*.zip')) : 0;
         $add('Backup system', class_exists(CreateSystemBackup::class) && class_exists(VerifySystemBackup::class) ? 'PASS' : 'FAIL', "Backup commands available; {$backupCount} archive(s) found");
 
-        $requiredExtensions = ['openssl', 'pdo_sqlite', 'fileinfo', 'mbstring', 'zip'];
+        $databaseDrivers = [
+            (string) config('database.connections.'.config('database.default').'.driver'),
+            (string) config('database.connections.school_forms.driver'),
+        ];
+        $pdoExtension = collect($databaseDrivers)->contains(
+            fn (string $driver): bool => in_array($driver, ['mysql', 'mariadb'], true)
+        ) ? 'pdo_mysql' : 'pdo_sqlite';
+        $requiredExtensions = ['openssl', $pdoExtension, 'fileinfo', 'mbstring', 'zip'];
         $missingExtensions = array_values(array_filter($requiredExtensions, fn (string $extension) => ! extension_loaded($extension)));
         $add('Required PHP extensions', $missingExtensions === [] ? 'PASS' : 'FAIL', $missingExtensions === [] ? 'All required extensions loaded' : 'Missing: '.implode(', ', $missingExtensions));
 

@@ -307,6 +307,8 @@
                                              @endphp
                                              @if($req->request_type_id)
                                                 <p class="text-sm text-slate-600">Prepared manually by the registrar.</p>
+                                             @elseif(str_contains(strtolower($req->document_type), 'diploma'))
+                                                <span class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-center text-xs font-bold text-amber-800">Official physical copy; no digital file</span>
                                              @elseif($reviewDocument)
                                                 <a href="{{ route('requests.document-preview', $req) }}" target="_blank" rel="noopener" class="w-full rounded-xl bg-[#062b63] px-4 py-2.5 text-center text-xs font-black uppercase tracking-wider text-white hover:bg-[#041d45]">Quick View Document</a>
                                              @else
@@ -322,18 +324,7 @@
                                                     Preview Good Moral
                                                 </a>
                                              @elseif(!$req->request_type_id && str_contains(strtolower($req->document_type), 'diploma'))
-                                                @php
-                                                    $isPickup = str_contains(strtoupper($req->remarks ?? ''), 'MODE: PICKUP');
-                                                @endphp
-                                                @if(!$isPickup)
-                                                    <a href="{{ route('diploma.preview-request', $req->id) }}" target="_blank" class="px-4 py-2 bg-amber-50 text-amber-700 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-amber-100 transition-all text-center border border-amber-100">
-                                                        Preview Diploma
-                                                    </a>
-                                                @else
-                                                    <span class="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-black uppercase tracking-widest text-center border border-emerald-100">
-                                                        For Pickup
-                                                    </span>
-                                                @endif
+                                                <span class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs font-black uppercase tracking-widest text-amber-800">Physical copy only</span>
                                              @elseif(!$req->request_type_id && in_array(strtolower($req->document_type), ['form 137', 'form 138', 'f137', 'f138']))
                                                 <a href="{{ route('generator.maker', ['documentRequest' => $req->id, 'form' => str_contains(strtolower($req->document_type), '137') ? 'f137' : 'f138']) }}" target="_blank" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-100 transition-all text-center border border-blue-100">
                                                     Open {{ $req->document_type }} Maker
@@ -431,7 +422,7 @@
                                     @endif
 
                                     @if(!$req->request_type_id && str_contains(strtolower($req->document_type), 'diploma'))
-                                    <a href="{{ route('diploma.index', ['request_id' => $req->id]) }}" class="w-12 h-12 flex items-center justify-center bg-amber-500 text-white rounded-xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all" title="Open Diploma Maker" aria-label="Open diploma maker for request {{ $req->ticket_number ?? '#'.$req->id }}">
+                                    <a href="{{ route('diploma.index', ['request_id' => $req->id]) }}" class="w-12 h-12 flex items-center justify-center bg-amber-500 text-white rounded-xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all" title="Process physical diploma" aria-label="Process physical diploma request {{ $req->ticket_number ?? '#'.$req->id }}">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path d="M12 14l9-5-9-5-9 5 9 5z" />
                                             <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />

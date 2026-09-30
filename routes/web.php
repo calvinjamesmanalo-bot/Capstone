@@ -33,7 +33,6 @@ Route::get('/staff/login', [LoginController::class, 'showStaffLoginForm'])->name
 Route::post('/staff/login', [LoginController::class, 'loginStaff'])->middleware('throttle:login')->name('login.staff.submit');
 Route::get('/admin/login', [LoginController::class, 'showAdminLoginForm'])->name('login.admin');
 Route::post('/admin/login', [LoginController::class, 'loginAdmin'])->middleware('throttle:login')->name('login.admin.submit');
-Route::get('/login/as/{role}', [LoginController::class, 'loginAsRole'])->name('login.as');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 Route::middleware('guest')->group(function () {
@@ -213,8 +212,6 @@ Route::middleware(['auth', 'student.verified'])->group(function () {
 
         // Diploma Maker
         Route::get('/diploma', [DiplomaController::class, 'index'])->name('diploma.index');
-        Route::get('/diploma/preview/{id}', [DiplomaController::class, 'previewFromRequest'])->name('diploma.preview-request');
-        Route::post('/diploma/generate', [DiplomaController::class, 'generate'])->name('diploma.generate');
         Route::post('/diploma/submit', [DiplomaController::class, 'submitToRegistrar'])->name('diploma.submit');
     });
 

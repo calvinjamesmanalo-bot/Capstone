@@ -19,7 +19,10 @@ return new class extends Migration
             $table->timestamp('verified_at');
             $table->timestamps();
 
-            $table->index(['document_authenticity_id', 'verified_at']);
+            $table->index(
+                ['document_authenticity_id', 'verified_at'],
+                'doc_verification_auth_verified_idx'
+            );
         });
     }
 

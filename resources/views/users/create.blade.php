@@ -27,7 +27,7 @@
             </a>
         </div>
 
-        <form action="{{ route('users.store') }}" method="POST" class="p-10">
+        <form action="{{ route('users.store') }}" method="POST" class="p-6 sm:p-10">
             @csrf
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <!-- Last Name -->
@@ -107,14 +107,18 @@
                     @error('role') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
                 </div>
 
-                <div class="hidden md:block"></div>
-
                 <!-- Password -->
                 <div class="space-y-2">
                     <label for="password" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Password</label>
-                    <input type="password" name="password" id="password" required minlength="12" maxlength="64" autocomplete="new-password"
-                        class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
-                        placeholder="••••••••">
+                    <div class="relative">
+                        <input type="password" name="password" id="password" required minlength="12" maxlength="64" autocomplete="new-password"
+                            class="w-full rounded-2xl border-none bg-slate-50 py-4 pl-6 pr-14 font-bold text-slate-800 transition-all placeholder:text-slate-300 focus:ring-2 focus:ring-indigo-500"
+                            placeholder="••••••••">
+                        <button type="button" data-password-toggle="password" aria-label="Show password" aria-pressed="false" class="absolute inset-y-0 right-2 my-auto grid h-10 w-10 place-items-center rounded-xl text-slate-400 transition hover:bg-white hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <svg data-eye-open class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5" stroke-width="2"/></svg>
+                            <svg data-eye-closed class="hidden h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m3 3 18 18M10.6 10.7a2 2 0 0 0 2.7 2.7M9.9 5.2A10.8 10.8 0 0 1 12 5c6 0 9.5 7 9.5 7a15 15 0 0 1-2.1 3M6.6 6.6C4 8.3 2.5 12 2.5 12S6 19 12 19c1 0 2-.2 2.9-.5"/></svg>
+                        </button>
+                    </div>
                     @error('password') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
                     @include('auth.partials.password-requirements')
                 </div>
@@ -122,9 +126,16 @@
                 <!-- Confirm Password -->
                 <div class="space-y-2">
                     <label for="password_confirmation" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Confirm Password</label>
-                    <input type="password" name="password_confirmation" id="password_confirmation" required minlength="12" maxlength="64" autocomplete="new-password"
-                        class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800 placeholder:text-slate-300"
-                        placeholder="••••••••">
+                    <div class="relative">
+                        <input type="password" name="password_confirmation" id="password_confirmation" required minlength="12" maxlength="64" autocomplete="new-password"
+                            class="w-full rounded-2xl border-none bg-slate-50 py-4 pl-6 pr-14 font-bold text-slate-800 transition-all placeholder:text-slate-300 focus:ring-2 focus:ring-indigo-500"
+                            placeholder="••••••••">
+                        <button type="button" data-password-toggle="password_confirmation" aria-label="Show confirm password" aria-pressed="false" class="absolute inset-y-0 right-2 my-auto grid h-10 w-10 place-items-center rounded-xl text-slate-400 transition hover:bg-white hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <svg data-eye-open class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5" stroke-width="2"/></svg>
+                            <svg data-eye-closed class="hidden h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m3 3 18 18M10.6 10.7a2 2 0 0 0 2.7 2.7M9.9 5.2A10.8 10.8 0 0 1 12 5c6 0 9.5 7 9.5 7a15 15 0 0 1-2.1 3M6.6 6.6C4 8.3 2.5 12 2.5 12S6 19 12 19c1 0 2-.2 2.9-.5"/></svg>
+                        </button>
+                    </div>
+                    @error('password_confirmation') <p class="text-xs text-red-500 font-bold mt-1">{{ $message }}</p> @enderror
                 </div>
             </div>
 
@@ -146,6 +157,19 @@
                 }
                 // Initial check
                 toggleStudentNumber(document.getElementById('role').value);
+
+                document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        const input = document.getElementById(button.dataset.passwordToggle);
+                        if (!input) return;
+                        const showing = input.type === 'text';
+                        input.type = showing ? 'password' : 'text';
+                        button.setAttribute('aria-pressed', String(!showing));
+                        button.setAttribute('aria-label', `${showing ? 'Show' : 'Hide'} ${input.id === 'password_confirmation' ? 'confirm password' : 'password'}`);
+                        button.querySelector('[data-eye-open]').classList.toggle('hidden', !showing);
+                        button.querySelector('[data-eye-closed]').classList.toggle('hidden', showing);
+                    });
+                });
             </script>
 
             <div class="mt-12 flex justify-end">

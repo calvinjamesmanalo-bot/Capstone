@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\Student;
 use App\Models\User;
 use App\Support\AuthenticationSecurity;
 use App\Support\TurnstileVerifier;
@@ -11,7 +10,6 @@ use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -283,44 +281,4 @@ class LoginController extends Controller
         return redirect()->route('login');
     }
 
-    public function loginAsRole(string $role)
-    {
-        abort_unless(app()->environment(['local', 'testing']), 404);
-
-        $accounts = [
-            'student' => ['name' => 'Chua,,Louisse,', 'email' => 'student@example.com', 'student_number' => '2023-0001'],
-            'registrar' => ['name' => 'Registrar,,Test,', 'email' => 'registrar@example.com'],
-            'records_officer' => ['name' => 'Records Officer,,Test,', 'email' => 'records_officer@example.com'],
-            'admin' => ['name' => 'Administrator,,Test,', 'email' => 'admin@example.com'],
-        ];
-
-        abort_unless(array_key_exists($role, $accounts), 404);
-
-        $account = $accounts[$role];
-        if ($role === 'student') {
-            Student::updateOrCreate(
-                ['student_number' => $account['student_number']],
-                ['name' => 'Louisse Chua', 'official_email' => $account['email']]
-            );
-        }
-
-        $user = User::firstOrCreate(
-            ['email' => $account['email']],
-            [
-                'name' => $account['name'],
-                'password' => Hash::make(Str::random(40)),
-                'role' => $role,
-                'student_number' => $account['student_number'] ?? null,
-            ]
-        );
-
-        if (! $user->hasVerifiedEmail()) {
-            $user->markEmailAsVerified();
-        }
-
-        Auth::login($user);
-        session()->regenerate(true);
-
-        return redirect()->route('dashboard')->with('success', "Logged in as {$role}");
-    }
 }

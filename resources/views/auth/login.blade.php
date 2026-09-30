@@ -257,19 +257,6 @@
         </section>
     </main>
 
-    @if (app()->environment(['local', 'testing']))
-        <aside id="quick-access-panel" aria-label="Quick access for testing"
-            class="fixed bottom-3 left-1/2 z-30 w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 rounded-lg border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur lg:bottom-auto lg:left-4 lg:top-4 lg:w-auto lg:max-w-none lg:translate-x-0">
-            <div class="flex flex-wrap items-center justify-center gap-1.5">
-                <p class="mr-1 text-[11px] font-semibold text-slate-500">Quick access for testing</p>
-                <a href="{{ route('login.as', 'student') }}" class="rounded-md bg-slate-100 px-2 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-200">Student</a>
-                <a href="{{ route('login.as', 'registrar') }}" class="rounded-md bg-slate-100 px-2 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-200">Registrar</a>
-                <a href="{{ route('login.as', 'records_officer') }}" class="rounded-md bg-slate-100 px-2 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-200">Records</a>
-                <a href="{{ route('login.as', 'admin') }}" class="rounded-md bg-slate-100 px-2 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-200">Admin</a>
-            </div>
-        </aside>
-    @endif
-
     @include('partials.loading-overlay')
 </body>
 </html>

@@ -27,7 +27,16 @@ class SchoolFormRecordController extends Controller
         $schoolYear = trim((string) $request->query('school_year'));
         $level = trim((string) $request->query('level'));
         $section = trim((string) $request->query('section'));
-        $hasSearch = $schoolYear !== '' && $level !== '' && $section !== '';
+        $recordClasses = GradeSheetUpload::query()
+            ->select(['school_year', 'level', 'section'])
+            ->distinct()
+            ->orderByDesc('school_year')
+            ->orderBy('level')
+            ->orderBy('section')
+            ->get();
+        $hasSearch = $schoolYear !== '' && $level !== '' && $section !== ''
+            && $recordClasses->contains(fn (GradeSheetUpload $class) => $class->school_year === $schoolYear
+                && $class->level === $level && $class->section === $section);
         $studentSearch = trim((string) $request->query('search_student', ''));
         $matchingStudents = collect();
         $selectedStudent = null;
@@ -47,14 +56,20 @@ class SchoolFormRecordController extends Controller
             $selectedStudent?->load(['enrollments' => fn ($query) => $query->orderByDesc('school_year'), 'enrollments.grades']);
         }
 
-        $schoolYears = collect(config('academics.school_years', []))
-            ->merge(GradeSheetUpload::distinct()->pluck('school_year'))
-            ->filter()
-            ->unique()
-            ->sortDesc()
-            ->values();
-        $levels = GradeSheetUpload::distinct()->orderBy('level')->pluck('level');
-        $sections = GradeSheetUpload::distinct()->orderBy('section')->pluck('section');
+        $schoolYears = $recordClasses->pluck('school_year')->filter()->unique()->values();
+        $levels = $schoolYear === ''
+            ? collect()
+            : $recordClasses->where('school_year', $schoolYear)->pluck('level')->filter()->unique()->sort(SORT_NATURAL)->values();
+        $sections = $schoolYear === '' || $level === ''
+            ? collect()
+            : $recordClasses->where('school_year', $schoolYear)->where('level', $level)
+                ->pluck('section')->filter()->unique()->values();
+        $sections = $sections->sort(SORT_NATURAL)->values();
+        $recordClassOptions = $recordClasses->map(fn (GradeSheetUpload $class) => [
+            'schoolYear' => $class->school_year,
+            'level' => $class->level,
+            'section' => $class->section,
+        ])->values()->all();
         $uploads = GradeSheetUpload::query()
             ->when(! $hasSearch, fn ($query) => $query->whereRaw('1 = 0'))
             ->when($hasSearch, fn ($query) => $query->where('school_year', $schoolYear)
@@ -64,7 +79,7 @@ class SchoolFormRecordController extends Controller
         $summaryUploads = $uploads->where('file_type', 'summary')->values();
 
         return view('school-forms.records', compact(
-            'schoolYear', 'level', 'section', 'hasSearch', 'schoolYears', 'levels', 'sections',
+            'schoolYear', 'level', 'section', 'hasSearch', 'recordClassOptions', 'schoolYears', 'levels', 'sections',
             'uploads', 'attendanceUploads', 'summaryUploads', 'studentSearch', 'matchingStudents', 'selectedStudent'
         ));
     }
