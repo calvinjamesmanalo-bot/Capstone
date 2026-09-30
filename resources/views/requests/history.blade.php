@@ -23,9 +23,10 @@
                 @if(auth()->user()->role === 'admin')
                 <form action="{{ route('requests.reset-all') }}" method="POST"
                       data-confirm="Delete the entire request system record set, including all active requests, history, and ticket records? This cannot be undone."
-                      onsubmit="return confirm(this.dataset.confirm);">
+                      onsubmit="if (!confirm(this.dataset.confirm)) return false; const typed = prompt('Type RESET to confirm the request system reset.'); if (typed !== 'RESET') { alert('Reset cancelled. You must type RESET exactly.'); return false; } this.querySelector('[name=reset_confirmation]').value = typed; return true;">
                     @csrf
                     @method('DELETE')
+                    <input type="hidden" name="reset_confirmation" value="">
                     <button type="submit" class="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-xs font-black text-white shadow-lg shadow-red-500/20 transition-all hover:bg-red-700 sm:w-auto">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

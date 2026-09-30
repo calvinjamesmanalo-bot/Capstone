@@ -615,12 +615,22 @@ class RequestController extends Controller
         return redirect()->back()->with('success', 'Request history cleared successfully.');
     }
 
-    public function resetAll()
+    public function resetAll(Request $request)
     {
-        abort_unless(auth()->user()?->role === 'admin', 403);
+        abort_unless($request->user()?->role === 'admin', 403);
 
-        $count = RequestDocument::count();
-        RequestDocument::truncate();
+        $request->validate([
+            'reset_confirmation' => ['required', 'string', 'in:RESET'],
+        ], [
+            'reset_confirmation.in' => 'Type RESET to confirm the request system reset.',
+        ]);
+
+        $count = DB::transaction(function (): int {
+            $count = RequestDocument::count();
+            RequestDocument::query()->delete();
+
+            return $count;
+        });
 
         record_log('Full Request System Reset', 'Requests', "Permanently deleted all {$count} request records from the system.");
 

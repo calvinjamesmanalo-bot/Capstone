@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\RequestDocument;
+use App\Models\DocumentAuthenticity;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -125,6 +126,41 @@ class RoleAuthorizationTest extends TestCase
             ->delete(route('requests.history.clear'), ['action' => 'all'])
             ->assertRedirect();
         $this->assertDatabaseMissing('request_documents', ['id' => $documentRequest->id]);
+    }
+
+    public function test_request_system_reset_requires_confirmation_and_handles_related_records(): void
+    {
+        $documentRequest = $this->documentRequest(['status' => 'processing']);
+        $document = DocumentAuthenticity::create([
+            'request_document_id' => $documentRequest->id,
+            'verification_token' => (string) \Illuminate\Support\Str::uuid(),
+            'control_number' => 'TEST-RESET-001',
+            'document_type' => 'Certificate of Enrollment',
+            'holder_name' => 'Request Test Student',
+            'holder_identifier' => '2026-0001',
+            'issued_at' => now(),
+            'status' => 'valid',
+            'content_hash' => str_repeat('a', 64),
+            'source_data' => ['request' => $documentRequest->id],
+            'signed_payload' => 'payload',
+            'signature' => str_repeat('b', 128),
+            'signature_algorithm' => 'Ed25519',
+            'issuer_name' => 'Fiat Lux Academe',
+            'issuer_key_fingerprint' => str_repeat('c', 64),
+        ]);
+
+        $this->actingAs($this->user('admin'))
+            ->delete(route('requests.reset-all'), ['reset_confirmation' => 'WRONG'])
+            ->assertSessionHasErrors('reset_confirmation');
+        $this->assertDatabaseHas('request_documents', ['id' => $documentRequest->id]);
+
+        $this->actingAs($this->user('admin'))
+            ->delete(route('requests.reset-all'), ['reset_confirmation' => 'RESET'])
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('request_documents', ['id' => $documentRequest->id]);
+        $this->assertDatabaseMissing('request_status_histories', ['request_document_id' => $documentRequest->id]);
+        $this->assertNull($document->fresh()->request_document_id);
     }
 
     private function user(string $role): User
