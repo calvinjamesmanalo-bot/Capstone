@@ -12,7 +12,7 @@ class TurnstileVerifier
     public function verify(?string $token, ?string $ipAddress): bool
     {
         if (! config('services.turnstile.enabled', true)) {
-            return ! app()->environment('production');
+            return true;
         }
 
         $secret = config('services.turnstile.secret_key');
