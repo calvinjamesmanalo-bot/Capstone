@@ -400,20 +400,7 @@ class RequestController extends Controller
     {
         abort_unless(in_array($request->user()?->role, ['admin', 'registrar', 'records_officer'], true), 403);
 
-        $document = $requestDocument->authenticities()
-            ->where('status', 'valid')
-            ->where('pdf_signature_status', 'signed')
-            ->latest('id')
-            ->firstOrFail();
-        $artifact = $document->artifacts()
-            ->where('is_pdf_signed', true)
-            ->whereNotNull('storage_path')
-            ->latest('id')
-            ->firstOrFail();
-
-        abort_unless($artifact->storage_disk === 'local', 404);
-        abort_unless(str_starts_with($artifact->storage_path, 'review-documents/') && ! str_contains($artifact->storage_path, '..'), 404);
-        abort_unless(Storage::disk('local')->exists($artifact->storage_path), 404);
+        [$document, $artifact] = $this->preparedDocumentArtifact($requestDocument);
 
         record_log('Reviewed Generated Document', 'Document Review', "Opened signed document {$document->control_number} for request #{$requestDocument->id}");
 
@@ -433,6 +420,19 @@ class RequestController extends Controller
     {
         abort_unless(in_array($request->user()?->role, ['admin', 'registrar', 'records_officer'], true), 403);
 
+        [$document, $artifact] = $this->preparedDocumentArtifact($requestDocument);
+
+        record_log('Downloaded Generated Document', 'Document Review', "Downloaded signed document {$document->control_number} for request #{$requestDocument->id}");
+
+        return Storage::disk('local')->download(
+            $artifact->storage_path,
+            $artifact->original_filename ?: $document->control_number.'.pdf',
+            ['Cache-Control' => 'private, no-store, max-age=0', 'X-Content-Type-Options' => 'nosniff']
+        );
+    }
+
+    private function preparedDocumentArtifact(RequestDocument $requestDocument): array
+    {
         $document = $requestDocument->authenticities()
             ->where('status', 'valid')
             ->where('pdf_signature_status', 'signed')
@@ -445,16 +445,14 @@ class RequestController extends Controller
             ->firstOrFail();
 
         abort_unless($artifact->storage_disk === 'local', 404);
-        abort_unless(str_starts_with($artifact->storage_path, 'review-documents/') && ! str_contains($artifact->storage_path, '..'), 404);
+        abort_unless(
+            (str_starts_with($artifact->storage_path, 'review-documents/') || str_starts_with($artifact->storage_path, 'issued-documents/'))
+                && ! str_contains($artifact->storage_path, '..'),
+            404
+        );
         abort_unless(Storage::disk('local')->exists($artifact->storage_path), 404);
 
-        record_log('Downloaded Generated Document', 'Document Review', "Downloaded signed document {$document->control_number} for request #{$requestDocument->id}");
-
-        return Storage::disk('local')->download(
-            $artifact->storage_path,
-            $artifact->original_filename ?: $document->control_number.'.pdf',
-            ['Cache-Control' => 'private, no-store, max-age=0', 'X-Content-Type-Options' => 'nosniff']
-        );
+        return [$document, $artifact];
     }
 
     private function authorizeReceiptViewer(Request $request, RequestDocument $requestDocument): User

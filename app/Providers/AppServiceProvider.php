@@ -40,6 +40,22 @@ class AppServiceProvider extends ServiceProvider
                 ? 'user:'.$request->user()->getAuthIdentifier()
                 : 'ip:'.($request->ip() ?: 'unknown');
 
+            if ($request->is(
+                'school-forms/grade-sheets/auto-batch',
+                'school-forms/grade-sheets/status',
+                'requests/*/document-preview',
+                'requests/*/document-download',
+                'documents/authenticity/*/issued',
+                'documents/authenticity/*/download',
+                'certifications/pdf',
+                'school-forms/f137/pdf',
+                'school-forms/f137/download',
+                'school-forms/f138/pdf',
+                'school-forms/f138/download'
+            )) {
+                return Limit::perMinute(2000)->by($key);
+            }
+
             return Limit::perMinute(max(1, (int) config('security.rate_limiting.web_requests_per_minute', 120)))
                 ->by($key);
         });

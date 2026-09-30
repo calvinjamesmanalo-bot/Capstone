@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Illuminate\Support\Facades\File;
 use RuntimeException;
 use setasign\Fpdi\Tcpdf\Fpdi;
 
@@ -91,6 +92,10 @@ class PdfDigitalSignatureService
         $privateKeyPath = (string) config('pdf_signing.private_key_path');
         $password = (string) config('pdf_signing.private_key_password');
 
+        if (! is_file($certificatePath) && ! is_file($privateKeyPath)) {
+            $this->createDevelopmentCertificate($certificatePath, $privateKeyPath, $password);
+        }
+
         if (! is_file($certificatePath) || ! is_readable($certificatePath)) {
             throw new RuntimeException('PDF signing certificate is not configured or readable. Set PDF_SIGN_CERT_PATH.');
         }
@@ -99,6 +104,48 @@ class PdfDigitalSignatureService
         }
 
         return [$certificatePath, $privateKeyPath, $password];
+    }
+
+    private function createDevelopmentCertificate(string $certificatePath, string $privateKeyPath, string $password): void
+    {
+        File::ensureDirectoryExists(dirname($certificatePath), 0700, true);
+        File::ensureDirectoryExists(dirname($privateKeyPath), 0700, true);
+
+        $opensslOptions = [
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+            'private_key_bits' => 2048,
+            'digest_alg' => 'sha256',
+        ];
+
+        if (filled(config('pdf_signing.openssl_config_path'))) {
+            $opensslOptions['config'] = (string) config('pdf_signing.openssl_config_path');
+        }
+
+        $key = openssl_pkey_new($opensslOptions);
+        if ($key === false) {
+            throw new RuntimeException('OpenSSL could not create a PDF signing private key.');
+        }
+
+        $subject = [
+            'countryName' => 'PH',
+            'organizationName' => (string) config('app.name', 'Fiat Lux Academe'),
+            'organizationalUnitName' => 'Office of the Registrar',
+            'commonName' => $this->signerName(),
+        ];
+
+        $csr = openssl_csr_new($subject, $key, $opensslOptions);
+        $certificate = $csr === false ? false : openssl_csr_sign($csr, null, $key, 3650, $opensslOptions);
+
+        if ($certificate === false
+            || ! openssl_pkey_export($key, $privateKeyPem, $password, $opensslOptions)
+            || ! openssl_x509_export($certificate, $certificatePem)) {
+            throw new RuntimeException('OpenSSL could not create the PDF signing certificate.');
+        }
+
+        File::put($privateKeyPath, $privateKeyPem);
+        File::put($certificatePath, $certificatePem);
+        @chmod($privateKeyPath, 0600);
+        @chmod($certificatePath, 0644);
     }
 
     private function signerName(): string

@@ -37,6 +37,9 @@
         html.dark header [class*="bg-slate-50"] { background: #182235 !important; border-color: #334155 !important; }
         html.dark .page-content [class~="bg-white"],
         html.dark .page-content [class*="bg-slate-50"],
+        html.dark .page-content [class*="bg-[#f7f8fb]"],
+        html.dark .page-content [class*="bg-[#f8f9fc]"],
+        html.dark .page-content [class*="bg-[#eef1f8]"],
         html.dark .page-content [class*="bg-gray-50"] { background-color: #111b2d !important; }
         html.dark .page-content [class*="bg-slate-100"],
         html.dark .page-content [class*="bg-gray-100"] { background-color: #1e293b !important; }
