@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\AuthenticationSecurity;
+use App\Support\SystemContent;
 use App\Support\TurnstileVerifier;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Request;
@@ -207,7 +208,9 @@ class LoginController extends Controller
             // pre-authentication session to prevent session fixation.
             $request->session()->regenerate(true);
 
-            if ($user->role === 'student' && ! $user->hasVerifiedEmail()) {
+            if ($user->role === 'student'
+                && SystemContent::enabled('student_email_verification_required')
+                && ! $user->hasVerifiedEmail()) {
                 return redirect()->route('verification.notice');
             }
 

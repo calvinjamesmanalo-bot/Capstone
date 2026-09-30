@@ -59,13 +59,14 @@ class SettingController extends Controller
             'portal_accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'portal_footer_text' => ['nullable', 'string', 'max:200'],
             'student_registration_enabled' => ['nullable', 'boolean'],
+            'student_email_verification_required' => ['nullable', 'boolean'],
             'document_requests_enabled' => ['nullable', 'boolean'],
             'grade_uploads_enabled' => ['nullable', 'boolean'],
             'public_verification_enabled' => ['nullable', 'boolean'],
         ]);
 
         // Persist only validated public settings, never arbitrary submitted keys or credentials.
-        foreach (['maintenance_mode', 'student_registration_enabled', 'document_requests_enabled', 'grade_uploads_enabled', 'public_verification_enabled'] as $toggle) {
+        foreach (['maintenance_mode', 'student_registration_enabled', 'student_email_verification_required', 'document_requests_enabled', 'grade_uploads_enabled', 'public_verification_enabled'] as $toggle) {
             if ($request->has($toggle)) {
                 $data[$toggle] = $request->boolean($toggle) ? '1' : '0';
             }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Student;
+use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\StudentEmailChanged;
 use App\Notifications\VerifyStudentEmailChange;
@@ -231,6 +232,28 @@ class StudentAccountSecurityTest extends TestCase
 
         $this->actingAs($student)->get(route('dashboard'))
             ->assertRedirect(route('verification.notice'));
+    }
+
+    public function test_admin_can_disable_student_email_verification_requirement(): void
+    {
+        Notification::fake();
+        Setting::create([
+            'key' => 'student_email_verification_required',
+            'value' => '0',
+            'group' => 'features',
+        ]);
+        $student = $this->studentUser(verified: false);
+
+        $this->post(route('login'), [
+            'identifier' => $student->student_number,
+            'password' => 'password',
+            'account_type' => 'student',
+            'cf-turnstile-response' => 'valid-turnstile-token',
+            'website' => '',
+            'form_started_at' => Crypt::encryptString((string) now()->subSeconds(3)->timestamp),
+        ])->assertRedirect(route('dashboard'));
+
+        $this->actingAs($student)->get(route('dashboard'))->assertOk();
     }
 
     public function test_signed_verification_link_verifies_the_official_email(): void

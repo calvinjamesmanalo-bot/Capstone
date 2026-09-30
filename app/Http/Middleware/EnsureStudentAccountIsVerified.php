@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\SystemContent;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,7 +26,7 @@ class EnsureStudentAccountIsVerified
             return $next($request);
         }
 
-        if (! $user->hasVerifiedEmail()) {
+        if (SystemContent::enabled('student_email_verification_required') && ! $user->hasVerifiedEmail()) {
             return redirect()->route('verification.notice');
         }
 

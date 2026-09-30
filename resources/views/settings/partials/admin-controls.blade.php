@@ -4,7 +4,7 @@
     <input form="settings-form" type="hidden" name="maintenance_mode" value="0"><label class="flex gap-3"><input form="settings-form" type="checkbox" name="maintenance_mode" value="1" @checked(($settings['maintenance_mode'] ?? '0') === '1')> <span><strong>Maintenance mode</strong><span class="block text-sm text-slate-500">Administrators retain access.</span></span></label>
     <label class="block text-sm font-semibold">Maintenance notice<textarea form="settings-form" name="maintenance_message" maxlength="500" rows="2" class="{{ $field }} mt-2">{{ old('maintenance_message', $settings['maintenance_message'] ?? 'The portal is temporarily unavailable for maintenance.') }}</textarea></label>
     <div class="grid gap-3 sm:grid-cols-2">
-        @foreach(['student_registration_enabled' => 'Student registration', 'document_requests_enabled' => 'Document requests', 'grade_uploads_enabled' => 'Grade uploads', 'public_verification_enabled' => 'Public document verification'] as $key => $label)
+        @foreach(['student_registration_enabled' => 'Student registration', 'student_email_verification_required' => 'Require student email verification', 'document_requests_enabled' => 'Document requests', 'grade_uploads_enabled' => 'Grade uploads', 'public_verification_enabled' => 'Public document verification'] as $key => $label)
             <label class="flex items-center gap-3 rounded-xl border p-3"><input form="settings-form" type="hidden" name="{{ $key }}" value="0"><input form="settings-form" type="checkbox" name="{{ $key }}" value="1" @checked(($settings[$key] ?? '1') === '1')><span class="text-sm font-semibold">{{ $label }}</span></label>
         @endforeach
     </div>
