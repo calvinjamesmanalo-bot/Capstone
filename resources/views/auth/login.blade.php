@@ -7,6 +7,7 @@
     <title>{{ $portal['title'] }} - {{ \App\Support\SystemContent::schoolName() }} Document Request Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     @include('partials.responsive-foundation')
+    @if (config('services.turnstile.enabled'))
     <script>
         window.onTurnstileSuccess = () => {
             const status = document.getElementById('turnstile-status');
@@ -54,6 +55,7 @@
         window.onTurnstileUnsupported = () => window.onTurnstileError('unsupported-browser');
     </script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    @endif
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -174,6 +176,7 @@
                     </label>
                 @endif
 
+                @if (config('services.turnstile.enabled'))
                 <div class="flex min-h-[65px] w-full items-center justify-center overflow-hidden">
                     <div id="turnstile-widget" class="cf-turnstile w-full"
                         data-sitekey="{{ config('services.turnstile.site_key') }}"
@@ -198,8 +201,9 @@
                 <button id="turnstile-start" type="button" class="w-full rounded-lg border border-slate-300 bg-white py-2.5 text-sm font-semibold text-[#000638] transition hover:bg-slate-50">
                     Verify you are human
                 </button>
+                @endif
 
-                <button id="login-submit" type="submit" disabled class="w-full cursor-not-allowed rounded-lg bg-[#000638] py-2.5 text-sm font-semibold text-white opacity-50 transition hover:bg-[#10175a]">
+                <button id="login-submit" type="submit" @if (config('services.turnstile.enabled')) disabled @endif class="w-full rounded-lg bg-[#000638] py-2.5 text-sm font-semibold text-white transition hover:bg-[#10175a] @if (config('services.turnstile.enabled')) cursor-not-allowed opacity-50 @endif">
                     Sign in
                 </button>
                 @if ($accountType === 'student')
@@ -229,6 +233,7 @@
                         passwordToggle.setAttribute('aria-label', isVisible ? 'Show password' : 'Hide password');
                     });
 
+                    if (turnstileButton && turnstileStatus) {
                     turnstileButton.addEventListener('click', () => {
                         if (!window.turnstile) {
                             turnstileStatus.textContent = 'The security check is still loading. Please try again.';
@@ -251,6 +256,7 @@
                             window.onTurnstileError('not-ready');
                         }
                     });
+                    }
                 })();
             </script>
 
