@@ -88,8 +88,14 @@ class PdfDigitalSignatureService
 
     private function credentials(): array
     {
-        $certificatePath = (string) config('pdf_signing.certificate_path');
-        $privateKeyPath = (string) config('pdf_signing.private_key_path');
+        $certificatePath = $this->safeConfiguredPath(
+            (string) config('pdf_signing.certificate_path'),
+            storage_path('app/private/signing/document-signing.crt')
+        );
+        $privateKeyPath = $this->safeConfiguredPath(
+            (string) config('pdf_signing.private_key_path'),
+            storage_path('app/private/signing/document-signing.key')
+        );
         $password = (string) config('pdf_signing.private_key_password');
 
         if (! is_file($certificatePath) && ! is_file($privateKeyPath)) {
@@ -104,6 +110,32 @@ class PdfDigitalSignatureService
         }
 
         return [$certificatePath, $privateKeyPath, $password];
+    }
+
+    private function safeConfiguredPath(string $configuredPath, string $fallbackPath): string
+    {
+        $configuredPath = trim($configuredPath);
+
+        if ($configuredPath === '') {
+            return $fallbackPath;
+        }
+
+        if (app()->environment(['local', 'testing'])) {
+            return $configuredPath;
+        }
+
+        $normalizedPath = str_replace('\\', '/', $configuredPath);
+        $normalizedBasePath = rtrim(str_replace('\\', '/', base_path()), '/').'/';
+        $normalizedStoragePath = rtrim(str_replace('\\', '/', storage_path()), '/').'/';
+
+        if (
+            str_starts_with($normalizedPath, $normalizedBasePath)
+            || str_starts_with($normalizedPath, $normalizedStoragePath)
+        ) {
+            return $configuredPath;
+        }
+
+        return $fallbackPath;
     }
 
     private function createDevelopmentCertificate(string $certificatePath, string $privateKeyPath, string $password): void
