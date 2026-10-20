@@ -92,30 +92,40 @@
         }
         #primary-sidebar > nav > .sidebar-link {
             transition-property: color, background-color, border-color, box-shadow;
+            min-height: 2.75rem;
+            white-space: nowrap;
         }
         #primary-sidebar > nav[data-spacing] > .sidebar-link {
             padding-top: 0.625rem;
             padding-bottom: 0.625rem;
         }
         #primary-sidebar > nav[data-spacing] > .sidebar-link {
-            margin-top: 0.125rem;
+            margin-top: 0.25rem;
             margin-bottom: 0;
         }
         #primary-sidebar > nav > p {
-            margin-top: 1.125rem;
-            margin-bottom: 0.25rem;
+            margin-top: 1.375rem;
+            margin-bottom: 0.625rem;
         }
+        #primary-sidebar > nav > p:first-of-type { margin-top: 0.25rem; }
         #primary-sidebar > nav[data-spacing] > p {
-            margin-top: 1rem;
-            margin-bottom: 0.1875rem;
+            margin-top: 1.375rem;
+            margin-bottom: 0.625rem;
         }
         #primary-sidebar > nav[data-spacing="compact"] > .sidebar-link {
-            padding-top: 0.5rem;
-            padding-bottom: 0.5rem;
+            padding-top: 0.625rem;
+            padding-bottom: 0.625rem;
         }
         #primary-sidebar > nav[data-spacing="compact"] > p {
-            margin-top: 0.875rem;
-            margin-bottom: 0.125rem;
+            margin-top: 1.375rem;
+            margin-bottom: 0.625rem;
+        }
+        #primary-sidebar > nav[data-spacing] > p:first-of-type { margin-top: 0.25rem; }
+        #primary-sidebar .sidebar-link svg { flex-shrink: 0; }
+        #primary-sidebar .sidebar-link > span,
+        #primary-sidebar .sidebar-link > div > span {
+            min-width: 0;
+            white-space: nowrap;
         }
 
         .sidebar-link.active {
@@ -138,22 +148,22 @@
             margin-right: 0 !important;
         }
         .page-content .p-10 {
-            padding: 1.5rem !important;
+            padding: 1.25rem !important;
         }
         .page-content .px-10 {
-            padding-left: 1.5rem !important;
-            padding-right: 1.5rem !important;
+            padding-left: 1.25rem !important;
+            padding-right: 1.25rem !important;
         }
         .page-content .py-10 {
-            padding-top: 1.5rem !important;
-            padding-bottom: 1.5rem !important;
+            padding-top: 1.25rem !important;
+            padding-bottom: 1.25rem !important;
         }
         .page-content .gap-10 {
-            gap: 1.5rem !important;
+            gap: 1.25rem !important;
         }
         .page-content .space-y-10 > :not([hidden]) ~ :not([hidden]),
         .page-content .space-y-12 > :not([hidden]) ~ :not([hidden]) {
-            margin-top: 1.5rem !important;
+            margin-top: 1.25rem !important;
         }
         .page-content [class~="font-black"] {
             font-weight: 600 !important;
@@ -194,7 +204,18 @@
             outline-offset: 2px;
         }
         [data-mobile-sidebar] {
-            width: min(20rem, calc(100vw - 3rem));
+            width: min(18rem, calc(100vw - 2rem));
+        }
+        @media (min-width: 1024px) {
+            #primary-sidebar .sidebar-link {
+                gap: 1rem;
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+            #primary-sidebar .sidebar-link > span {
+                font-size: 1rem;
+                line-height: 1.5rem;
+            }
         }
         @media (max-width: 639px) {
             .page-content .p-10 { padding: 1rem !important; }
@@ -235,13 +256,13 @@
         <button type="button" data-mobile-sidebar-backdrop class="fixed inset-0 z-[55] hidden bg-slate-950/60 backdrop-blur-sm lg:hidden" aria-label="Close navigation menu" tabindex="-1"></button>
 
         <!-- Sidebar -->
-        <aside id="primary-sidebar" data-mobile-sidebar class="fixed inset-y-0 left-0 z-[60] flex h-full -translate-x-full flex-col border-r border-[#10175a] bg-[#000638] text-slate-200 shadow-2xl transition-transform duration-200 ease-out lg:z-50 lg:w-64 lg:translate-x-0 lg:shadow-none" aria-label="Primary navigation">
+        <aside id="primary-sidebar" data-mobile-sidebar class="fixed inset-y-0 left-0 z-[60] flex h-full -translate-x-full flex-col border-r border-[#10175a] bg-[#000638] text-slate-200 shadow-2xl transition-transform duration-200 ease-out lg:z-50 lg:w-72 lg:translate-x-0 lg:shadow-none" aria-label="Primary navigation">
             <!-- Brand -->
-            <div class="px-5 py-5 flex items-center gap-3 border-b border-white/10">
-                <img src="{{ \App\Support\SystemContent::logoUrl() }}" alt="Fiat Lux Academe seal" class="w-12 h-12 rounded-full bg-white object-contain ring-2 ring-[#ffd22d]">
+            <div class="flex items-center gap-3 border-b border-white/10 px-5 py-5">
+                <img src="{{ \App\Support\SystemContent::logoUrl() }}" alt="Fiat Lux Academe seal" class="h-12 w-12 shrink-0 rounded-full bg-white object-contain ring-2 ring-[#ffd22d]">
                 <div class="min-w-0 flex-1">
-                    <h1 class="text-white font-bold text-base leading-tight">{{ \App\Support\SystemContent::schoolName() }}</h1>
-                    <p class="text-xs text-[#ffd22d] mt-1">Document Request Hub</p>
+                    <h1 class="whitespace-nowrap text-base font-bold leading-tight text-white">{{ \App\Support\SystemContent::schoolName() }}</h1>
+                    <p class="mt-1 whitespace-nowrap text-xs text-[#ffd22d]">Document Request Hub</p>
                 </div>
                 <button type="button" data-mobile-sidebar-close class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#ffd22d] lg:hidden" aria-label="Close navigation menu">
                     <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12" /></svg>
@@ -249,12 +270,12 @@
             </div>
 
             <!-- User Profile Section -->
-            <div class="px-6 py-5">
+            <div class="px-5 py-4">
                 <div class="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
-                    <div class="w-10 h-10 bg-[#ffd22d] rounded-full flex items-center justify-center text-[#000638] font-bold text-base">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ffd22d] text-base font-bold text-[#000638]">
                         {{ auth()->user() ? substr(auth()->user()->display_name, 0, 1) : 'G' }}
                     </div>
-                    <div class="overflow-hidden">
+                    <div class="min-w-0 overflow-hidden">
                         <p class="text-white text-sm font-semibold truncate">{{ auth()->user()->display_name ?? 'Guest User' }}</p>
                         <p class="text-xs text-slate-300 mt-0.5 capitalize">{{ str_replace('_', ' ', auth()->user()->role ?? 'Visitor') }}</p>
                     </div>
@@ -262,7 +283,7 @@
             </div>
 
             <!-- Navigation -->
-            <nav class="flex-1 px-6 space-y-1 overflow-y-auto pb-8 custom-scrollbar text-base">
+            <nav class="flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-5 pb-6 text-sm custom-scrollbar">
                 @php
                     $role = auth()->user()->role ?? 'admin'; // Default to admin for now if not logged in
                     $messageUnreadCount = 0;
@@ -488,7 +509,7 @@
             </nav>
 
             <!-- Logout -->
-            <div class="p-6 border-t border-white/10">
+            <div class="border-t border-white/10 p-5">
                 <form action="{{ route('logout') }}" method="POST" id="logout-form">
                     @csrf
                     <button type="submit" class="w-full flex items-center gap-4 px-4 py-3 text-base font-semibold text-red-300 rounded-xl hover:text-red-200 hover:bg-red-500/10 transition-all">
@@ -502,9 +523,9 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="flex-1 min-w-0 flex flex-col min-h-screen lg:ml-64">
+        <main class="flex-1 min-w-0 flex flex-col min-h-screen lg:ml-72">
             <!-- Header -->
-            <header class="bg-white min-h-20 border-b border-slate-200 flex items-center justify-between gap-3 px-4 py-3 sticky top-0 z-40 sm:px-6 sm:py-4 lg:px-8">
+            <header class="sticky top-0 z-40 flex min-h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-5 lg:px-6">
                 <div class="flex min-w-0 items-center gap-3">
                     <button type="button" data-mobile-sidebar-toggle class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[#000638] transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-[#ffd22d]/40 lg:hidden" aria-controls="primary-sidebar" aria-expanded="false" aria-label="Open navigation menu">
                         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -579,7 +600,7 @@
             @endif
 
             <!-- Page Content -->
-            <div class="page-content p-4 sm:p-6 lg:p-8">
+            <div class="page-content p-4 sm:p-5 lg:p-6">
                 @if(session('success'))
                     <div class="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-3">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

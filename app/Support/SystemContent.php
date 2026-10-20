@@ -42,11 +42,11 @@ class SystemContent
             return Storage::disk('local')->path($path);
         }
 
-        return $default ?? public_path('images/fiat.png');
+        return $default ?? public_path('images/FLAOFFICIAL_LOGO.png');
     }
 
     public static function logoUrl(): string
     {
-        return self::get('school_logo_path') ? route('school.logo') : asset('images/fiat.png');
+        return self::get('school_logo_path') ? route('school.logo') : asset('images/FLAOFFICIAL_LOGO.png');
     }
 }

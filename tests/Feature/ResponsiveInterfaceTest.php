@@ -24,8 +24,9 @@ class ResponsiveInterfaceTest extends TestCase
             ->assertSee('data-mobile-sidebar-toggle', false)
             ->assertSee('data-mobile-sidebar-close', false)
             ->assertSee('data-mobile-sidebar-backdrop', false)
-            ->assertSee('lg:ml-64', false)
-            ->assertSee('page-content p-4 sm:p-6 lg:p-8', false)
+            ->assertSee('lg:w-72', false)
+            ->assertSee('lg:ml-72', false)
+            ->assertSee('page-content p-4 sm:p-5 lg:p-6', false)
             ->assertSee('.request-a11y :is(a, button, input, select, textarea, [tabindex="0"]):focus-visible', false);
     }
 

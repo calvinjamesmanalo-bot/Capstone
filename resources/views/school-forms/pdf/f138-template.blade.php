@@ -110,7 +110,7 @@
 <div class="page">
     <div class="school-header">
         <div class="brand">
-            <img class="seal" src="{{ \App\Support\SystemContent::logoPath() }}" alt="Fiat Lux Academe seal">
+            <img class="seal" src="{{ \App\Support\SystemContent::logoPath(public_path('images/fiat.png')) }}" alt="Fiat Lux Academe seal">
             <h1 class="school-name"> {{ mb_strtoupper(\App\Support\SystemContent::schoolName()) }}</h1>
             <div class="location">{{ \App\Support\SystemContent::get('school_address', 'Cavite') }}</div>
         </div>

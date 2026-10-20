@@ -56,7 +56,7 @@ class SystemContentSettingsTest extends TestCase
         $this->get(route('school.logo'))->assertOk()->assertHeader('X-Content-Type-Options', 'nosniff');
         $this->post(route('settings.update'), [...$this->payload(), 'remove_school_logo' => 1])->assertSessionHasNoErrors();
         Storage::disk('local')->assertMissing($path);
-        $this->assertSame(public_path('images/fiat.png'), SystemContent::logoPath());
+        $this->assertSame(public_path('images/FLAOFFICIAL_LOGO.png'), SystemContent::logoPath());
     }
 
     public function test_content_length_and_contact_email_are_validated(): void

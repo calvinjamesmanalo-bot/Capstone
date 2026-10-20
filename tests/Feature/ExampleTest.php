@@ -22,7 +22,7 @@ class ExampleTest extends TestCase
         $this->view('partials.loading-overlay')
             ->assertSee('id="fla-page-loader"', false)
             ->assertSee('class="fla-loader-logo"', false)
-            ->assertSee(asset('images/fiat.png'), false)
+            ->assertSee(asset('images/FLAOFFICIAL_LOGO.png'), false)
             ->assertDontSee('fla-loader-title', false)
             ->assertDontSee('fla-loader-message', false)
             ->assertDontSee('fla-loader-dots', false);
