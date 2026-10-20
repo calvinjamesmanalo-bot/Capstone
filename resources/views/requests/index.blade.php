@@ -57,13 +57,13 @@
                     value="{{ $search }}"
                     maxlength="100"
                     placeholder="Ticket number, student name, student number, or LRN"
-                    class="min-w-0 flex-1 rounded-xl border-slate-300 px-4 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    class="min-h-12 min-w-0 flex-1 rounded-xl border-slate-300 px-4 py-3 text-base shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 >
-                <button type="submit" class="w-full rounded-xl bg-[#000638] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#10175a] sm:w-auto">
-                    Apply Filters
+                <button type="submit" class="min-h-12 w-full rounded-xl bg-[#000638] px-6 py-3 text-base font-bold text-white transition-colors hover:bg-[#10175a] sm:w-auto">
+                    Search
                 </button>
-                <a href="{{ route('requests.index') }}" class="w-full rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto">
-                    Clear Filters
+                <a href="{{ route('requests.index') }}" class="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-6 py-3 text-center text-base font-bold text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto">
+                    Clear
                 </a>
             </div>
             <div class="mt-4 max-w-xs">
@@ -84,9 +84,9 @@
                 ];
                 $filterLabel = fn ($value) => $value === 'gcash' ? 'GCash' : ucfirst(str_replace('_', ' ', $value));
             @endphp
-            @if(auth()->user()->role === 'records_officer')
+            @if(in_array(auth()->user()->role, ['records_officer', 'registrar']))
             <details class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" @if($activeParameters) open @endif>
-                <summary class="cursor-pointer text-sm font-semibold text-[#000638]">More filters: status, document, payment, delivery, school year</summary>
+                <summary class="cursor-pointer py-1 text-base font-bold text-[#000638]">Show more search options</summary>
             @endif
             <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 @foreach($filterFields as $key => [$label, $optionsKey])
@@ -104,7 +104,7 @@
                     </div>
                 @endforeach
             </div>
-            @if(auth()->user()->role === 'records_officer')
+            @if(in_array(auth()->user()->role, ['records_officer', 'registrar']))
             </details>
             @endif
             @if($activeParameters)
@@ -120,15 +120,16 @@
             @enderror
         </form>
 
-        @if(auth()->user()->role === 'records_officer')
+        @if(in_array(auth()->user()->role, ['records_officer', 'registrar']))
             @php
                 $queueParameters = collect($activeParameters)->except('status')->all();
                 $requestQueues = [
                     '' => 'All active',
-                    'pending' => 'New',
+                    'pending' => 'New Request',
                     'processing' => 'Processing',
-                    'processed' => 'For registrar review',
-                    'ready_to_release' => 'Reviewed / Ready',
+                    'processed' => 'Waiting for Registrar',
+                    'ready_for_pickup' => 'Ready for Pickup',
+                    'ready_to_release' => 'Ready for Release',
                 ];
                 $selectedQueue = $filters['status'] ?? '';
             @endphp
@@ -144,7 +145,7 @@
                         @endphp
                         <a href="{{ $queueUrl }}"
                            @if($isSelectedQueue) aria-current="page" @endif
-                           class="shrink-0 rounded-full border px-4 py-2 text-sm font-bold transition-colors {{ $isSelectedQueue ? 'border-[#000638] bg-[#000638] text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50' }}">
+                           class="min-h-11 shrink-0 rounded-xl border px-5 py-3 text-base font-bold transition-colors {{ $isSelectedQueue ? 'border-[#000638] bg-[#000638] text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50' }}">
                             {{ $queueLabel }}
                         </a>
                     @endforeach
@@ -154,7 +155,7 @@
                 <h3 class="text-sm font-bold text-[#000638]">{{ $requestQueues[$selectedQueue] ?? 'Filtered requests' }}</h3>
                 <span class="text-xs text-slate-500">{{ $requests->total() }} request(s)</span>
             </div>
-            <div class="grid items-start gap-4 bg-[#f7f8fb] p-3 sm:p-4 xl:grid-cols-2" aria-label="Active request cards">
+            <div class="grid items-start gap-4 bg-[#f7f8fb] p-4 sm:p-5 lg:grid-cols-2" aria-label="Active request cards">
                 @foreach($requests as $req)
                     @include('requests.partials.records-officer-card', ['req' => $req, 'transitions' => $transitions])
                 @endforeach
@@ -213,6 +214,22 @@
                                         default => strtoupper($req->school_level),
                                     } }}
                                 </div>
+                                @if($req->request_purpose)
+                                    <div class="mt-2 rounded-lg border {{ $req->is_f137_employment_exception ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 bg-slate-50 text-slate-700' }} p-2 text-xs font-bold">
+                                        Purpose: {{ match($req->request_purpose) { 'employment' => 'Employment — '.$req->employer_name, 'transfer_enrollment' => 'Transfer / Enrollment', 'other' => 'Other valid purpose', default => ucfirst(str_replace('_', ' ', $req->request_purpose)) } }}
+                                        @if($req->purpose_details)<div class="mt-1 font-medium">{{ $req->purpose_details }}</div>@endif
+                                        @if($req->receiving_school_name)<div class="mt-1">Receiving school: {{ $req->receiving_school_name }}</div><div class="font-medium">{{ $req->receiving_school_address }}</div>@endif
+                                        @if($req->is_f137_employment_exception)
+                                            <div class="mt-1">{{ $req->exception_approved_at ? 'Exception approved' : 'Requires Registrar/Admin approval before processing' }}</div>
+                                        @endif
+                                        @if($req->employment_proof_path)
+                                            <a href="{{ route('requests.employment-proof', $req) }}" target="_blank" rel="noopener" class="mt-2 inline-block underline">View employment proof</a>
+                                        @endif
+                                        @if($req->request_proof_path)
+                                            <a href="{{ route('requests.request-proof', $req) }}" target="_blank" rel="noopener" class="mt-2 ml-2 inline-block underline">View school request proof</a>
+                                        @endif
+                                    </div>
+                                @endif
                             @endif
                             @if(!$req->request_type_id && in_array(strtolower($req->document_type), ['form 138', 'f138']) && $req->school_year)
                                 <div class="mt-2 text-xs font-black uppercase tracking-wider text-blue-700">
@@ -245,16 +262,10 @@
                                 <span class="inline-flex whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm
                                     {{ $req->clearance_status == 'cleared' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : '' }}
                                     {{ $req->clearance_status == 'pending_clearance' ? 'bg-amber-50 text-amber-700 border border-amber-100' : '' }}
-                                    {{ $req->clearance_status == 'has_balance' ? 'bg-red-50 text-red-700 border border-red-100' : '' }}
                                     {{ !$req->clearance_status ? 'bg-slate-100 text-slate-600 border border-slate-200' : '' }}
                                 ">
                                     {{ $req->clearance_status ? str_replace('_', ' ', $req->clearance_status) : 'Not Checked' }}
                                 </span>
-                                @if($req->financial_balance > 0)
-                                    <div class="text-xs font-black text-red-600">
-                                        ₱{{ number_format($req->financial_balance, 2) }}
-                                    </div>
-                                @endif
                                 <span class="inline-flex whitespace-nowrap px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest
                                     {{ $req->payment_confirmed ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500' }}
                                 ">
@@ -286,11 +297,10 @@
                                             @csrf
                                             <label class="text-xs font-semibold text-slate-600">Accounting clearance</label>
                                             <select name="clearance_status" class="rounded-lg border-slate-300 text-xs">
-                                                @foreach(['pending_clearance' => 'Pending', 'cleared' => 'Cleared', 'has_balance' => 'Has balance'] as $value => $label)
+                                                @foreach(['pending_clearance' => 'Pending', 'cleared' => 'Cleared'] as $value => $label)
                                                     <option value="{{ $value }}" @selected($req->clearance_status === $value)>{{ $label }}</option>
                                                 @endforeach
                                             </select>
-                                            <input type="number" name="financial_balance" value="{{ $req->financial_balance }}" min="0" step="0.01" placeholder="Balance (PHP)" class="rounded-lg border-slate-300 text-xs">
                                             <button type="submit" class="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white">Save clearance</button>
                                         </form>
                                     </div>
@@ -357,7 +367,7 @@
                                 @elseif($transitions->allowed($req, auth()->user()) !== [])
                                     <div class="flex flex-col gap-2 w-full">
                                         <!-- Status Update -->
-                                        <form action="{{ route('requests.update-status', $req->id) }}" method="POST" class="flex flex-col gap-2"
+                                        <form action="{{ route('requests.update-status', $req->id) }}" method="POST" enctype="multipart/form-data" class="flex flex-col gap-2"
                                               data-request-identifier="{{ $req->ticket_number ?? '#'.$req->id }}"
                                               onsubmit="const status=this.querySelector('[name=status]').value; const id=this.dataset.requestIdentifier; if (status === 'rejected') return confirm('Reject request ' + id + '? This cannot be undone through Request Management.'); if (status === 'completed') return confirm('Mark request ' + id + ' as released? This records that the document was released and cannot be undone through Request Management.'); if (status === 'ready_to_release') return confirm('Mark request ' + id + ' as ready for release? Confirm that the issued document is ready before continuing.'); return true;">
                                             @csrf
@@ -377,6 +387,16 @@
                                             </div>
                                             <label for="status-remarks-{{ $req->id }}" class="text-xs font-semibold text-slate-700">Remarks for {{ $req->ticket_number ?? 'request #'.$req->id }} (optional)</label>
                                             <input id="status-remarks-{{ $req->id }}" type="text" name="remarks" placeholder="Add remarks..." class="min-w-0 rounded-xl border-slate-200 bg-white px-4 py-2.5 text-sm font-bold shadow-sm transition-all focus:ring-2 focus:ring-indigo-500" value="{{ $req->remarks }}">
+                                            @if($req->status === 'ready_for_transmission')
+                                                <div class="space-y-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-xs">
+                                                    <p class="font-bold text-cyan-900">Required for Transmitted</p>
+                                                    <input type="hidden" name="transmission_method" value="lbc"><div class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-bold">Courier: LBC Express</div>
+                                                    <input name="recipient_name" class="w-full rounded-lg border-slate-300" placeholder="Recipient / contact person">
+                                                    <textarea name="transmission_destination" class="w-full rounded-lg border-slate-300" rows="2">{{ $req->receiving_school_name }} — {{ $req->receiving_school_address }}</textarea>
+                                                    <input name="reference_number" class="w-full rounded-lg border-slate-300" placeholder="Tracking / reference number">
+                                                    <input type="file" name="transmission_proof" accept=".jpg,.jpeg,.png,.pdf" class="w-full rounded-lg border border-slate-300 bg-white p-2">
+                                                </div>
+                                            @endif
                                         </form>
                                         
                                         <!-- Clearance Update Form (Hidden) -->
@@ -388,10 +408,7 @@
                                                     <select id="clearance-status-{{ $req->id }}" name="clearance_status" class="min-w-0 rounded-lg border-amber-300 bg-white px-3 py-2 text-xs font-bold">
                                                         <option value="cleared" {{ $req->clearance_status == 'cleared' ? 'selected' : '' }}>Cleared</option>
                                                         <option value="pending_clearance" {{ $req->clearance_status == 'pending_clearance' ? 'selected' : '' }}>Pending Clearance</option>
-                                                        <option value="has_balance" {{ $req->clearance_status == 'has_balance' ? 'selected' : '' }}>Has Balance</option>
                                                     </select>
-                                                    <label for="financial-balance-{{ $req->id }}" class="text-xs font-semibold text-slate-700">Financial balance (₱)</label>
-                                                    <input id="financial-balance-{{ $req->id }}" type="number" name="financial_balance" value="{{ $req->financial_balance }}" placeholder="Balance (₱)" step="0.01" min="0" class="min-w-0 rounded-lg border-amber-300 bg-white px-3 py-2 text-xs font-bold">
                                                     <button type="submit" class="px-3 py-1.5 bg-amber-600 text-white text-xs font-black rounded-lg hover:bg-amber-700 transition-all">
                                                         Update Clearance
                                                     </button>
@@ -466,5 +483,14 @@ function toggleClearanceForm(requestId) {
         form.style.display = 'none';
     }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const requestId = new URLSearchParams(window.location.search).get('open_request');
+    const dialog = requestId ? document.getElementById('request-details-' + requestId) : null;
+    if (dialog && typeof dialog.showModal === 'function') {
+        dialog.showModal();
+        dialog.querySelector('button, a, input, textarea, select')?.focus();
+    }
+});
 </script>
 @endsection

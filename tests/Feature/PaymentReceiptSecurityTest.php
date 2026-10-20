@@ -31,15 +31,14 @@ class PaymentReceiptSecurityTest extends TestCase
         $documentRequest = RequestDocument::firstOrFail();
 
         $this->assertSame('local', $documentRequest->payment_proof_disk);
-        $this->assertSame('pending_clearance', $documentRequest->clearance_status);
+        $this->assertNull($documentRequest->clearance_status);
         $this->assertFalse($documentRequest->payment_confirmed);
-        $this->assertSame('0.00', $documentRequest->financial_balance);
         $this->assertSame('my receipt.jpg', $documentRequest->payment_proof_original_name);
         $this->assertStringNotContainsString('my receipt', $documentRequest->payment_proof_path);
         Storage::disk('local')->assertExists($documentRequest->payment_proof_path);
         Storage::disk('public')->assertMissing($documentRequest->payment_proof_path);
         $this->assertDatabaseHas('activity_logs', [
-            'action' => 'Uploaded Payment Receipt',
+            'action' => 'Uploaded School ID Proof',
             'module' => 'File Security',
             'status' => 'success',
         ]);
@@ -49,7 +48,7 @@ class PaymentReceiptSecurityTest extends TestCase
     {
         $owner = $this->student('2026-1009');
         $documentRequest = $this->documentRequest($owner->student_number);
-        $documentRequest->update(['clearance_status' => 'has_balance', 'financial_balance' => 500]);
+        $documentRequest->update(['clearance_status' => 'pending_clearance']);
 
         $this->actingAs(User::factory()->create(['role' => 'records_officer']))
             ->post(route('requests.confirm-payment', $documentRequest->id))
@@ -64,8 +63,7 @@ class PaymentReceiptSecurityTest extends TestCase
         $this->assertTrue($documentRequest->payment_confirmed);
         $this->assertSame($registrar->id, $documentRequest->payment_confirmed_by);
         $this->assertNotNull($documentRequest->payment_confirmed_at);
-        $this->assertSame('has_balance', $documentRequest->clearance_status);
-        $this->assertSame('500.00', $documentRequest->financial_balance);
+        $this->assertSame('pending_clearance', $documentRequest->clearance_status);
     }
 
     public function test_form_137_requires_and_stores_the_requested_school_level(): void
@@ -82,15 +80,25 @@ class PaymentReceiptSecurityTest extends TestCase
 
         $this->actingAs($student)->post(route('student.request.store'), [
             'document_type' => 'Form 137',
-            'delivery_method' => 'pickup',
+            'request_purpose' => 'transfer_enrollment',
+            'purpose_details' => 'Enrollment transfer',
+            'receiving_school_name' => 'Receiving School',
+            'receiving_address_scope' => 'domestic', 'receiving_school_street' => '123 School St.', 'receiving_barangay' => 'San Jose', 'receiving_city' => 'City of Dasmariñas', 'receiving_province' => 'Cavite', 'receiving_region_code' => '0400000000',
+            'request_proof' => UploadedFile::fake()->create('school-request.pdf', 50, 'application/pdf'),
+            'delivery_method' => 'school_to_school',
             'payment_method' => 'cash',
             'transcript_receipt' => UploadedFile::fake()->image('clearance.jpg'),
         ])->assertSessionHasErrors('school_level');
 
         $this->actingAs($student)->post(route('student.request.store'), [
             'document_type' => 'Form 137',
+            'request_purpose' => 'transfer_enrollment',
+            'purpose_details' => 'Enrollment transfer',
+            'receiving_school_name' => 'Receiving School',
+            'receiving_address_scope' => 'domestic', 'receiving_school_street' => '123 School St.', 'receiving_barangay' => 'San Jose', 'receiving_city' => 'City of Dasmariñas', 'receiving_province' => 'Cavite', 'receiving_region_code' => '0400000000',
+            'request_proof' => UploadedFile::fake()->create('school-request.pdf', 50, 'application/pdf'),
             'school_level' => 'shs',
-            'delivery_method' => 'pickup',
+            'delivery_method' => 'school_to_school',
             'payment_method' => 'cash',
             'transcript_receipt' => UploadedFile::fake()->image('clearance.jpg'),
         ])->assertSessionHasNoErrors();

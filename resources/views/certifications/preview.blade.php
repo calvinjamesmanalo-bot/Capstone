@@ -10,19 +10,38 @@
     @if(session('error'))<div class="rounded-xl border border-red-200 bg-red-50 px-5 py-4 font-semibold text-red-800">{{ session('error') }}</div>@endif
     <div class="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl p-4 no-print">
         <a href="{{ route('certifications.index', $requestId !== '' ? ['request_id' => $requestId] : []) }}" class="text-sm font-semibold text-[#062b63]">&larr; Edit details</a>
-        <div class="flex flex-wrap gap-3">
-            <button type="button" onclick="window.print()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Print preview</button>
-            <a href="{{ route('requests.index') }}{{ $requestId !== '' ? '#request-'.$requestId : '' }}" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors">
-                Update Request Status
-            </a>
-            <form method="POST" action="{{ route('certifications.pdf') }}" target="_blank">@csrf
-                @foreach(['request_id','certificate_type','student_number','student_name','grade_level','section','school_year','issue_date','expires_at','purpose','recognition'] as $field)<input type="hidden" name="{{ $field }}" value="{{ $form[$field] ?? '' }}">@endforeach
-                <button name="output" value="stream" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">View protected PDF</button>
-            </form>
-        </div>
+        @if($requestId !== '')<a href="{{ route('requests.index', ['open_request' => $requestId]) }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Back to request details</a>@endif
     </div>
-    @if($requestId !== '' && auth()->user()->role === 'records_officer')
-        <div class="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900">Review the protected PDF. When it is correct, return to the request and choose <strong>Send to registrar for review</strong>.</div>
+    @if($requestId !== '' && in_array(auth()->user()->role, ['records_officer', 'registrar']))
+        <section class="rounded-xl border border-slate-300 bg-white p-5 shadow-sm no-print">
+            @if($errors->any())<div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
+            <h2 class="text-lg font-bold text-slate-900">Final document check</h2>
+            <p class="mt-1 text-sm text-slate-600">Confirm the certificate details below. Checking the confirmation enables all document actions.</p>
+            <label class="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-4 text-sm font-semibold text-slate-800">
+                <input id="certificate-correct" type="checkbox" class="mt-0.5 h-5 w-5 rounded border-slate-300 text-[#000638]">
+                <span>I reviewed the student information, certificate type, school details, purpose, and dates. Everything is correct.</span>
+            </label>
+            <div class="mt-4 flex flex-wrap gap-3">
+                <button id="certificate-print" type="button" onclick="window.print()" disabled class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">Print preview</button>
+                <form method="POST" action="{{ route('certifications.pdf') }}" target="_blank">@csrf
+                    @foreach(['request_id','certificate_type','student_number','student_name','grade_level','section','school_year','issue_date','expires_at','purpose','recognition'] as $field)<input type="hidden" name="{{ $field }}" value="{{ $form[$field] ?? '' }}">@endforeach
+                    <button id="certificate-pdf" name="output" value="stream" disabled class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">View protected PDF</button>
+                </form>
+                @if(auth()->user()->role === 'records_officer')
+                    <form method="POST" action="{{ route('certifications.forward') }}" onsubmit="const button=this.querySelector('button'); button.disabled=true; button.textContent='Forwarding…';">@csrf
+                        @foreach(['request_id','certificate_type','student_number','student_name','grade_level','section','school_year','issue_date','expires_at','purpose','recognition'] as $field)<input type="hidden" name="{{ $field }}" value="{{ $form[$field] ?? '' }}">@endforeach
+                        <button id="certificate-forward" disabled class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Forward to Registrar</button>
+                    </form>
+                @endif
+            </div>
+        </section>
+        <script>
+            (() => {
+                const checkbox = document.getElementById('certificate-correct');
+                const buttons = ['certificate-print', 'certificate-pdf', 'certificate-forward'].map((id) => document.getElementById(id)).filter(Boolean);
+                checkbox.addEventListener('change', () => buttons.forEach((button) => { button.disabled = !checkbox.checked; }));
+            })();
+        </script>
     @endif
     <div class="overflow-auto bg-slate-200 py-6"><div class="min-w-[210mm]">@include('certifications.partials.certificate')</div></div>
 </div>

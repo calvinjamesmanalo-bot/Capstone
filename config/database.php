@@ -68,11 +68,11 @@ return [
             return [
                 'driver' => 'sqlite',
                 'database' => (static function (): string {
-                $path = (string) env('SCHOOL_FORMS_DB_DATABASE', 'generator/database/database.sqlite');
+                    $path = (string) env('SCHOOL_FORMS_DB_DATABASE', 'generator/database/database.sqlite');
 
-                return preg_match('/^(?:[A-Za-z]:[\\\\\/]|[\\\\\/]{2}|\/)/', $path)
-                    ? $path
-                    : base_path($path);
+                    return $path === ':memory:' || preg_match('/^(?:[A-Za-z]:[\\\\\/]|[\\\\\/]{2}|\/)/', $path)
+                        ? $path
+                        : base_path($path);
                 })(),
                 'prefix' => '',
                 'foreign_key_constraints' => true,

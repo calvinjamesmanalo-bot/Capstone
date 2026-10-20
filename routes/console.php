@@ -1,8 +1,9 @@
-`<?php
+<?php
 
 use App\Models\LoginAttemptLog;
 use App\Models\StudentAccountActivation;
 use App\Models\User;
+use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,13 @@ use Illuminate\Validation\Rules\Password;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('accounts:purge-archives', function () {
+    app(UserController::class)->purgeExpiredArchives();
+    $this->info('Expired archived accounts were processed.');
+})->purpose('Permanently delete accounts left in the archive for six months');
+
+Schedule::command('accounts:purge-archives')->dailyAt('01:30')->withoutOverlapping();
 
 Artisan::command('admin:create', function () {
     $name = trim((string) $this->ask('Administrator name'));

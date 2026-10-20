@@ -73,7 +73,7 @@ class DocumentWorkbookVerification
         $drawing->setName('Signed verification QR');
         $drawing->setDescription('Scan to verify this document');
         $drawing->setPath($temporaryQr);
-        $drawing->setHeight(190);
+        $drawing->setHeight(240);
         $drawing->setCoordinates('C5');
         $drawing->setOffsetX(34);
         $drawing->setWorksheet($sheet);

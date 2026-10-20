@@ -17,7 +17,7 @@ class DashboardController extends Controller
         $data = [];
 
         if (in_array($role, ['admin', 'registrar', 'records_officer'])) {
-            $data['total_users'] = User::count();
+            $data['total_users'] = User::where('role', 'not like', 'archived_%')->count();
             $data['total_requests'] = RequestDocument::count();
             $data['pending_requests'] = RequestDocument::where('status', 'pending')->count();
             $data['completed_requests'] = RequestDocument::where('status', 'completed')->count();

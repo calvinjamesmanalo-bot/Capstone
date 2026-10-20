@@ -37,6 +37,6 @@ class DiplomaController extends Controller
 
         record_log('Processed physical diploma request', 'Requests', "Request #{$docRequest->id} cleared for physical-copy preparation");
 
-        return redirect()->route('requests.index')->with('success', 'Physical diploma request has been forwarded for preparation and release.');
+        return redirect()->route('requests.index', ['open_request' => $docRequest->id])->with('success', 'Physical diploma request has been forwarded for preparation and release.');
     }
 }

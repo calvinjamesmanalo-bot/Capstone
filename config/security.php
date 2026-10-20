@@ -17,7 +17,7 @@ return [
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.bunny.net",
             "font-src 'self' data: https://fonts.gstatic.com https://fonts.bunny.net",
             "img-src 'self' data: blob:",
-            "connect-src 'self' https://challenges.cloudflare.com",
+            "connect-src 'self' https://challenges.cloudflare.com https://psgc.cloud",
             'frame-src https://challenges.cloudflare.com',
             "worker-src 'self' blob:",
             "media-src 'self' data: blob:",
@@ -38,9 +38,10 @@ return [
     ],
 
     'student_registration' => [
-        // Temporarily false while the school has no official student roster.
-        // Set true after importing student numbers, names, and official emails.
-        'require_roster' => (bool) env('STUDENT_REGISTRATION_REQUIRE_ROSTER', false),
+        // Only students present in the official roster may self-register.
+        'require_roster' => (bool) env('STUDENT_REGISTRATION_REQUIRE_ROSTER', true),
+        'identity_approval_hours' => (int) env('STUDENT_IDENTITY_APPROVAL_HOURS', 72),
+        'daily_account_limit' => (int) env('STUDENT_REGISTRATION_DAILY_LIMIT', 200),
     ],
 
     'rate_limiting' => [

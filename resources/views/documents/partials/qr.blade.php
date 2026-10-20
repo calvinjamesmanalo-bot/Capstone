@@ -9,7 +9,7 @@
     ]);
 @endphp
 <div style="margin-top: 12px; text-align: center; page-break-inside: avoid;">
-    <img src="{{ $documentQr['data_uri'] }}" alt="Verification QR code" style="display: inline-block; width: 78px; height: 78px;">
+    <img src="{{ $documentQr['data_uri'] }}" alt="Verification QR code" style="display: inline-block; width: 112px; height: 112px;">
     <div style="margin-top: 2px; font-family: Arial, sans-serif; font-size: 7px; line-height: 1.3; color: #334155;">
         SCAN TO VERIFY · {{ $documentQr['reference'] }}<br>
         @if($qrPdfWillBeSigned ?? false)

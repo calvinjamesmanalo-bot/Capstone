@@ -1,3 +1,6 @@
+@php
+    $darkModeEnabled = \App\Support\SystemContent::get('dark_mode_enabled', '1') === '1';
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +10,12 @@
     <title>{{ \App\Support\SystemContent::schoolName() }} Document Request Hub - @yield('title', 'Dashboard')</title>
     <script>
         (() => {
+            const darkModeEnabled = @json($darkModeEnabled);
+            if (!darkModeEnabled) {
+                localStorage.setItem('fla-theme', 'light');
+                document.documentElement.classList.remove('dark');
+                return;
+            }
             const savedTheme = localStorage.getItem('fla-theme');
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             document.documentElement.classList.toggle('dark', savedTheme ? savedTheme === 'dark' : prefersDark);
@@ -21,7 +30,7 @@
         button, a, input, select, textarea { touch-action: manipulation; }
         .request-a11y :is(a, button, input, select, textarea, [tabindex="0"]):focus-visible,
         .request-a11y label:has(> input.sr-only:focus-visible),
-        .request-a11y label[for="transcript_receipt"]:has(~ #transcript_receipt:focus-visible) {
+        .request-a11y label[for="school_id_proof"]:has(~ #school_id_proof:focus-visible) {
             outline: 3px solid #4f46e5;
             outline-offset: 3px;
         }
@@ -256,6 +265,15 @@
             <nav class="flex-1 px-6 space-y-1 overflow-y-auto pb-8 custom-scrollbar text-base">
                 @php
                     $role = auth()->user()->role ?? 'admin'; // Default to admin for now if not logged in
+                    $messageUnreadCount = 0;
+                    $messageHubReady = \Illuminate\Support\Facades\Schema::hasTable('message_entries')
+                        && \Illuminate\Support\Facades\Schema::hasTable('message_threads');
+                    if (in_array($role, ['student', 'registrar']) && $messageHubReady) {
+                        $messageUnreadCount = \App\Models\MessageEntry::query()
+                            ->whereNull('read_at')->where('sender_id', '!=', auth()->id())
+                            ->whereHas('thread', fn ($query) => $role === 'student' ? $query->where('student_id', auth()->id()) : $query)
+                            ->count();
+                    }
                 @endphp
 
                 <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">Main Menu</p>
@@ -272,7 +290,7 @@
                 @if(in_array($role, ['admin', 'registrar', 'records_officer']))
                 <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">Administrative</p>
 
-                @if($role === 'admin')
+                @if(in_array($role, ['admin', 'registrar']))
                 <a href="{{ route('users.index') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('users.index') ? 'active' : 'hover:bg-slate-800/50' }}">
                     <div class="w-5 h-5 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -282,7 +300,14 @@
                     <span class="text-base font-semibold">Accounts &amp; Roles</span>
                 </a>
                 @endif
-
+                @if($role === 'admin')
+                <a href="{{ route('account-creation.index') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('account-creation.*') ? 'active' : 'hover:bg-slate-800/50' }}">
+                    <div class="w-5 h-5 flex items-center justify-center">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h10M4 18h10M18 14v6m-3-3h6"/></svg>
+                    </div>
+                    <span class="text-base font-semibold">Account Creation</span>
+                </a>
+                @endif
                 <a href="{{ route('requests.index') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('requests.index') ? 'active' : 'hover:bg-slate-800/50' }}">
                     <div class="w-5 h-5 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -343,6 +368,13 @@
                 @endif
 
                 @if($role === 'registrar')
+                @if($messageHubReady)
+                <a href="{{ route('messages.index') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('messages.*') ? 'active' : 'hover:bg-slate-800/50' }}">
+                    <div class="w-5 h-5 flex items-center justify-center"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4-.8L3 20l1.3-3.47A7.39 7.39 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg></div>
+                    <span class="text-base font-semibold">Message Hub</span>
+                    @if($messageUnreadCount)<span class="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">{{ $messageUnreadCount }}</span>@endif
+                </a>
+                @endif
                 <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">Academic Records</p>
 
                 <a href="{{ route('grade-portal.index') }}" class="sidebar-link flex items-center gap-4 px-4 py-3 rounded-xl transition-all hover:text-white group {{ request()->routeIs('grade-portal.*', 'school-forms.records') ? 'active' : 'hover:bg-slate-800/50' }}">
@@ -485,17 +517,23 @@
 
                 <div class="flex items-center gap-3">
                 @if($role === 'student')
-                    <a href="{{ route('student.notifications.index') }}" class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[#000638] hover:bg-slate-100" aria-label="Notifications">
+                    @php
+                        $headerNotifications = auth()->user()->notifications()->latest()->limit(10)->get();
+                        $unreadCount = auth()->user()->unreadNotifications()->count();
+                    @endphp
+                    <button type="button" onclick="document.getElementById('notification-popup').showModal()" class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[#000638] hover:bg-slate-100" aria-label="Open notifications">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2 2 0 0118 14.172V11a6 6 0 00-12 0v3.172a2 2 0 01-.595 1.423L4 17h5m6 0a3 3 0 01-6 0m6 0H9" /></svg>
-                        @if($unreadCount = auth()->user()->unreadNotifications()->count())
+                        @if($unreadCount)
                             <span class="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-600 px-1 text-center text-xs font-bold text-white">{{ min($unreadCount, 99) }}</span>
                         @endif
-                    </a>
+                    </button>
                 @endif
+                    @if($darkModeEnabled)
                     <button type="button" data-theme-toggle class="w-11 h-11 shrink-0 rounded-xl border border-slate-200 bg-slate-50 text-[#000638] flex items-center justify-center hover:bg-slate-100 transition-colors" aria-label="Switch to dark mode" title="Switch color theme">
                         <svg class="theme-toggle-icon-moon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
                         <svg class="theme-toggle-icon-sun w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364-.707-.707M6.343 6.343l-.707-.707m12.728 0-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                     </button>
+                    @endif
                 @if(in_array($role, ['admin', 'registrar', 'records_officer']))
                     <div class="hidden sm:flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5" aria-label="Current date and time">
                         <div class="w-9 h-9 rounded-lg bg-[#000638] text-[#ffd22d] flex items-center justify-center">
@@ -509,6 +547,36 @@
                 @endif
                 </div>
             </header>
+
+            @if($role === 'student')
+                <dialog id="notification-popup" class="m-auto max-h-[85vh] w-[min(520px,calc(100%-1.5rem))] overflow-hidden rounded-2xl border-0 p-0 shadow-2xl backdrop:bg-slate-950/60">
+                    <div class="flex max-h-[85vh] flex-col bg-white">
+                        <header class="flex items-center justify-between gap-3 bg-[#000638] px-5 py-4 text-white">
+                            <div><p class="text-xs font-bold uppercase tracking-wider text-[#ffd22d]">Notifications</p><h3 class="text-lg font-black">Request updates</h3></div>
+                            <button type="button" onclick="document.getElementById('notification-popup').close()" class="rounded-lg p-2 text-2xl leading-none hover:bg-white/10" aria-label="Close notifications">&times;</button>
+                        </header>
+                        <div class="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4">
+                            @forelse($headerNotifications as $notification)
+                                <article class="rounded-xl border p-4 {{ $notification->read_at ? 'border-slate-200 bg-white' : 'border-amber-300 bg-amber-50' }}">
+                                    <p class="text-sm font-semibold text-slate-900">{{ $notification->data['message'] ?? 'Request update' }}</p>
+                                    <p class="mt-1 text-xs text-slate-500">{{ $notification->created_at->diffForHumans() }}</p>
+                                    <div class="mt-3 flex flex-wrap gap-3 text-sm">
+                                        <a href="{{ route('student.my-requests') }}" class="font-bold text-blue-700 underline">View request</a>
+                                        @if(! $notification->read_at)
+                                            <form method="POST" action="{{ route('student.notifications.read', $notification->id) }}">@csrf<button type="submit" class="font-bold text-slate-700 underline">Mark as read</button></form>
+                                        @endif
+                                    </div>
+                                </article>
+                            @empty
+                                <p class="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">No notifications yet.</p>
+                            @endforelse
+                        </div>
+                        @if($unreadCount)
+                            <form method="POST" action="{{ route('student.notifications.read-all') }}" class="border-t border-slate-200 bg-white p-4">@csrf<button type="submit" class="w-full rounded-lg bg-[#000638] px-4 py-2.5 text-sm font-bold text-white">Mark all as read</button></form>
+                        @endif
+                    </div>
+                </dialog>
+            @endif
 
             <!-- Page Content -->
             <div class="page-content p-4 sm:p-6 lg:p-8">
@@ -582,6 +650,7 @@
             scheduleFit();
         })();
     </script>
+    @if($darkModeEnabled)
     <script>
         (() => {
             const root = document.documentElement;
@@ -595,6 +664,7 @@
             syncLabel();
         })();
     </script>
+    @endif
     <script>
         (() => {
             const sidebar = document.querySelector('[data-mobile-sidebar]');
@@ -774,7 +844,21 @@
         })();
     </script>
     @endif
+    @if($role === 'student' && $messageHubReady)
+        <a href="{{ route('messages.index') }}"
+           class="fixed bottom-5 right-4 z-50 flex min-h-14 items-center gap-3 rounded-full border-2 border-[#ffd22d] bg-[#000638] py-2.5 pl-3 pr-5 text-white shadow-[0_12px_30px_rgba(0,6,56,0.38)] transition hover:-translate-y-1 hover:bg-[#10175a] hover:shadow-[0_16px_36px_rgba(0,6,56,0.5)] focus:outline-none focus:ring-4 focus:ring-[#ffd22d]/50 sm:bottom-7 sm:right-7"
+           aria-label="Open live chat with the Registrar">
+            <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ffd22d] text-[#000638] shadow-inner">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4-.8L3 20l1.3-3.47A7.39 7.39 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                @if($messageUnreadCount)
+                    <span class="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] font-extrabold leading-4 ring-2 ring-white">{{ $messageUnreadCount > 99 ? '99+' : $messageUnreadCount }}</span>
+                @endif
+            </span>
+            <span class="text-base font-extrabold"><span class="text-[#ffd22d]">Live</span> Chat</span>
+        </a>
+    @endif
     @stack('scripts')
+    @include('partials.image-upload-preview')
     @include('partials.loading-overlay')
 </body>
 </html>

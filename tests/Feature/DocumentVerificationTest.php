@@ -27,15 +27,55 @@ class DocumentVerificationTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Issuance record is authentic')
+            ->assertSee('Check the QR from a printed document')
+            ->assertSee('Reading the printed document')
+            ->assertSee('capture="environment"', false)
             ->assertSee('Juan Dela Cruz')
             ->assertSee($qr['reference'])
             ->assertSee(strtoupper($qr['document']->content_hash))
             ->assertSee('Valid &middot; HMAC-SHA256', false);
 
+        $response->assertDontSee('school_year')
+            ->assertDontSee('grade_level')
+            ->assertDontSee('2026-2027')
+            ->assertDontSee('Grade 10');
+
         $this->assertDatabaseHas('document_verification_audits', [
             'document_authenticity_id' => $qr['document']->id,
             'result' => 'authentic',
         ]);
+    }
+
+    public function test_a_printed_f138_photo_is_compared_without_exposing_grades(): void
+    {
+        $document = app(DocumentQrCode::class)->issue('Form 138', 'Juan Dela Cruz', [
+            'holder_identifier' => '2026-0001',
+            'issued_at' => '2026-08-16',
+            'fields' => ['grades' => [
+                'MATHEMATICS' => [1 => 91, 2 => 92, 3 => 93, 4 => 94],
+                'SCIENCE' => [1 => 88, 2 => 89, 3 => 90, 4 => 91],
+            ]],
+        ]);
+        $url = route('documents.verify-photo', ['identifier' => $document->control_number]);
+        $ocr = "FIAT LUX ACADEME\nJuan Dela Cruz\n2026-0001\n{$document->control_number}\nMATHEMATICS 91 92 93 94\nSCIENCE 88 89 90 91\nPROGRESS REPORT CARD OFFICIAL SCHOOL RECORD";
+
+        $this->postJson($url, ['signature' => $document->signature, 'ocr_text' => $ocr])
+            ->assertOk()->assertJsonPath('status', 'match');
+        $this->postJson($url, ['signature' => $document->signature, 'ocr_text' => str_replace('94', '99', $ocr)])
+            ->assertOk()->assertJsonPath('status', 'mismatch')
+            ->assertJsonMissing(['91', '92', '93', '94']);
+        $this->get(app(DocumentQrCode::class)->verificationUrl($document))
+            ->assertOk()->assertDontSee('MATHEMATICS 91')->assertDontSee('SCIENCE 88');
+    }
+
+    public function test_generated_document_qr_is_large_enough_for_print_and_phone_scanning(): void
+    {
+        $html = view('documents.partials.qr', [
+            'qrDocumentType' => 'Certificate of Enrollment',
+            'qrSubject' => 'Readable QR Holder',
+        ])->render();
+
+        $this->assertStringContainsString('width: 112px; height: 112px;', $html);
     }
 
     public function test_the_same_document_content_reuses_its_control_number(): void

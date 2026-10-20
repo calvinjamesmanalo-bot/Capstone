@@ -24,6 +24,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'email_verified_at',
         'pending_email',
         'password',
+        'must_change_password',
         'role',
         'student_number',
         'can_bypass_request_limit',
@@ -34,9 +35,29 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsTo(Student::class, 'student_number', 'student_number');
     }
 
+    public function isArchived(): bool
+    {
+        return str_starts_with((string) $this->role, 'archived_');
+    }
+
+    public function archivedOriginalRole(): string
+    {
+        return $this->isArchived() ? substr((string) $this->role, 9) : (string) $this->role;
+    }
+
     public function requestStatusChanges()
     {
         return $this->hasMany(RequestStatusHistory::class, 'changed_by');
+    }
+
+    public function messageThreads()
+    {
+        return $this->hasMany(MessageThread::class, 'student_id');
+    }
+
+    public function sentMessages()
+    {
+        return $this->hasMany(MessageEntry::class, 'sender_id');
     }
 
     public function hasMatchingOfficialStudentRecord(): bool
@@ -109,6 +130,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
             'can_bypass_request_limit' => 'boolean',
         ];
     }

@@ -4,11 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\SchoolFormStudent;
 use App\Models\Student;
+use App\Models\StudentAccountActivation;
 use App\Models\User;
+use App\Support\DemoStudentData;
+use App\Support\TemporaryStudentPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -18,6 +22,7 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
+        $this->purgeExpiredArchives();
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
         ]);
@@ -55,6 +60,7 @@ class UserController extends Controller
 
         $staffUsers = User::query()
             ->where('role', '!=', 'student')
+            ->where('role', 'not like', 'archived_%')
             ->when($search !== '', $matching)
             ->orderBy('role')
             ->orderBy('name')
@@ -68,12 +74,57 @@ class UserController extends Controller
             ->orderBy('student_number')
             ->get();
 
-        return view('users.index', compact('staffUsers', 'studentUsers', 'search'));
+        $archivedUsers = User::query()
+            ->where('role', 'like', 'archived_%')
+            ->when($search !== '', $matching)
+            ->orderByDesc('updated_at')
+            ->get();
+
+        return view('users.index', compact('staffUsers', 'studentUsers', 'archivedUsers', 'search'));
     }
 
     public function create()
     {
         return view('users.create');
+    }
+
+    public function issueTemporaryPassword(User $user, TemporaryStudentPassword $passwords)
+    {
+        abort_unless(in_array(auth()->user()?->role, ['admin', 'registrar'], true), 403);
+        abort_unless($user->role === 'student' && filled($user->student_number), 422, 'Temporary passwords can be issued only to active student accounts.');
+
+        $temporaryPassword = $passwords->generate();
+        DB::transaction(function () use ($user, $temporaryPassword): void {
+            DB::table(config('session.table', 'sessions'))->where('user_id', $user->getKey())->delete();
+            $user->forceFill([
+                'password' => Hash::make($temporaryPassword),
+                'must_change_password' => true,
+                'remember_token' => null,
+            ])->save();
+        });
+
+        record_log(
+            'Issued Random Student Temporary Password',
+            'Account Security',
+            "Issued one-time temporary access for Student Number {$user->student_number}; issued by ".auth()->user()->role.'.'
+        );
+
+        return redirect()->route('users.index', ['search' => $user->student_number])
+            ->with('success', 'A new random temporary password was issued. Give it directly to the student; it will not be shown again after leaving this page.')
+            ->with('issued_student_credential', [
+                'name' => $user->display_name,
+                'student_number' => $user->student_number,
+                'temporary_password' => $temporaryPassword,
+            ]);
+    }
+
+    public function createDemoStudent(DemoStudentData $demo)
+    {
+        $user = $demo->create();
+        record_log('Created Demo Student', 'User Management', 'Prepared the full Kinder-to-SHS demo history for '.$user->student_number.'.');
+
+        return redirect()->route('users.index', ['search' => DemoStudentData::STUDENT_NUMBER])
+            ->with('success', 'Calvin James Manalo demo account is ready with complete Kinder-to-Grade-12 grades and attendance.');
     }
 
     public function store(Request $request)
@@ -239,12 +290,76 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
+        abort_if($user->is(auth()->user()), 422, 'You cannot archive the account you are currently using.');
+        if ($user->role === 'admin' && User::where('role', 'admin')->count() <= 1) {
+            throw ValidationException::withMessages(['account' => 'The last active administrator cannot be archived.']);
+        }
         $name = $user->display_name;
-        $user->delete();
+        DB::transaction(function () use ($user): void {
+            DB::table(config('session.table', 'sessions'))->where('user_id', $user->getKey())->delete();
+            DB::table(config('auth.passwords.users.table', 'password_reset_tokens'))
+                ->whereRaw('LOWER(email) = ?', [Str::lower($user->email)])
+                ->delete();
+            $user->forceFill([
+                'role' => 'archived_'.$user->role,
+                'remember_token' => null,
+            ])->save();
+        });
 
-        record_log('Deleted User', 'User Management', "Deleted account for {$name}");
+        record_log('Archived User', 'User Management', "Archived account for {$name}");
 
-        return redirect()->route('users.index')->with('success', 'User deleted successfully.');
+        return redirect()->route('users.index')->with('success', 'Account moved to Archived Accounts. It can be restored for 6 months.');
+    }
+
+    public function restore(int $id)
+    {
+        $user = User::query()->whereKey($id)->where('role', 'like', 'archived_%')->firstOrFail();
+        $name = $user->display_name;
+        $user->forceFill(['role' => $user->archivedOriginalRole()])->save();
+        record_log('Restored User', 'User Management', "Restored account for {$name}");
+
+        return redirect()->route('users.index')->with('success', 'Account restored and can sign in again.');
+    }
+
+    public function forceDestroy(int $id)
+    {
+        $user = User::query()->whereKey($id)->where('role', 'like', 'archived_%')->firstOrFail();
+        $name = $user->display_name;
+        $this->permanentlyDelete($user);
+        record_log('Permanently Deleted User', 'User Management', "Permanently deleted archived account for {$name}");
+
+        return redirect()->route('users.index')->with('success', 'Archived account permanently deleted.');
+    }
+
+    public function purgeExpiredArchives(): void
+    {
+        User::query()
+            ->where('role', 'like', 'archived_%')
+            ->where('updated_at', '<=', now()->subMonthsNoOverflow(6))
+            ->eachById(fn (User $user) => $this->permanentlyDelete($user));
+    }
+
+    private function permanentlyDelete(User $user): void
+    {
+        DB::transaction(function () use ($user): void {
+            if ($user->archivedOriginalRole() === 'student' && filled($user->student_number)) {
+                $student = Student::query()->lockForUpdate()->find($user->student_number);
+                if ($student !== null) {
+                    Storage::disk('local')->delete(array_filter([$student->school_id_path, $student->school_id_selfie_path]));
+                    StudentAccountActivation::query()->where('student_number', $student->student_number)
+                        ->orWhereRaw('LOWER(email) = ?', [Str::lower($user->email)])->delete();
+                    $student->forceFill([
+                        'official_email' => null, 'account_verification_status' => null, 'account_verification_email' => null,
+                        'school_id_path' => null, 'school_id_selfie_path' => null, 'account_verification_token_hash' => null,
+                        'account_verification_expires_at' => null, 'account_verification_reviewed_by' => null,
+                        'account_verification_reviewed_at' => null, 'account_verification_notes' => null,
+                    ])->save();
+                }
+            }
+            DB::table(config('session.table', 'sessions'))->where('user_id', $user->getKey())->delete();
+            DB::table(config('auth.passwords.users.table', 'password_reset_tokens'))->whereRaw('LOWER(email) = ?', [Str::lower($user->email)])->delete();
+            $user->delete();
+        });
     }
 
     public function toggleBypass(User $user)

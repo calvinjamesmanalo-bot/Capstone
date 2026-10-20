@@ -20,16 +20,55 @@ class RequestDocument extends Model
         'document_type',
         'school_year',
         'school_level',
+        'request_purpose',
+        'purpose_details',
+        'receiving_school_name',
+        'receiving_school_address',
+        'receiving_address_scope',
+        'receiving_school_street',
+        'receiving_barangay',
+        'receiving_city',
+        'receiving_province',
+        'receiving_region_code',
+        'receiving_overseas_address',
+        'lbc_sakto_rate',
+        'request_proof_path',
+        'request_proof_original_name',
+        'request_proof_mime_type',
+        'request_proof_size',
+        'employer_name',
+        'employment_proof_path',
+        'employment_proof_original_name',
+        'employment_proof_mime_type',
+        'employment_proof_size',
+        'is_f137_employment_exception',
+        'exception_approved_at',
+        'exception_approved_by',
+        'review_status',
+        'reviewed_at',
+        'reviewed_by',
+        'review_notes',
+        'pickup_location',
+        'ready_for_pickup_at',
+        'is_manually_prepared',
+        'manual_preparation_reason',
+        'manually_prepared_at',
+        'manually_prepared_by',
         'document_price',
         'status',
         'remarks',
         'delivery_method',
+        'f137_delivery_method',
+        'delivery_fee',
+        'delivery_assessed_at',
+        'delivery_assessed_by',
         'payment_method',
         'payment_confirmed',
         'payment_confirmed_at',
         'payment_confirmed_by',
+        'payment_amount',
+        'official_receipt_number',
         'clearance_status',
-        'financial_balance',
         'payment_proof_path',
         'payment_proof_disk',
         'payment_proof_original_name',
@@ -44,8 +83,17 @@ class RequestDocument extends Model
         'dynamic_values' => 'array',
         'payment_confirmed' => 'boolean',
         'payment_confirmed_at' => 'datetime',
-        'financial_balance' => 'decimal:2',
         'document_price' => 'decimal:2',
+        'delivery_fee' => 'decimal:2',
+        'delivery_assessed_at' => 'datetime',
+        'payment_amount' => 'decimal:2',
+        'is_f137_employment_exception' => 'boolean',
+        'exception_approved_at' => 'datetime',
+        'reviewed_at' => 'datetime',
+        'ready_for_pickup_at' => 'datetime',
+        'is_manually_prepared' => 'boolean',
+        'manually_prepared_at' => 'datetime',
+        'lbc_sakto_rate' => 'decimal:2',
     ];
 
     protected static function booted(): void
@@ -96,6 +144,26 @@ class RequestDocument extends Model
         return $this->hasMany(RequestStatusHistory::class)->oldest('id');
     }
 
+    public function transmissions()
+    {
+        return $this->hasMany(RequestDocumentTransmission::class);
+    }
+
+    public function claim()
+    {
+        return $this->hasOne(RequestDocumentClaim::class);
+    }
+
+    public function manualPreparer()
+    {
+        return $this->belongsTo(User::class, 'manually_prepared_by');
+    }
+
+    public function deliveryAssessor()
+    {
+        return $this->belongsTo(User::class, 'delivery_assessed_by');
+    }
+
     public function publicStatusHistories()
     {
         return $this->hasMany(RequestStatusHistory::class)
@@ -104,6 +172,10 @@ class RequestDocument extends Model
 
     public function hasPreparedDocument(): bool
     {
+        if ($this->is_manually_prepared) {
+            return true;
+        }
+
         return $this->authenticities()
             ->where('status', 'valid')
             ->where('pdf_signature_status', 'signed')

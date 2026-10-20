@@ -23,7 +23,7 @@
             @if(count($activeRequests) > 0)
                 <div class="space-y-4">
                     @foreach($activeRequests as $req)
-                        <div class="flex min-w-0 flex-col justify-between gap-4 rounded-3xl border border-slate-100 bg-slate-50 p-4 transition-all hover:bg-white hover:shadow-2xl hover:shadow-indigo-500/5 sm:p-6 md:flex-row md:items-center md:gap-6 group">
+                        <div class="flex min-w-0 flex-col justify-between gap-4 rounded-3xl border border-slate-100 bg-slate-50 p-4 transition-all hover:bg-white hover:shadow-2xl hover:shadow-indigo-500/5 sm:p-6 md:flex-row md:flex-wrap md:items-center md:gap-6 group">
                             <div class="flex min-w-0 items-start gap-4 sm:items-center sm:gap-5">
                                 <div class="w-12 h-12 sm:w-14 sm:h-14 shrink-0 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-all">
                                     <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,22 +56,18 @@
                                         <span class="text-[9px] font-black {{ $req->payment_confirmed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' }} px-2 py-0.5 rounded uppercase tracking-widest">
                                             {{ $req->payment_confirmed ? 'Document Payment Confirmed' : 'Document Payment Pending' }}
                                         </span>
-                                        @if($req->clearance_status)
-                                            <span class="text-[9px] font-black {{ $req->clearance_status === 'cleared' ? 'bg-emerald-100 text-emerald-700' : ($req->clearance_status === 'has_balance' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700') }} px-2 py-0.5 rounded uppercase tracking-widest">
-                                                {{ str_replace('_', ' ', $req->clearance_status) }}
-                                            </span>
-                                        @endif
                                     </div>
                                 </div>
                             </div>
                             <div class="flex min-w-0 flex-col items-start gap-2 md:items-end">
                                 <a href="{{ route('requests.receipt', $req) }}" target="_blank" rel="noopener noreferrer" class="w-full rounded-lg bg-indigo-100 px-3 py-2 text-center text-xs font-black uppercase tracking-widest text-indigo-700 transition-all hover:bg-indigo-200 sm:w-auto">Print Request Receipt</a>
                                 @if($req->payment_proof_path)
-                                    <a href="{{ route('requests.receipt.uploaded', $req) }}" target="_blank" rel="noopener noreferrer" class="w-full rounded-lg bg-slate-100 px-3 py-2 text-center text-xs font-black uppercase tracking-widest text-slate-700 transition-all hover:bg-slate-200 sm:w-auto">View Transcript Receipt (Uploaded Accounting File)</a>
+                                    <a href="{{ route('requests.receipt.uploaded', $req) }}" target="_blank" rel="noopener noreferrer" class="w-full rounded-lg bg-slate-100 px-3 py-2 text-center text-xs font-black uppercase tracking-widest text-slate-700 transition-all hover:bg-slate-200 sm:w-auto">View School ID Proof</a>
                                 @endif
                                 <x-request-status-badge :status="$req->status" />
                                 @include('requests.partials.status-timeline', ['histories' => $req->publicStatusHistories, 'staff' => false])
                             </div>
+                            <div class="w-full md:basis-full">@include('requests.partials.student-transmission-details', ['req' => $req])</div>
                         </div>
                     @endforeach
                 </div>
@@ -115,6 +111,7 @@
                                     </div>
                                     <p class="text-xs font-medium text-slate-500">{{ $req->created_at->format('M d, Y') }}</p>
                                     @include('requests.partials.status-timeline', ['histories' => $req->publicStatusHistories, 'staff' => false])
+                                    @include('requests.partials.student-transmission-details', ['req' => $req])
                                 </div>
                             </div>
                             <x-request-status-badge :status="$req->status" />

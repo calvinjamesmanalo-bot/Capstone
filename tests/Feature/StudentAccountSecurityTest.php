@@ -13,6 +13,7 @@ use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
@@ -75,12 +76,30 @@ class StudentAccountSecurityTest extends TestCase
             ->assertSee('pr-14', false);
     }
 
-    public function test_only_administrators_can_manage_student_accounts(): void
+    public function test_registrar_can_view_accounts_but_cannot_use_admin_management_actions(): void
     {
         $registrar = User::factory()->create(['role' => 'registrar']);
 
-        $this->actingAs($registrar)->get(route('users.index'))->assertForbidden();
+        $this->actingAs($registrar)->get(route('users.index'))->assertOk()->assertSee('Student Accounts');
         $this->actingAs($registrar)->post(route('users.store'), $this->newStudentData())->assertForbidden();
+    }
+
+    public function test_registrar_can_issue_a_random_one_time_student_password(): void
+    {
+        $registrar = User::factory()->create(['role' => 'registrar']);
+        $student = $this->studentUser();
+        $oldHash = $student->password;
+
+        $response = $this->actingAs($registrar)
+            ->post(route('users.issue-temporary-password', $student));
+
+        $response->assertRedirect(route('users.index', ['search' => $student->student_number]))
+            ->assertSessionHas('issued_student_credential');
+        $temporary = session('issued_student_credential')['temporary_password'];
+        $this->assertMatchesRegularExpression('/^[A-HJ-NP-Za-km-z2-9]{4}-[A-HJ-NP-Za-km-z2-9]{4}-[A-HJ-NP-Za-km-z2-9]{4}$/', $temporary);
+        $this->assertNotSame($oldHash, $student->fresh()->password);
+        $this->assertTrue(Hash::check($temporary, $student->fresh()->password));
+        $this->assertTrue($student->fresh()->must_change_password);
     }
 
     public function test_administrator_can_securely_find_an_existing_account(): void

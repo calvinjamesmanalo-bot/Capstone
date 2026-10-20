@@ -107,15 +107,31 @@ class SchoolFormsIntegrationTest extends TestCase
     public function test_grade_portal_finds_imported_student_grades_by_number_lrn_and_name(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'registrar']));
+        $enrollment = SchoolFormEnrollment::where('school_year', '2020-2021')->sole();
+        SchoolFormGrade::create([
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 1,
+            'learning_area' => 'TLE',
+            'grade' => 81,
+        ]);
+        SchoolFormGrade::create([
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 4,
+            'learning_area' => 'CP/ T. L. E.',
+            'grade' => 89,
+        ]);
 
         foreach (['2020-0001', '424413240015', 'Dela Cruz'] as $search) {
-            $this->get(route('grade-portal.index', ['search_student' => $search]))
+            $response = $this->get(route('grade-portal.index', ['search_student' => $search]))
                 ->assertOk()
                 ->assertSee('Dela Cruz, Juan Santos')
                 ->assertSee('Mathematics')
                 ->assertSee('>90<', false)
+                ->assertSeeInOrder(['CP/ T. L. E.', '81', '89'])
                 ->assertSee('Quarter 1')
                 ->assertDontSee('Student Form 138 Records');
+            $this->assertSame(1, substr_count($response->getContent(), '>CP/ T. L. E.<'));
+            $this->assertStringNotContainsString('>TLE<', $response->getContent());
         }
     }
 
@@ -197,6 +213,37 @@ class SchoolFormsIntegrationTest extends TestCase
             ->assertDontSee('<input name="grade_level"', false)
             ->assertDontSee('<input name="school_year"', false)
             ->assertDontSee('<input name="section"', false);
+    }
+
+    public function test_certificate_form_allows_manual_academic_details_when_student_has_no_imported_record(): void
+    {
+        RequestStudent::create([
+            'student_number' => '2020-NO-DATA',
+            'name' => 'No Data Student',
+        ]);
+        $staff = User::factory()->create(['role' => 'records_officer']);
+
+        $this->actingAs($staff)
+            ->get(route('certifications.index', ['student_number' => '2020-NO-DATA']))
+            ->assertOk()
+            ->assertSee('Enter student information manually')
+            ->assertSee('data-field-name="grade_level"', false)
+            ->assertSee('data-field-name="school_year"', false)
+            ->assertSee('data-field-name="section"', false)
+            ->assertSee('No imported enrollment record found. Use the manual fields below.');
+
+        $this->actingAs($staff)->post(route('certifications.preview'), [
+            'certificate_type' => 'completion',
+            'student_number' => '2020-NO-DATA',
+            'student_name' => 'No Data Student',
+            'grade_level' => 'Grade 10',
+            'section' => 'Manual Section',
+            'school_year' => '2024-2025',
+            'issue_date' => '2026-10-12',
+        ])->assertOk()
+            ->assertSee('No Data Student')
+            ->assertSee('Grade 10 - Manual Section')
+            ->assertSee('2024-2025');
     }
 
     public function test_f137_excel_uses_dynamic_database_subjects_without_fixed_row_collisions(): void
@@ -428,7 +475,7 @@ class SchoolFormsIntegrationTest extends TestCase
         $enrollment = SchoolFormEnrollment::where('school_year', '2020-2021')->sole();
         SchoolFormGrade::create([
             'student_enrollment_id' => $enrollment->id,
-            'grading_period' => 2,
+            'grading_period' => 0,
             'learning_area' => 'MATHEMATICS',
             'grade' => 88,
         ]);
@@ -449,6 +496,18 @@ class SchoolFormsIntegrationTest extends TestCase
             'grading_period' => 3,
             'learning_area' => 'GEN. AVE.',
             'grade' => 90,
+        ]);
+        SchoolFormGrade::create([
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 1,
+            'learning_area' => 'TLE',
+            'grade' => 93,
+        ]);
+        SchoolFormGrade::create([
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 4,
+            'learning_area' => 'CP/ T. L. E.',
+            'grade' => 95,
         ]);
         RequestStudent::create([
             'student_number' => '2022-0001',
@@ -480,10 +539,12 @@ class SchoolFormsIntegrationTest extends TestCase
             ->assertSee('2022-0001')
             ->assertSeeInOrder(['Mathematics', '90', '88'])
             ->assertSeeInOrder(['Good Manners and Right Conduct', '85', '91'])
+            ->assertSeeInOrder(['CP/ T. L. E.', '93', '95'])
             ->assertDontSee('GEN. AVE.');
 
         $this->assertSame(1, substr_count($preview->getContent(), '>Mathematics<'));
         $this->assertSame(1, substr_count($preview->getContent(), '>Good Manners and Right Conduct<'));
+        $this->assertSame(1, substr_count($preview->getContent(), '>CP/ T. L. E.<'));
     }
 
     public function test_2020_f138_preview_keeps_four_quarter_columns(): void
@@ -681,6 +742,28 @@ class SchoolFormsIntegrationTest extends TestCase
         $this->assertSame('Louisse Chua', $enrollment->adviser_name);
     }
 
+    public function test_automatic_import_skips_a_conflicting_student_and_continues_the_class(): void
+    {
+        $reader = $this->mock(GradeSheetImporter::class);
+        $reader->shouldReceive('teacherName')->once()->andReturn('Oxygen Adviser');
+        $reader->shouldReceive('summaries')->once()->andReturn([
+            ['student_number' => '2020-0001', 'name' => 'Existing Student', 'grades' => ['Mathematics' => 80]],
+            ['student_number' => '2020-0099', 'name' => 'Valid Student', 'grades' => ['Mathematics' => 91]],
+        ]);
+
+        $result = app(GradeSheetRecordImporter::class)->import(
+            'unused.xlsx', 'summary', 1, '2020-2021', 'Grade 2', 'Charity', true,
+        );
+
+        $this->assertSame(1, $result['imported']);
+        $this->assertCount(1, $result['conflicts']);
+        $this->assertSame('2020-0001', $result['conflicts'][0]['student_number']);
+        $this->assertDatabaseHas('students', ['student_number' => '2020-0099'], 'school_forms');
+        $this->assertDatabaseHas('student_enrollments', [
+            'school_year' => '2020-2021', 'level' => 'Grade 2', 'section' => 'Charity',
+        ], 'school_forms');
+    }
+
     public function test_import_checks_the_school_year_grade_and_period_inside_the_workbook(): void
     {
         $reader = new class extends XlsxWorkbookReader
@@ -733,6 +816,41 @@ class SchoolFormsIntegrationTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function test_automatic_destination_accepts_a_known_historical_section_under_a_different_grade_level(): void
+    {
+        $reader = new class extends XlsxWorkbookReader
+        {
+            public function read(string $filePath): array
+            {
+                return [[
+                    'name' => 'SUMMARY SHEET',
+                    'rows' => [[
+                        'index' => 3,
+                        'cells' => [
+                            ['column' => 'A', 'value' => 'Academic Year 2024-2025'],
+                            ['column' => 'B', 'value' => 'Grade Eleven - Pasteur'],
+                            ['column' => 'C', 'value' => 'FIRST QUARTER'],
+                            ['column' => 'D', 'value' => 'SUMMARY SHEET'],
+                        ],
+                    ]],
+                ]];
+            }
+        };
+
+        $destination = (new GradeSheetImporter($reader))->destination(
+            'unused.xlsx',
+            '20242025G11-PASTEUR.xlsx',
+        );
+
+        $this->assertSame([
+            'schoolYear' => '2024-2025',
+            'level' => 'Grade 11',
+            'section' => 'Pasteur',
+            'period' => 1,
+            'type' => 'summary',
+        ], $destination);
+    }
+
     public function test_2026_2027_uploader_uses_three_terms_and_rejects_a_fourth_period(): void
     {
         Storage::fake('school_forms_local');
@@ -746,11 +864,11 @@ class SchoolFormsIntegrationTest extends TestCase
             ->assertSee('Term to upload')
             ->assertSee('First term')
             ->assertSee('Third term')
-            ->assertSee('0/6');
+            ->assertSee('0/3');
 
         $this->getJson(route('school-forms.grade-sheets.status', $query))
             ->assertOk()
-            ->assertJsonPath('total', 6);
+            ->assertJsonPath('total', 3);
 
         $this->from(route('school-forms.records', $query))
             ->post(route('school-forms.grade-sheets.store'), [
@@ -796,7 +914,7 @@ class SchoolFormsIntegrationTest extends TestCase
             $sheet = app(XlsxWorkbookReader::class)->read($path)[0];
             $heading = collect($sheet['rows'])->firstWhere('index', 6);
             $months = collect($heading['cells'])->pluck('value')->all();
-            $this->assertSame(['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER'], $months);
+            $this->assertSame(['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL'], $months);
         } finally {
             @unlink($path);
         }
@@ -835,6 +953,114 @@ class SchoolFormsIntegrationTest extends TestCase
         $records = (new GradeSheetImporter($reader))->summaries('unused.xlsx');
 
         $this->assertSame(['Science' => 91.0, 'Filipino' => 88.0], $records[0]['grades']);
+    }
+
+    public function test_school_summary_with_student_number_in_column_b_reads_subjects_from_column_c(): void
+    {
+        $reader = new class extends XlsxWorkbookReader
+        {
+            public function read(string $filePath): array
+            {
+                return [['name' => 'Sheet1', 'rows' => [
+                    ['index' => 6, 'cells' => [
+                        ['column' => 'B', 'value' => "Student's Name"],
+                        ['column' => 'C', 'value' => 'FILIPINO'],
+                        ['column' => 'D', 'value' => 'ENGLISH'],
+                        ['column' => 'E', 'value' => 'GEN. AVE'],
+                    ]],
+                    ['index' => 8, 'cells' => [
+                        ['column' => 'B', 'value' => '20240793'],
+                        ['column' => 'C', 'value' => 83],
+                        ['column' => 'D', 'value' => 82],
+                        ['column' => 'E', 'value' => 84],
+                    ]],
+                ]]];
+            }
+        };
+
+        $record = (new GradeSheetImporter($reader))->summaries('unused.xlsx', 1)[0];
+
+        $this->assertSame('20240793', $record['student_number']);
+        $this->assertSame('', $record['name']);
+        $this->assertSame(['FILIPINO' => 83.0, 'ENGLISH' => 82.0], $record['grades']);
+    }
+
+    public function test_year_end_report_card_imports_fourth_quarter_and_attendance_from_one_workbook(): void
+    {
+        $reader = new class extends XlsxWorkbookReader
+        {
+            public function read(string $filePath): array
+            {
+                return [['name' => 'CARD JHS', 'rows' => [
+                    ['index' => 5, 'cells' => [['column' => 'B', 'value' => 'PROGRESS REPORT CARD']]],
+                    ['index' => 9, 'cells' => [['column' => 'B', 'value' => 'Student No.'], ['column' => 'D', 'value' => '20240879']]],
+                    ['index' => 10, 'cells' => [
+                        ['column' => 'B', 'value' => 'Name'], ['column' => 'D', 'value' => 'Sample Student'],
+                        ['column' => 'L', 'value' => 'LRN'], ['column' => 'N', 'value' => '424448170015'],
+                    ]],
+                    ['index' => 11, 'cells' => [['column' => 'B', 'value' => 'Level & Section'], ['column' => 'D', 'value' => 'Grade Seven - Erbium']]],
+                    ['index' => 13, 'cells' => [['column' => 'B', 'value' => 'LEARNING AREAS'], ['column' => 'G', 'value' => 'GRADING PERIODS']]],
+                    ['index' => 15, 'cells' => [['column' => 'B', 'value' => 'FILIPINO'], ['column' => 'M', 'value' => 88]]],
+                    ['index' => 16, 'cells' => [['column' => 'B', 'value' => 'ENGLISH'], ['column' => 'M', 'value' => 90]]],
+                    ['index' => 27, 'cells' => [['column' => 'B', 'value' => 'GENERAL AVERAGE']]],
+                    ['index' => 30, 'cells' => [['column' => 'B', 'value' => 'ATTENDANCE REPORT']]],
+                    ['index' => 32, 'cells' => [['column' => 'E', 'value' => 'Aug'], ['column' => 'F', 'value' => 'Sept']]],
+                    ['index' => 33, 'cells' => [['column' => 'B', 'value' => 'Days of School'], ['column' => 'E', 'value' => 20], ['column' => 'F', 'value' => 25]]],
+                    ['index' => 34, 'cells' => [['column' => 'B', 'value' => 'Days Present'], ['column' => 'E', 'value' => 19], ['column' => 'F', 'value' => 24]]],
+                ]]];
+            }
+        };
+
+        $importer = new GradeSheetImporter($reader);
+        $this->assertTrue($importer->includesAnnualAttendance('unused.xlsx'));
+        $summaryRecord = $importer->summaries('unused.xlsx', 4)[0];
+        $this->assertSame('20240879', $summaryRecord['student_number']);
+        $this->assertSame('424448170015', $summaryRecord['lrn']);
+        $this->assertSame(['FILIPINO' => 88.0, 'ENGLISH' => 90.0], $summaryRecord['grades']);
+        $this->assertSame([
+            'August' => ['school_days' => 20, 'days_present' => 19],
+            'September' => ['school_days' => 25, 'days_present' => 24],
+        ], $importer->attendance('unused.xlsx')[0]['months']);
+    }
+
+    public function test_jhs_generation_source_reads_all_quarters_from_card_jhs_only(): void
+    {
+        $reader = new class extends XlsxWorkbookReader
+        {
+            public function read(string $filePath): array
+            {
+                $cardRows = [
+                    ['index' => 9, 'cells' => [['column' => 'B', 'value' => 'Student No.'], ['column' => 'D', 'value' => '20230665']]],
+                    ['index' => 10, 'cells' => [['column' => 'B', 'value' => 'Name'], ['column' => 'D', 'value' => 'Bravo, John Lorenzo T.'], ['column' => 'L', 'value' => 'LRN'], ['column' => 'N', 'value' => '107924160038']]],
+                    ['index' => 11, 'cells' => [['column' => 'B', 'value' => 'Level & Section'], ['column' => 'D', 'value' => 'Grade Eight - Iridium']]],
+                    ['index' => 13, 'cells' => [['column' => 'B', 'value' => 'LEARNING AREAS']]],
+                    ['index' => 14, 'cells' => [['column' => 'F', 'value' => '1st'], ['column' => 'H', 'value' => '2nd'], ['column' => 'J', 'value' => '3rd'], ['column' => 'M', 'value' => '4th']]],
+                    ['index' => 15, 'cells' => [['column' => 'B', 'value' => 'FILIPINO'], ['column' => 'F', 'value' => 80], ['column' => 'H', 'value' => 82], ['column' => 'J', 'value' => 84], ['column' => 'M', 'value' => 87]]],
+                    ['index' => 16, 'cells' => [['column' => 'B', 'value' => 'CP/ T. L. E.'], ['column' => 'F', 'value' => 81], ['column' => 'H', 'value' => 82], ['column' => 'J', 'value' => 83], ['column' => 'M', 'value' => 93]]],
+                    ['index' => 27, 'cells' => [['column' => 'B', 'value' => 'GENERAL AVERAGE']]],
+                    ['index' => 30, 'cells' => [['column' => 'B', 'value' => 'ATTENDANCE REPORT']]],
+                    ['index' => 32, 'cells' => [['column' => 'E', 'value' => 'Aug'], ['column' => 'F', 'value' => 'Sept']]],
+                    ['index' => 33, 'cells' => [['column' => 'B', 'value' => 'Days of School'], ['column' => 'E', 'value' => 20], ['column' => 'F', 'value' => 25]]],
+                    ['index' => 34, 'cells' => [['column' => 'B', 'value' => 'Days Present'], ['column' => 'E', 'value' => 19], ['column' => 'F', 'value' => 24]]],
+                ];
+
+                return [
+                    ['name' => 'OTHER CARD', 'rows' => array_replace($cardRows, [5 => ['index' => 15, 'cells' => [['column' => 'B', 'value' => 'FILIPINO'], ['column' => 'F', 'value' => 70], ['column' => 'H', 'value' => 70], ['column' => 'J', 'value' => 70], ['column' => 'M', 'value' => 70]]]])],
+                    ['name' => 'CARD JHS', 'rows' => $cardRows],
+                ];
+            }
+        };
+
+        $card = (new GradeSheetImporter($reader))->jhsReportCard('unused.xlsx', '107924160038');
+
+        $this->assertSame('20230665', $card['student_number']);
+        $this->assertSame('107924160038', $card['lrn']);
+        $this->assertSame([1 => 80.0, 2 => 82.0, 3 => 84.0, 4 => 87.0], $card['grades']['FILIPINO']);
+        $this->assertSame([1 => 81.0, 2 => 82.0, 3 => 83.0, 4 => 93.0], $card['grades']['CP/ T. L. E.']);
+        $this->assertSame([
+            'August' => ['school_days' => 20, 'days_present' => 19],
+            'September' => ['school_days' => 25, 'days_present' => 24],
+        ], $card['attendance']);
     }
 
     public function test_attendance_months_are_read_from_each_workbooks_actual_headings(): void
@@ -1025,26 +1251,88 @@ class SchoolFormsIntegrationTest extends TestCase
         ], 'school_forms');
     }
 
-    public function test_automatic_batch_upload_rejects_duplicate_destinations_before_importing(): void
+    public function test_automatic_batch_upload_expands_new_q4_workbook_into_grades_and_attendance(): void
+    {
+        Storage::fake('school_forms_local');
+        $importer = $this->mock(GradeSheetImporter::class);
+        $importer->shouldReceive('destination')->once()->andReturn([
+            'schoolYear' => '2024-2025', 'level' => 'Grade 7', 'section' => 'Erbium', 'period' => 4, 'type' => 'summary',
+        ]);
+        $importer->shouldReceive('includesAnnualAttendance')->once()->andReturnTrue();
+        $importer->shouldReceive('teacherName')->twice()->andReturn('Test Adviser');
+        $importer->shouldReceive('summaries')->once()->andReturn([]);
+        $importer->shouldReceive('attendance')->once()->andReturn([]);
+        $registrar = User::factory()->create(['role' => 'registrar']);
+
+        $this->actingAs($registrar)
+            ->postJson(route('school-forms.grade-sheets.auto-batch'), [
+                'auto_files' => [
+                    UploadedFile::fake()->create('20242025G7-ERBIUM.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                ],
+            ])
+            ->assertOk()
+            ->assertJson(['uploaded' => 1, 'classes' => 1, 'replaced' => 0]);
+
+        $this->assertDatabaseHas('grade_sheet_uploads', [
+            'school_year' => '2024-2025', 'level' => 'Grade 7', 'section' => 'Erbium', 'grading_period' => 4, 'file_type' => 'summary',
+        ], 'school_forms');
+        $this->assertDatabaseHas('grade_sheet_uploads', [
+            'school_year' => '2024-2025', 'level' => 'Grade 7', 'section' => 'Erbium', 'grading_period' => 0, 'file_type' => 'attendance',
+        ], 'school_forms');
+    }
+
+    public function test_automatic_batch_upload_keeps_the_first_file_and_reports_duplicate_destinations(): void
     {
         Storage::fake('school_forms_local');
         $destination = ['schoolYear' => '2010-2011', 'level' => 'Grade 2', 'section' => 'Charity', 'period' => 1, 'type' => 'summary'];
         $importer = $this->mock(GradeSheetImporter::class);
         $importer->shouldReceive('destination')->twice()->andReturn($destination);
+        $importer->shouldReceive('teacherName')->once()->andReturn('Test Adviser');
+        $importer->shouldReceive('summaries')->once()->andReturn([]);
         $registrar = User::factory()->create(['role' => 'registrar']);
 
         $this->actingAs($registrar)
-            ->from(route('school-forms.records'))
-            ->post(route('school-forms.grade-sheets.auto-batch'), [
+            ->postJson(route('school-forms.grade-sheets.auto-batch'), [
                 'auto_files' => [
                     UploadedFile::fake()->create('copy-a.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
                     UploadedFile::fake()->create('copy-b.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
                 ],
             ])
-            ->assertRedirect(route('school-forms.records'))
-            ->assertSessionHasErrors('auto_files');
+            ->assertOk()
+            ->assertJson([
+                'uploaded' => 1,
+                'skipped' => 1,
+                'skip_details' => [[
+                    'file' => 'copy-b.xlsx',
+                    'reason' => 'Same destination as copy-a.xlsx; the first selected workbook was kept.',
+                ]],
+            ]);
 
-        $this->assertDatabaseCount('grade_sheet_uploads', 0, 'school_forms');
+        $this->assertDatabaseCount('grade_sheet_uploads', 1, 'school_forms');
+    }
+
+    public function test_automatic_batch_tracks_duplicate_destinations_across_chunks(): void
+    {
+        Storage::fake('school_forms_local');
+        $destination = ['schoolYear' => '2010-2011', 'level' => 'Grade 2', 'section' => 'Charity', 'period' => 1, 'type' => 'summary'];
+        $importer = $this->mock(GradeSheetImporter::class);
+        $importer->shouldReceive('destination')->twice()->andReturn($destination);
+        $importer->shouldReceive('teacherName')->once()->andReturn('Test Adviser');
+        $importer->shouldReceive('summaries')->once()->andReturn([]);
+        $registrar = User::factory()->create(['role' => 'registrar']);
+
+        $base = ['batch_token' => 'duplicate-across-chunks', 'replace_existing' => '1'];
+        $this->actingAs($registrar)->postJson(route('school-forms.grade-sheets.auto-batch'), $base + [
+            'chunk_number' => 0,
+            'auto_files' => [UploadedFile::fake()->create('original.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
+        ])->assertOk()->assertJson(['uploaded' => 1, 'skipped' => 0]);
+
+        $this->postJson(route('school-forms.grade-sheets.auto-batch'), $base + [
+            'chunk_number' => 1,
+            'auto_files' => [UploadedFile::fake()->create('duplicate.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
+        ])->assertOk()->assertJson(['uploaded' => 0, 'skipped' => 1]);
+
+        $this->assertDatabaseCount('grade_sheet_uploads', 1, 'school_forms');
     }
 
     public function test_automatic_batch_chunk_retry_is_idempotent(): void
@@ -1110,9 +1398,9 @@ class SchoolFormsIntegrationTest extends TestCase
         ]))->assertOk()->assertDontSee('Selected class');
     }
 
-    public function test_import_does_not_merge_different_lrns_that_share_the_same_name(): void
+    public function test_import_does_not_merge_different_student_numbers_that_share_the_same_name(): void
     {
-        $existing = SchoolFormStudent::create(['lrn' => '880209004005', 'name' => 'Santos, Bianca M.']);
+        $existing = SchoolFormStudent::create(['student_number' => '2023-0001', 'lrn' => '880209004005', 'name' => 'Santos, Bianca M.']);
         SchoolFormEnrollment::create([
             'student_id' => $existing->id,
             'school_year' => '2023-2024',
@@ -1122,7 +1410,7 @@ class SchoolFormsIntegrationTest extends TestCase
         $reader = $this->mock(GradeSheetImporter::class);
         $reader->shouldReceive('teacherName')->once()->andReturn('Test Adviser');
         $reader->shouldReceive('summaries')->once()->andReturn([[
-            'lrn' => '880208004005',
+            'student_number' => '2023-0002',
             'name' => 'Santos, Bianca M.',
             'grades' => ['Mathematics' => 90],
         ]]);
@@ -1131,9 +1419,94 @@ class SchoolFormsIntegrationTest extends TestCase
             'unused.xlsx', 'summary', 1, '2023-2024', 'Grade 8', 'Nickel'
         );
 
-        $this->assertDatabaseHas('students', ['lrn' => '880208004005', 'name' => 'Santos, Bianca M.'], 'school_forms');
+        $this->assertDatabaseHas('students', ['student_number' => '2023-0002', 'name' => 'Santos, Bianca M.'], 'school_forms');
         $this->assertDatabaseHas('student_enrollments', ['school_year' => '2023-2024', 'level' => 'Grade 8'], 'school_forms');
         $this->assertDatabaseCount('students', 3, 'school_forms');
+    }
+
+    public function test_q4_import_uses_lrn_to_link_and_complete_a_students_identifiers(): void
+    {
+        $student = SchoolFormStudent::create([
+            'lrn' => '424448170015',
+            'name' => 'Sample Student',
+        ]);
+        $reader = $this->mock(GradeSheetImporter::class);
+        $reader->shouldReceive('teacherName')->once()->andReturn('Test Adviser');
+        $reader->shouldReceive('summaries')->once()->andReturn([[
+            'student_number' => '20240879',
+            'lrn' => '424448170015',
+            'name' => 'Sample Student',
+            'grades' => ['Mathematics' => 92],
+        ]]);
+
+        $result = app(GradeSheetRecordImporter::class)->import(
+            'unused.xlsx', 'summary', 4, '2024-2025', 'Grade 7', 'Erbium'
+        );
+
+        $this->assertSame(1, $result['imported']);
+        $this->assertSame([], $result['conflicts']);
+        $this->assertSame('20240879', $student->fresh()->student_number);
+        $this->assertDatabaseHas('student_enrollments', [
+            'student_id' => $student->id,
+            'school_year' => '2024-2025',
+            'level' => 'Grade 7',
+            'section' => 'Erbium',
+        ], 'school_forms');
+    }
+
+    public function test_q4_import_merges_matching_legacy_student_number_and_lrn_records(): void
+    {
+        $primary = SchoolFormStudent::create([
+            'student_number' => '20230665',
+            'name' => 'Bravo, John Lorenzo T.',
+        ]);
+        $enrollment = SchoolFormEnrollment::create([
+            'student_id' => $primary->id,
+            'school_year' => '2024-2025',
+            'level' => 'Grade 8',
+            'section' => 'Iridium',
+        ]);
+        SchoolFormGrade::create([
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 1,
+            'learning_area' => 'Mathematics',
+            'grade' => 87,
+        ]);
+        $duplicate = SchoolFormStudent::create([
+            'lrn' => '107924160038',
+            'name' => 'John Lorenzo T. Bravo',
+        ]);
+        $reader = $this->mock(GradeSheetImporter::class);
+        $reader->shouldReceive('teacherName')->once()->andReturn('Test Adviser');
+        $reader->shouldReceive('summaries')->once()->andReturn([[
+            'student_number' => '20230665',
+            'lrn' => '107924160038',
+            'name' => 'Bravo, John Lorenzo T.',
+            'grades' => ['Mathematics' => 90],
+        ]]);
+
+        $result = app(GradeSheetRecordImporter::class)->import(
+            'unused.xlsx', 'summary', 4, '2024-2025', 'Grade 8', 'Iridium'
+        );
+
+        $this->assertSame(1, $result['imported']);
+        $this->assertSame([], $result['conflicts']);
+        $this->assertDatabaseMissing('students', ['id' => $duplicate->id], 'school_forms');
+        $this->assertDatabaseHas('students', [
+            'id' => $primary->id,
+            'student_number' => '20230665',
+            'lrn' => '107924160038',
+        ], 'school_forms');
+        $this->assertDatabaseHas('student_grades', [
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 1,
+            'grade' => 87,
+        ], 'school_forms');
+        $this->assertDatabaseHas('student_grades', [
+            'student_enrollment_id' => $enrollment->id,
+            'grading_period' => 4,
+            'grade' => 90,
+        ], 'school_forms');
     }
 
     public function test_staff_can_remove_one_school_year_without_deleting_students_or_other_years(): void
@@ -1208,9 +1581,9 @@ class SchoolFormsIntegrationTest extends TestCase
             'level' => 'Grade 10',
             'section' => 'Dubnium',
             'grading_period' => 2,
-            'file_type' => 'attendance',
-            'original_name' => 'attendance.xlsx',
-            'stored_path' => 'grade-sheets/attendance.xlsx',
+            'file_type' => 'summary',
+            'original_name' => 'grades.xlsx',
+            'stored_path' => 'grade-sheets/grades.xlsx',
         ]);
         $recordsOfficer = User::factory()->create(['role' => 'registrar']);
         $query = ['school_year' => '2010-2011', 'level' => 'Grade 10', 'section' => 'Dubnium'];
@@ -1218,7 +1591,7 @@ class SchoolFormsIntegrationTest extends TestCase
         $this->actingAs($recordsOfficer)
             ->get(route('school-forms.records', $query))
             ->assertOk()
-            ->assertSee('data-existing-name="attendance.xlsx"', false)
+            ->assertSee('data-existing-name="grades.xlsx"', false)
             ->assertSee('shrink-0 whitespace-nowrap rounded-full', false)
             ->assertSee('break-all text-[11px]', false);
 
@@ -1226,7 +1599,7 @@ class SchoolFormsIntegrationTest extends TestCase
             ->getJson(route('school-forms.grade-sheets.status', $query))
             ->assertOk()
             ->assertJsonPath('completed', 1)
-            ->assertJsonPath('slots.2:attendance.name', 'attendance.xlsx');
+            ->assertJsonFragment(['name' => 'grades.xlsx']);
 
         $this->actingAs($recordsOfficer)
             ->get(route('school-forms.grade-sheets.template', ['type' => 'summary'] + $query + ['period' => 3]))

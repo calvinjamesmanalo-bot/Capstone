@@ -12,7 +12,7 @@ class GradeSheetImporter
     {
         $values = [];
 
-        foreach ($this->firstSheetRows($path) as $row) {
+        foreach ($this->allRows($path) as $row) {
             foreach ($row['cells'] as $cell) {
                 $value = trim((string) ($cell['value'] ?? ''));
                 if ($value !== '') {
@@ -33,7 +33,7 @@ class GradeSheetImporter
             'fourth' => 4, '4th' => 4, '4' => 4,
         ];
         $periodToken = 'first|second|third|fourth|[1-4](?:st|nd|rd|th)?';
-        $periodPattern = '/\b(?:(?<leading_period>'.$periodToken.')\s+(?<trailing_type>grading|term)|(?<leading_type>grading|term)\s+(?<trailing_period>'.$periodToken.'))\b/i';
+        $periodPattern = '/\b(?:(?<leading_period>'.$periodToken.')\s+(?<trailing_type>grading|term|quarter)|(?<leading_type>grading|term|quarter)\s+(?<trailing_period>'.$periodToken.'))\b/i';
         $hasPeriod = preg_match($periodPattern, $contents, $periodMatch, PREG_UNMATCHED_AS_NULL) === 1;
         $detectedPeriodToken = $periodMatch['leading_period'] ?? $periodMatch['trailing_period'] ?? null;
         $detectedPeriodType = $periodMatch['trailing_type'] ?? $periodMatch['leading_type'] ?? null;
@@ -41,9 +41,16 @@ class GradeSheetImporter
             ? $periodWords[strtolower($detectedPeriodToken)]
             : null;
         $detectedPeriodType = $detectedPeriodType !== null ? strtolower($detectedPeriodType) : null;
+        if ($detectedPeriodType === 'quarter') {
+            $detectedPeriodType = 'grading';
+        }
+        if ($gradingPeriod === 4 && $this->isYearEndWorkbook($path)) {
+            $detectedPeriod = 4;
+            $detectedPeriodType = 'grading';
+        }
         $selectedGradeLevel = $this->gradeLevel($level);
 
-        if ($detectedSchoolYear === null || $detectedGradeLevel === null || $detectedPeriod === null) {
+        if ($detectedSchoolYear === null || $detectedGradeLevel === null || ($gradingPeriod !== 0 && $detectedPeriod === null)) {
             throw new RuntimeException('The workbook is missing a readable school year, grade level, or grading period header. Use the official grade sheet template.');
         }
 
@@ -53,7 +60,8 @@ class GradeSheetImporter
 
         $expectedPeriodType = AcademicPeriod::usesTerms($schoolYear, $level) ? 'term' : 'grading';
 
-        if ($detectedSchoolYear !== $schoolYear || $detectedGradeLevel !== $selectedGradeLevel || $detectedPeriod !== $gradingPeriod || $detectedPeriodType !== $expectedPeriodType) {
+        if ($detectedSchoolYear !== $schoolYear || $detectedGradeLevel !== $selectedGradeLevel
+            || ($gradingPeriod !== 0 && ($detectedPeriod !== $gradingPeriod || $detectedPeriodType !== $expectedPeriodType))) {
             $detectedPeriodLabel = AcademicPeriod::label(
                 $detectedSchoolYear ?? $schoolYear,
                 $detectedPeriod ?? $gradingPeriod,
@@ -74,7 +82,7 @@ class GradeSheetImporter
     public function destination(string $path, string $originalName = ''): array
     {
         $values = [];
-        foreach ($this->firstSheetRows($path) as $row) {
+        foreach ($this->allRows($path) as $row) {
             foreach ($row['cells'] as $cell) {
                 $value = trim((string) ($cell['value'] ?? ''));
                 if ($value !== '') {
@@ -89,9 +97,16 @@ class GradeSheetImporter
         $schoolYear = isset($yearMatch[1], $yearMatch[2]) ? $yearMatch[1].'-'.$yearMatch[2] : null;
         $level = $this->gradeLevel($searchable);
         $period = $this->gradingPeriod($searchable);
-        $type = preg_match('/\bATTENDANCE(?:\s+SHEET)?\b/i', $searchable)
-            ? 'attendance'
-            : (preg_match('/\bSUMMARY(?:\s+SHEET)?\b/i', $searchable) ? 'summary' : null);
+        $isYearEnd = $this->isYearEndWorkbook($path);
+        $type = $isYearEnd || preg_match('/\bSUMMARY(?:\s+SHEET)?\b/i', $searchable)
+            ? 'summary'
+            : (preg_match('/\bATTENDANCE(?:\s+SHEET)?\b/i', $searchable) ? 'attendance' : null);
+        if ($isYearEnd) {
+            $period = 4;
+        }
+        if ($type === 'attendance') {
+            $period = 0;
+        }
 
         $normalized = ' '.mb_strtolower(preg_replace('/[^\pL\pN]+/u', ' ', $searchable)).' ';
         $sections = collect(CurriculumSubjects::sections())
@@ -107,7 +122,7 @@ class GradeSheetImporter
                 'school year' => $schoolYear,
                 'grade level' => $level,
                 'section' => $section,
-                'grading period' => $period,
+                'grading period' => $type === 'attendance' ? true : $period,
                 'file type' => $type,
             ])->filter(fn ($value) => ! $value)->keys()->join(', ');
             throw new RuntimeException("Could not automatically identify {$missing}. Use an official workbook with complete headers and a descriptive filename.");
@@ -115,10 +130,13 @@ class GradeSheetImporter
 
         if (! in_array($schoolYear, config('academics.school_years', []), true)
             || ! in_array($level, config('academics.grade_levels', []), true)
-            || ! in_array($section, config("academics.sections_by_grade.{$level}", []), true)
-            || ! in_array($period, AcademicPeriod::numbers($schoolYear, $level), true)) {
+            || ($type !== 'attendance' && ! in_array($period, AcademicPeriod::numbers($schoolYear, $level), true))) {
             throw new RuntimeException("Detected destination {$schoolYear}, {$level} - {$section}, period {$period} is not configured in the system.");
         }
+
+        // Historical sections can move between grade levels from one school year
+        // to another. The section was already matched against the system-wide
+        // section list, so the workbook header is authoritative for batch imports.
 
         $this->assertMatchesSelection($path, $schoolYear, $level, $period);
 
@@ -128,8 +146,9 @@ class GradeSheetImporter
     private function gradingPeriod(string $text): ?int
     {
         $tokens = ['first' => 1, '1st' => 1, 'second' => 2, '2nd' => 2, 'third' => 3, '3rd' => 3, 'fourth' => 4, '4th' => 4];
-        if (preg_match('/\b(first|second|third|fourth|[1-4](?:st|nd|rd|th))\s+(?:grading|term)\b/i', $text, $match)
-            || preg_match('/\b(?:grading|term)\s+(first|second|third|fourth|[1-4](?:st|nd|rd|th)?)\b/i', $text, $match)) {
+        if (preg_match('/\b(first|second|third|fourth|[1-4](?:st|nd|rd|th))\s+(?:grading|term|quarter)\b/i', $text, $match)
+            || preg_match('/\b(?:grading|term|quarter)\s+(first|second|third|fourth|[1-4](?:st|nd|rd|th)?)\b/i', $text, $match)
+            || preg_match('/\bq([1-4])\b/i', $text, $match)) {
             $token = strtolower($match[1]);
 
             return $tokens[$token] ?? (int) $token;
@@ -169,15 +188,14 @@ class GradeSheetImporter
         return "Grade {$grade}";
     }
 
-    public function summaries(string $path): array
+    public function summaries(string $path, ?int $period = null): array
     {
+        if ($period === 4 && $this->isYearEndWorkbook($path)) {
+            return $this->yearEndRecords($path, false);
+        }
+
         $rows = $this->firstSheetRows($path);
         $subjectColumns = $this->subjectColumns($rows);
-        $usesLrn = collect($rows)->contains(function (array $row): bool {
-            $cells = $this->cellsByColumn($row);
-
-            return mb_strtolower(trim((string) ($cells['B'] ?? ''))) === 'lrn';
-        });
         $records = [];
 
         foreach ($rows as $row) {
@@ -189,8 +207,8 @@ class GradeSheetImporter
             }
 
             $records[] = [
-                $usesLrn ? 'lrn' : 'student_number' => $studentNumber,
-                'name' => trim($cells['C'] ?? ''),
+                'student_number' => $studentNumber,
+                'name' => is_numeric($cells['C'] ?? null) ? '' : trim($cells['C'] ?? ''),
                 'grades' => collect($subjectColumns)
                     ->mapWithKeys(fn (string $subject, string $column) => [
                         $subject => $this->number($cells[$column] ?? null),
@@ -216,8 +234,8 @@ class GradeSheetImporter
         });
         $firstStudentIndex = (int) ($firstStudentRow['index'] ?? PHP_INT_MAX);
         $excluded = [
-            'average', 'general average', 'final average', 'rank', 'remarks',
-            'student number', 'student no.', 'student no', 'lrn', 'name',
+            'average', 'gen. ave', 'gen. ave.', 'general average', 'final average', 'rank', 'remarks',
+            'student number', 'student no.', 'student no', "student's name", 'student’s name', 'lrn', 'name',
         ];
         $candidates = [];
 
@@ -229,7 +247,7 @@ class GradeSheetImporter
             $subjects = [];
             foreach ($this->cellsByColumn($row) as $column => $value) {
                 $subject = trim(preg_replace('/\s+/', ' ', (string) $value));
-                if ($this->columnNumber($column) < 4 || $subject === '' || is_numeric($subject)) {
+                if ($this->columnNumber($column) < 3 || $subject === '' || is_numeric($subject)) {
                     continue;
                 }
 
@@ -266,13 +284,17 @@ class GradeSheetImporter
 
     public function attendance(string $path): array
     {
+        if ($this->isYearEndWorkbook($path)) {
+            return $this->yearEndRecords($path, true);
+        }
+
         $rows = $this->firstSheetRows($path);
         [$monthColumns, $monthHeaderIndex] = $this->attendanceMonthColumns($rows);
         $firstStudentIndex = collect($rows)->first(function (array $row): bool {
             $cells = $this->cellsByColumn($row);
-            $lrn = $this->normalizeLrn($cells['B'] ?? '');
+            $studentNumber = $this->normalizeStudentNumber($cells['B'] ?? '');
 
-            return strlen($lrn) >= 10;
+            return $this->isStudentNumber($studentNumber);
         })['index'] ?? PHP_INT_MAX;
         $schoolDays = [];
 
@@ -294,8 +316,8 @@ class GradeSheetImporter
         $records = [];
         foreach ($rows as $row) {
             $cells = $this->cellsByColumn($row);
-            $lrn = $this->normalizeLrn($cells['B'] ?? '');
-            if ($lrn === '' || strlen($lrn) < 10) {
+            $studentNumber = $this->normalizeStudentNumber($cells['B'] ?? '');
+            if (! $this->isStudentNumber($studentNumber)) {
                 continue;
             }
 
@@ -303,7 +325,7 @@ class GradeSheetImporter
             foreach ($monthColumns as $column => $month) {
                 $months[$month] = ['school_days' => $schoolDays[$month] ?? null, 'days_present' => $this->integer($cells[$column] ?? null)];
             }
-            $records[] = ['lrn' => $lrn, 'name' => trim($cells['C'] ?? ''), 'months' => $months];
+            $records[] = ['student_number' => $studentNumber, 'name' => trim($cells['C'] ?? ''), 'months' => $months];
         }
 
         if ($records === []) {
@@ -372,7 +394,7 @@ class GradeSheetImporter
                 }
 
                 foreach (array_slice($values, $index + 1) as $candidate) {
-                    if (! preg_match('/teacher|adviser|advisor|signature/i', $candidate)) {
+                    if ($candidate !== ':' && ! preg_match('/teacher|adviser|advisor|signature/i', $candidate)) {
                         return $candidate;
                     }
                 }
@@ -390,6 +412,348 @@ class GradeSheetImporter
         }
 
         return $sheets[0]['rows'];
+    }
+
+    private function allRows(string $path): array
+    {
+        return collect($this->reader->read($path))
+            ->flatMap(fn (array $sheet) => $sheet['rows'] ?? [])
+            ->values()
+            ->all();
+    }
+
+    public function includesAnnualAttendance(string $path): bool
+    {
+        return $this->isYearEndWorkbook($path);
+    }
+
+    /**
+     * Read the complete JHS report-card block from the Q4 workbook. Unlike the
+     * regular summary import, this preserves the subject order and all four
+     * grading-period values shown on the CARD JHS worksheet.
+     */
+    public function jhsReportCard(string $path, string $identifier): ?array
+    {
+        $needle = strtoupper(trim($identifier));
+        $numericNeedle = $this->normalizeLrn($identifier);
+
+        foreach ($this->reader->read($path) as $sheet) {
+            if (! preg_match('/^CARD\s*JHS(?:\s*\(\d+\))?$/i', trim((string) ($sheet['name'] ?? '')))) {
+                continue;
+            }
+
+            $rows = $sheet['rows'] ?? [];
+            foreach ($rows as $rowPosition => $row) {
+                $cells = $this->cellsByColumn($row);
+                foreach ($cells as $labelColumn => $label) {
+                    if (! preg_match('/^student\s*no\.?$/i', trim((string) $label))) {
+                        continue;
+                    }
+
+                    $studentNumber = $this->normalizeStudentNumber($this->valueToRight($cells, $labelColumn, 4));
+                    $lrn = '';
+                    for ($offset = 1; $offset <= 4; $offset++) {
+                        $nearby = $rows[$rowPosition + $offset] ?? null;
+                        if (! $nearby) {
+                            continue;
+                        }
+                        $nearbyCells = $this->cellsByColumn($nearby);
+                        foreach ($nearbyCells as $column => $value) {
+                            if (preg_match('/^lrn$/i', trim((string) $value))) {
+                                $lrn = $this->normalizeLrn($this->valueToRight($nearbyCells, $column, 4));
+                                break 2;
+                            }
+                        }
+                    }
+
+                    if (strtoupper($studentNumber) !== $needle && ($numericNeedle === '' || $lrn !== $numericNeedle)) {
+                        continue;
+                    }
+
+                    return [
+                        'student_number' => $studentNumber,
+                        'lrn' => $lrn,
+                        'grades' => $this->jhsCardGrades($rows, $rowPosition, $labelColumn),
+                        'attendance' => $this->yearEndAttendance($rows, $rowPosition, $labelColumn),
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function jhsCardGrades(array $rows, int $studentRowPosition, string $labelColumn): array
+    {
+        $periodColumns = [];
+        $learningAreasPosition = null;
+        $labelColumnNumber = $this->columnNumber($labelColumn);
+        foreach (array_slice($rows, $studentRowPosition + 1, 12, true) as $position => $row) {
+            $cells = $this->cellsByColumn($row);
+            if (preg_match('/^LEARNING AREAS$/i', trim((string) ($cells[$labelColumn] ?? '')))) {
+                $learningAreasPosition = $position;
+            }
+            foreach ($cells as $column => $value) {
+                $columnNumber = $this->columnNumber($column);
+                if ($columnNumber <= $labelColumnNumber || $columnNumber > $labelColumnNumber + 15) {
+                    continue;
+                }
+                if (preg_match('/^([1-4])(?:st|nd|rd|th)$/i', trim((string) $value), $match)) {
+                    $periodColumns[(int) $match[1]] = $column;
+                }
+            }
+        }
+
+        if ($learningAreasPosition === null || count($periodColumns) < 4) {
+            return [];
+        }
+
+        ksort($periodColumns);
+        $grades = [];
+        foreach (array_slice($rows, $learningAreasPosition + 1, 24) as $row) {
+            $cells = $this->cellsByColumn($row);
+            $label = trim((string) ($cells[$labelColumn] ?? ''));
+            if (preg_match('/^(GENERAL AVERAGE|LEARNING MODALITY|ATTENDANCE REPORT)$/i', $label)) {
+                break;
+            }
+
+            $subject = $label ?: trim((string) ($cells[$this->columnName($labelColumnNumber + 1)] ?? ''));
+            $normalizedSubject = LearningAreaNormalizer::label($subject);
+            if ($normalizedSubject === null) {
+                continue;
+            }
+            foreach ($periodColumns as $period => $column) {
+                $grade = $this->number($cells[$column] ?? null);
+                if ($grade !== null && $grade > 0) {
+                    $grades[$normalizedSubject][$period] = $grade;
+                }
+            }
+        }
+
+        return $grades;
+    }
+
+    private function isYearEndWorkbook(string $path): bool
+    {
+        foreach ($this->reader->read($path) as $sheet) {
+            $values = [];
+            foreach ($sheet['rows'] ?? [] as $row) {
+                foreach ($row['cells'] ?? [] as $cell) {
+                    $value = trim((string) ($cell['value'] ?? ''));
+                    if ($value !== '') {
+                        $values[] = $value;
+                    }
+                }
+            }
+            $contents = implode("\n", $values);
+            if (preg_match('/\bPROGRESS REPORT CARD\b/i', $contents)
+                && preg_match('/\bATTENDANCE REPORT\b/i', $contents)
+                && preg_match('/\bGRADING PERIODS\b/i', $contents)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function yearEndRecords(string $path, bool $attendanceOnly): array
+    {
+        $records = [];
+        foreach ($this->reader->read($path) as $sheet) {
+            $rows = $sheet['rows'] ?? [];
+            foreach ($rows as $rowPosition => $row) {
+                $cells = $this->cellsByColumn($row);
+                foreach ($cells as $labelColumn => $label) {
+                    if (! preg_match('/^student\s*no\.?$/i', trim((string) $label))) {
+                        continue;
+                    }
+
+                    $studentNumber = $this->normalizeStudentNumber($this->valueToRight($cells, $labelColumn, 4));
+                    if (! $this->isStudentNumber($studentNumber) || (float) $studentNumber === 0.0) {
+                        continue;
+                    }
+
+                    $name = '';
+                    $level = '';
+                    $lrn = '';
+                    $labelColumnNumber = $this->columnNumber($labelColumn);
+                    for ($offset = 1; $offset <= 4; $offset++) {
+                        $nearby = $rows[$rowPosition + $offset] ?? null;
+                        if (! $nearby) {
+                            continue;
+                        }
+                        $nearbyCells = $this->cellsByColumn($nearby);
+                        $nearbyLabel = mb_strtolower(trim((string) ($nearbyCells[$labelColumn] ?? '')));
+                        if ($nearbyLabel === 'name') {
+                            $name = $this->valueToRight($nearbyCells, $labelColumn, 4);
+                        } elseif (str_contains($nearbyLabel, 'level')) {
+                            $level = $this->valueToRight($nearbyCells, $labelColumn, 4);
+                        }
+                        foreach ($nearbyCells as $nearbyColumn => $nearbyValue) {
+                            $nearbyColumnNumber = $this->columnNumber($nearbyColumn);
+                            if ($nearbyColumnNumber < $labelColumnNumber || $nearbyColumnNumber > $labelColumnNumber + 15) {
+                                continue;
+                            }
+                            if (preg_match('/^lrn$/i', trim((string) $nearbyValue))) {
+                                $lrn = $this->normalizeLrn($this->valueToRight($nearbyCells, $nearbyColumn, 4));
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($this->gradeLevel($level) === null) {
+                        continue;
+                    }
+
+                    $record = ['student_number' => $studentNumber, 'lrn' => $lrn, 'name' => $name];
+                    if ($attendanceOnly) {
+                        $record['months'] = $this->yearEndAttendance($rows, $rowPosition, $labelColumn);
+                        if ($record['months'] !== []) {
+                            $records[$studentNumber] = $record;
+                        }
+                    } else {
+                        $record['grades'] = $this->yearEndGrades($rows, $rowPosition, $labelColumn);
+                        if ($record['grades'] !== []) {
+                            $records[$studentNumber] = $record;
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($records === []) {
+            throw new RuntimeException($attendanceOnly
+                ? 'No student attendance records with a student number were found in the year-end workbook.'
+                : 'No fourth-quarter grade records with a student number were found in the year-end workbook.');
+        }
+
+        return array_values($records);
+    }
+
+    private function yearEndGrades(array $rows, int $studentRowPosition, string $labelColumn): array
+    {
+        $grades = [];
+        $labelNumber = $this->columnNumber($labelColumn);
+        $gradeColumn = $this->columnName($labelNumber + 11);
+        $insideSubjects = false;
+
+        foreach (array_slice($rows, $studentRowPosition + 1, 24) as $row) {
+            $cells = $this->cellsByColumn($row);
+            $label = trim((string) ($cells[$labelColumn] ?? ''));
+            if (preg_match('/^LEARNING AREAS$/i', $label)) {
+                $insideSubjects = true;
+
+                continue;
+            }
+            if (! $insideSubjects) {
+                continue;
+            }
+            if (preg_match('/^(GENERAL AVERAGE|LEARNING MODALITY|ATTENDANCE REPORT)$/i', $label)) {
+                break;
+            }
+
+            $subject = $label ?: trim((string) ($cells[$this->columnName($labelNumber + 1)] ?? ''));
+            $grade = $this->number($cells[$gradeColumn] ?? null);
+            if ($subject !== '' && $grade !== null && $grade > 0) {
+                $grades[$subject] = $grade;
+            }
+        }
+
+        return $grades;
+    }
+
+    private function yearEndAttendance(array $rows, int $studentRowPosition, string $labelColumn): array
+    {
+        $labelNumber = $this->columnNumber($labelColumn);
+        $attendancePosition = null;
+        foreach (array_slice($rows, $studentRowPosition + 1, 35, true) as $position => $row) {
+            $cells = $this->cellsByColumn($row);
+            if (preg_match('/^ATTENDANCE REPORT$/i', trim((string) ($cells[$labelColumn] ?? '')))) {
+                $attendancePosition = $position;
+                break;
+            }
+        }
+        if ($attendancePosition === null) {
+            return [];
+        }
+
+        $header = [];
+        $schoolDays = [];
+        $daysPresent = [];
+        foreach (array_slice($rows, $attendancePosition + 1, 8) as $row) {
+            $candidate = $this->cellsByColumn($row);
+            $rowLabel = mb_strtolower(trim((string) ($candidate[$labelColumn] ?? '')));
+            if ($rowLabel === 'days of school') {
+                $schoolDays = $candidate;
+
+                continue;
+            }
+            if ($rowLabel === 'days present') {
+                $daysPresent = $candidate;
+
+                continue;
+            }
+            $monthCount = collect($candidate)->filter(fn ($value) => $this->monthName((string) $value) !== null)->count();
+            if ($monthCount >= 2) {
+                $header = $candidate;
+            }
+        }
+        $months = [];
+        foreach ($header as $column => $month) {
+            $columnNumber = $this->columnNumber($column);
+            if ($columnNumber <= $labelNumber || $columnNumber > $labelNumber + 14) {
+                continue;
+            }
+            $normalizedMonth = $this->monthName((string) $month);
+            if ($normalizedMonth === null) {
+                continue;
+            }
+            $schoolDayValue = $this->integer($schoolDays[$column] ?? null);
+            $presentValue = $this->integer($daysPresent[$column] ?? null);
+            if (($schoolDayValue ?? 0) <= 0 && ($presentValue ?? 0) <= 0) {
+                continue;
+            }
+            $months[$normalizedMonth] = ['school_days' => $schoolDayValue, 'days_present' => $presentValue];
+        }
+
+        return $months;
+    }
+
+    private function valueToRight(array $cells, string $labelColumn, int $distance): string
+    {
+        $start = $this->columnNumber($labelColumn);
+        for ($offset = 1; $offset <= $distance; $offset++) {
+            $value = trim((string) ($cells[$this->columnName($start + $offset)] ?? ''));
+            if ($value !== '' && $value !== ':') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function columnName(int $number): string
+    {
+        $name = '';
+        while ($number > 0) {
+            $number--;
+            $name = chr(65 + ($number % 26)).$name;
+            $number = intdiv($number, 26);
+        }
+
+        return $name;
+    }
+
+    private function monthName(string $value): ?string
+    {
+        $months = [
+            'jan' => 'January', 'feb' => 'February', 'mar' => 'March', 'apr' => 'April',
+            'may' => 'May', 'jun' => 'June', 'jul' => 'July', 'aug' => 'August',
+            'sep' => 'September', 'sept' => 'September', 'oct' => 'October',
+            'nov' => 'November', 'dec' => 'December',
+        ];
+
+        return $months[mb_strtolower(trim($value))] ?? null;
     }
 
     private function cellsByColumn(array $row): array

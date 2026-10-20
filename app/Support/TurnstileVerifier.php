@@ -9,7 +9,7 @@ use Throwable;
 
 class TurnstileVerifier
 {
-    public function verify(?string $token, ?string $ipAddress): bool
+    public function verify(?string $token, ?string $ipAddress, ?string $expectedAction = null): bool
     {
         if (! config('services.turnstile.enabled', true)) {
             return true;
@@ -60,7 +60,7 @@ class TurnstileVerifier
             return false;
         }
 
-        $expectedAction = (string) config('services.turnstile.expected_action', 'login');
+        $expectedAction ??= (string) config('services.turnstile.expected_action', 'login');
         $actualAction = $response->json('action');
         $testResponseWithoutAction = config('services.turnstile.using_test_keys', false)
             && $actualAction === null;

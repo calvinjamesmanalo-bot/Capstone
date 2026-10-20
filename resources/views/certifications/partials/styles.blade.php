@@ -595,8 +595,8 @@
         bottom: 0.28in;
         left: 50%;
         z-index: 2;
-        width: 1.65in;
-        margin-left: -0.825in;
+        width: 1.9in;
+        margin-left: -0.95in;
         text-align: center;
     }
 
@@ -605,8 +605,8 @@
     }
 
     .certificate-qr img {
-        width: 0.66in !important;
-        height: 0.66in !important;
+        width: 0.92in !important;
+        height: 0.92in !important;
     }
 
     @page {

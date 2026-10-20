@@ -121,7 +121,7 @@ class DynamicRequestFormsTest extends TestCase
         }
     }
 
-    public function test_student_submits_without_legacy_fields_and_registrar_receives_and_manually_processes_request(): void
+    public function test_student_submits_without_legacy_fields_and_staff_prepare_then_registrar_reviews_request(): void
     {
         // Existing definitions must no longer require their former custom fields.
         $type = $this->type();
@@ -137,12 +137,22 @@ class DynamicRequestFormsTest extends TestCase
         $this->assertSame('pending_clearance', $document->clearance_status);
         $this->assertFalse($document->payment_confirmed);
         $this->get(route('requests.receipt', $document))->assertOk()->assertDontSee('Submitted form details');
+        $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
+        $this->actingAs($recordsOfficer)->post(route('requests.update-status', $document), [
+            'status' => 'processed',
+            'manual_preparation' => '1',
+            'manual_preparation_reason' => 'Custom document requires manual preparation.',
+            'remarks' => 'Prepared and verified by the Records Officer.',
+        ])->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertSame('processed', $document->fresh()->status);
+
         $registrar = User::factory()->create(['role' => 'registrar']);
-        $this->actingAs($registrar)->get(route('requests.index'))->assertOk()->assertSee($document->ticket_number)->assertSee('prepared manually');
-        foreach (['processing', 'processed', 'ready_to_release', 'completed'] as $status) {
-            $this->post(route('requests.update-status', $document), ['status' => $status])->assertSessionHasNoErrors()->assertRedirect();
-            $this->assertSame($status, $document->fresh()->status);
-        }
+        $this->actingAs($registrar)->get(route('requests.index'))->assertOk()->assertSee($document->ticket_number)->assertSee('Registrar review and approval');
+        $this->post(route('requests.update-status', $document), ['status' => 'ready_to_release', 'remarks' => 'Approved.'])->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertSame('ready_to_release', $document->fresh()->status);
+
+        $this->actingAs($recordsOfficer)->post(route('requests.update-status', $document), ['status' => 'completed'])->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertSame('completed', $document->fresh()->status);
         $this->get(route('requests.history'))->assertOk()->assertSee($document->ticket_number);
         $this->assertDatabaseCount('document_authenticities', 0);
         $this->assertDatabaseCount('document_artifacts', 0);
@@ -155,15 +165,10 @@ class DynamicRequestFormsTest extends TestCase
         $type->update(['name' => 'Certificate of Custom Recognition']);
         $this->actingAs($this->student())->post(route('student.request.store'), $this->payload($type))->assertSessionHasNoErrors();
         $document = RequestDocument::firstOrFail();
-        $this->actingAs(User::factory()->create(['role' => 'registrar']));
-        foreach (['pending', 'processing', 'processed'] as $status) {
-            $document->update(['status' => $status]);
-            $this->get(route('requests.index'))->assertOk()->assertSee($document->ticket_number)
-                ->assertDontSee(route('certifications.index', ['request_id' => $document->id]), false)
-                ->assertDontSee('No generated document available')->assertDontSee('Sign prepared PDF');
-        }
         $this->actingAs(User::factory()->create(['role' => 'records_officer']))->get(route('requests.index'))
-            ->assertOk()->assertDontSee('Generate and download the protected document');
+            ->assertOk()->assertSee($document->ticket_number)
+            ->assertDontSee(route('certifications.index', ['request_id' => $document->id]), false)
+            ->assertDontSee('Generate and download the protected document');
     }
 
     public function test_disabled_and_archived_types_cannot_be_requested_and_duplicates_still_block_after_rename(): void
@@ -185,16 +190,27 @@ class DynamicRequestFormsTest extends TestCase
         $this->assertDatabaseCount('request_documents', 1);
     }
 
-    public function test_registrar_visibility_and_generation_rules_for_builtin_documents_are_unchanged(): void
+    public function test_records_officer_can_use_manual_fallback_for_a_pending_builtin_document(): void
     {
         $student = $this->student();
         $document = RequestDocument::create(['student_number' => $student->student_number, 'ticket_number' => 'BUILT-IN-TEST', 'document_type' => 'Form 137', 'status' => 'pending']);
-        $this->actingAs(User::factory()->create(['role' => 'registrar']))->get(route('requests.index'))->assertOk()->assertDontSee('BUILT-IN-TEST');
-        $document->update(['status' => 'processing']);
-        $this->actingAs(User::factory()->create(['role' => 'records_officer']))
-            ->post(route('requests.update-status', $document), ['status' => 'processed'])->assertSessionHasErrors('status');
-        $document->update(['status' => 'processed']);
-        $this->actingAs(User::factory()->create(['role' => 'registrar']))->get(route('requests.index'))->assertOk()->assertSee('BUILT-IN-TEST');
+        $recordsOfficer = User::factory()->create(['role' => 'records_officer']);
+
+        $this->actingAs($recordsOfficer)->get(route('requests.index'))
+            ->assertOk()
+            ->assertSee('BUILT-IN-TEST')
+            ->assertSee('Manual Form 137 procedure')
+            ->assertSee('Use Manual Procedure & Forward to Registrar', false);
+
+        $this->post(route('requests.update-status', $document), [
+            'status' => 'processed',
+            'manual_preparation' => '1',
+            'manual_preparation_reason' => 'Imported data could not be retrieved.',
+            'remarks' => 'Prepared from the verified physical school record.',
+        ])->assertRedirect(route('requests.index', ['open_request' => $document->id]));
+
+        $this->assertSame('processed', $document->fresh()->status);
+        $this->assertTrue($document->fresh()->is_manually_prepared);
     }
 
     public function test_historical_answers_and_private_attachments_remain_accessible_only_to_authorized_viewers(): void

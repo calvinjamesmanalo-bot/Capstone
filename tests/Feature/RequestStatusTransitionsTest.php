@@ -7,6 +7,7 @@ use App\Models\Student;
 use App\Models\User;
 use App\Support\DocumentQrCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class RequestStatusTransitionsTest extends TestCase
@@ -92,6 +93,62 @@ class RequestStatusTransitionsTest extends TestCase
         $this->assertSame('processed', $request->fresh()->status);
     }
 
+    public function test_prepared_document_can_be_forwarded_directly_from_pending_and_records_both_steps(): void
+    {
+        $request = $this->documentRequest('pending');
+        $officer = User::factory()->create(['role' => 'records_officer']);
+        $this->actingAs($officer);
+
+        Storage::fake('local');
+        $qr = app(DocumentQrCode::class)->make('Certificate of Enrollment', 'Transition Student', [
+            'request_id' => $request->id,
+            'holder_identifier' => $request->student_number,
+        ]);
+        $qr['document']->update(['pdf_signature_status' => 'signed']);
+        app(DocumentQrCode::class)
+            ->registerArtifact($qr['document'], '%PDF-1.4 prepared', 'prepared.pdf', 'application/pdf')
+            ->update(['storage_disk' => 'local', 'storage_path' => 'review-documents/prepared.pdf', 'is_pdf_signed' => true]);
+
+        $this->post(route('requests.update-status', $request), ['status' => 'processed'])
+            ->assertRedirect(route('requests.index', ['open_request' => $request->id]));
+
+        $this->assertSame('processed', $request->fresh()->status);
+        $this->assertSame(['pending', 'processing', 'processed'], $request->statusHistories()->oldest('id')->pluck('to_status')->all());
+    }
+
+    public function test_certificate_forward_action_updates_processing_request_and_returns_to_popup(): void
+    {
+        $request = $this->documentRequest('processing');
+        $officer = User::factory()->create(['role' => 'records_officer']);
+        $this->actingAs($officer);
+        $qr = app(DocumentQrCode::class)->make('Certificate of Enrollment', 'Transition Student', [
+            'request_id' => $request->id,
+            'holder_identifier' => $request->student_number,
+        ]);
+        $qr['document']->update(['pdf_signature_status' => 'signed']);
+        app(DocumentQrCode::class)
+            ->registerArtifact($qr['document'], '%PDF-1.4 prepared', 'prepared.pdf', 'application/pdf')
+            ->update(['storage_disk' => 'local', 'storage_path' => 'review-documents/prepared.pdf', 'is_pdf_signed' => true]);
+
+        $this->post(route('certifications.forward'), [
+            'request_id' => $request->id,
+            'certificate_type' => 'enrollment',
+            'student_number' => $request->student_number,
+            'student_name' => 'Transition Student',
+            'grade_level' => 'Grade 7',
+            'section' => 'Erbium',
+            'school_year' => '2024-2025',
+            'issue_date' => now()->toDateString(),
+            'expires_at' => '',
+            'purpose' => 'Enrollment',
+            'recognition' => '',
+        ])->assertRedirect(route('requests.index', ['open_request' => $request->id]));
+
+        $request->refresh();
+        $this->assertSame('processed', $request->status);
+        $this->assertSame('Certificate prepared and forwarded to the Registrar for review.', $request->remarks);
+    }
+
     public function test_registrar_approval_does_not_require_accounting_controls(): void
     {
         $request = $this->documentRequest('processed');
@@ -101,6 +158,28 @@ class RequestStatusTransitionsTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame('ready_to_release', $request->fresh()->status);
+    }
+
+    public function test_registrar_history_keeps_approved_requests_visible_before_release(): void
+    {
+        $reviewed = $this->documentRequest('processed');
+        $reviewed->update([
+            'status' => 'ready_to_release',
+            'review_status' => 'approved',
+            'reviewed_at' => now(),
+        ]);
+        $unreviewed = RequestDocument::create([
+            'ticket_number' => 'REQ-2026-UNREVIEWED',
+            'student_number' => $reviewed->student_number,
+            'document_type' => 'Certificate of Enrollment',
+            'status' => 'processing',
+        ]);
+
+        $this->actingAs(User::factory()->create(['role' => 'registrar']))
+            ->get(route('requests.history'))
+            ->assertOk()
+            ->assertSee($reviewed->ticket_number)
+            ->assertDontSee($unreviewed->ticket_number);
     }
 
     public function test_rejection_requires_reason_and_terminal_states_cannot_reopen(): void

@@ -3,17 +3,15 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\SchoolFormStudent;
 use App\Models\Student;
 use App\Models\StudentAccountActivation;
 use App\Models\User;
-use App\Notifications\VerifyStudentAccountCode;
+use App\Support\TurnstileVerifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\View\View;
@@ -21,217 +19,227 @@ use Throwable;
 
 class StudentRegistrationController extends Controller
 {
-    private const CODE_LIFETIME_MINUTES = 10;
+    private const IDENTITY_LIFETIME_MINUTES = 15;
 
-    private const MAX_CODE_ATTEMPTS = 5;
-
-    public function create(): View
+    public function create(Request $request): View
     {
-        return view('auth.create-student-account');
+        if ($request->boolean('restart')) {
+            $request->session()->forget('student_registration_identity');
+        }
+
+        $identity = $request->session()->get('student_registration_identity');
+        if (! is_array($identity)
+            || now()->timestamp - ($identity['verified_at'] ?? 0) > self::IDENTITY_LIFETIME_MINUTES * 60
+            || ! isset($identity['verification_student_number'])) {
+            $request->session()->forget('student_registration_identity');
+            $identity = null;
+        }
+
+        return view('auth.create-student-account', array_merge(
+            ['identity' => $identity],
+            $this->dailyCapacity()
+        ));
     }
 
-    public function store(Request $request): RedirectResponse
+    public function lookup(Request $request, TurnstileVerifier $turnstile): RedirectResponse
     {
+        if ($this->dailyCapacity()['remainingAccounts'] < 1) {
+            return redirect()->route('student.registration.request')->withErrors([
+                'student_number' => 'The daily limit of 200 new student accounts has been reached. Please return tomorrow after 12:00 AM (Philippine time).',
+            ]);
+        }
+
         $request->merge([
             'student_number' => Str::upper(trim((string) $request->input('student_number'))),
-            'lrn' => preg_replace('/\D/', '', (string) $request->input('lrn')),
-            'name' => trim((string) $request->input('name')),
+            'first_name' => trim((string) $request->input('first_name')),
+            'middle_name' => trim((string) $request->input('middle_name')),
+            'last_name' => trim((string) $request->input('last_name')),
             'email' => Str::lower(trim((string) $request->input('email'))),
         ]);
 
         $validated = $request->validate([
             'student_number' => ['required', 'string', 'max:50'],
-            'lrn' => ['required', 'string', 'regex:/^\d{12}$/'],
-            'name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:100'],
+            'middle_name' => ['nullable', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
             'email' => ['required', 'string', 'email:rfc', 'max:255', 'ends_with:@gmail.com'],
-            'password' => ['required', 'confirmed', PasswordRule::min(12)->max(64)->mixedCase()->numbers(), 'regex:/[^\pL\pN\s]/u'],
-        ], array_merge($this->passwordValidationMessages(), [
-            'email.ends_with' => 'Use the official Gmail address registered in the student roster.',
-        ]));
+            'school_id' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'school_id_selfie' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'cf-turnstile-response' => ['nullable', 'string', 'max:2048'],
+        ]);
 
-        $student = Student::find($validated['student_number']);
-        $requestToken = Str::random(64);
-        $requiresRoster = (bool) config('security.student_registration.require_roster', false);
-        $rosterMatches = ! $requiresRoster || ($student !== null
-            && $this->namesMatch($student->name, $validated['name'])
-            && hash_equals((string) $student->resolvedLrn(), $validated['lrn'])
-            && is_string($student->official_email)
-            && hash_equals(Str::lower(trim($student->official_email)), $validated['email']));
-        $accountCanBeCreated = $this->accountCanBeCreated($validated['student_number'], $validated['email']);
-        $gmailCanBeAssigned = $this->gmailCanBeAssigned($validated['student_number'], $validated['email']);
-        $lrnCanBeAssigned = $this->lrnCanBeAssigned($validated['student_number'], $validated['lrn']);
-
-        if ($rosterMatches
-            && $accountCanBeCreated
-            && $gmailCanBeAssigned
-            && $lrnCanBeAssigned) {
-            $verificationCode = (string) random_int(100000, 999999);
-            $activation = DB::transaction(function () use ($validated, $requestToken, $verificationCode): StudentAccountActivation {
-                // A new request revokes every older code for this student.
-                StudentAccountActivation::where('student_number', $validated['student_number'])->delete();
-
-                return StudentAccountActivation::create([
-                    'student_number' => $validated['student_number'],
-                    'lrn' => $validated['lrn'],
-                    'submitted_name' => $validated['name'],
-                    'email' => $validated['email'],
-                    'token_hash' => hash('sha256', $requestToken),
-                    'verification_code_hash' => $this->verificationCodeHash($verificationCode),
-                    'password_hash' => Hash::make($validated['password']),
-                    'verification_attempts' => 0,
-                    'expires_at' => now()->addMinutes(self::CODE_LIFETIME_MINUTES),
-                ]);
-            });
-
-            try {
-                Notification::route('mail', $validated['email'])->notify(
-                    new VerifyStudentAccountCode($verificationCode, self::CODE_LIFETIME_MINUTES)
-                );
-                Log::channel('security')->notice('Student verification code accepted by the mail transport.', [
-                    'registration_fingerprint' => $this->registrationFingerprint(
-                        $validated['student_number'],
-                        $validated['email']
-                    ),
-                ]);
-            } catch (Throwable $exception) {
-                // Do not log the Gmail address, password, verification code, or token.
-                $activation->delete();
-                Log::channel('security')->error('Student verification code email could not be sent.', [
-                    'exception' => $exception::class,
-                ]);
-            }
-        } else {
-            // Keep the public response generic to prevent roster/account
-            // enumeration, while retaining non-PII diagnostics for operators.
-            Log::channel('security')->notice('Student verification code was not sent because the registration was ineligible.', [
-                'registration_fingerprint' => $this->registrationFingerprint(
-                    $validated['student_number'],
-                    $validated['email']
-                ),
-                'roster_matched' => $rosterMatches,
-                'account_available' => $accountCanBeCreated,
-                'email_available' => $gmailCanBeAssigned,
-                'lrn_available' => $lrnCanBeAssigned,
+        if (! $turnstile->verify($validated['cf-turnstile-response'] ?? null, $request->ip(), 'student_registration')) {
+            return back()->withInput($request->except(['activation_code', 'cf-turnstile-response']))->withErrors([
+                'student_number' => 'The security check could not be verified. Please try again.',
             ]);
         }
 
-        // Invalid roster details use an indistinguishable dummy token so this
-        // endpoint cannot be used to discover official student records.
-        return redirect()->route('student.registration.code', ['token' => $requestToken])->with(
-            'status',
-            'If the details match an eligible official student record, a verification code has been sent to the Gmail address.'
-        );
+        $student = Student::find($validated['student_number']);
+        if ($student === null
+            || ! $student->masterlist_active
+            || ! $this->partialNameMatches($student->name, $validated['first_name'], $validated['last_name'])) {
+            $request->session()->forget('student_registration_identity');
+
+            return back()->withInput()->withErrors([
+                'student_number' => 'No matching active student record was found. Check the Student Number, First Name, and Last Name.',
+            ]);
+        }
+
+        if (! $this->accountCanBeCreated($student->student_number, $validated['email'])
+            || ! $this->gmailCanBeAssigned($student->student_number, $validated['email'])) {
+            return back()->withInput($request->except(['school_id', 'school_id_selfie', 'cf-turnstile-response']))
+                ->withErrors(['email' => 'An account or verification request already uses this Student Number or Gmail address.']);
+        }
+
+        Storage::disk('local')->delete(array_filter([$student->school_id_path, $student->school_id_selfie_path]));
+        $schoolIdPath = $request->file('school_id')->store('student-identity-proofs', 'local');
+        try {
+            $selfiePath = $request->file('school_id_selfie')->store('student-identity-proofs', 'local');
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($schoolIdPath);
+            throw $exception;
+        }
+
+        $statusToken = Str::random(64);
+        $student->forceFill([
+            'account_verification_status' => 'pending',
+            'account_verification_email' => $validated['email'],
+            'school_id_path' => $schoolIdPath,
+            'school_id_selfie_path' => $selfiePath,
+            'account_verification_token_hash' => hash('sha256', $statusToken),
+            'account_verification_expires_at' => now()->addHours(max(1, (int) config('security.student_registration.identity_approval_hours', 72))),
+            'account_verification_reviewed_by' => null,
+            'account_verification_reviewed_at' => null,
+            'account_verification_notes' => null,
+        ])->save();
+        $request->session()->forget('student_registration_identity');
+
+        StudentAccountActivation::where('student_number', $student->student_number)->delete();
+
+        return redirect()->route('student.registration.status', ['token' => $statusToken]);
     }
 
-    public function codeForm(string $token): View
+    public function status(string $token): View
     {
-        return view('auth.verify-student-code', ['token' => $token]);
+        $student = Student::query()
+            ->where('account_verification_token_hash', hash('sha256', $token))
+            ->first();
+
+        return view('auth.student-registration-status', [
+            'student' => $student,
+            'token' => $token,
+            'expired' => $student?->account_verification_expires_at?->isPast() ?? true,
+        ]);
     }
 
-    public function verify(Request $request): RedirectResponse
+    public function continueAfterApproval(Request $request, string $token): RedirectResponse
     {
-        $validated = $request->validate([
-            'token' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'regex:/^\d{6}$/'],
-        ], [
-            'code.regex' => 'Enter the six-digit verification code.',
+        $student = Student::query()
+            ->where('account_verification_token_hash', hash('sha256', $token))
+            ->where('account_verification_status', 'approved')
+            ->first();
+
+        if ($student === null || $student->account_verification_expires_at?->isPast()) {
+            return redirect()->route('student.registration.request')->withErrors([
+                'student_number' => 'This approval link is invalid or expired. Submit new School ID photos or contact the Admin.',
+            ]);
+        }
+
+        $request->session()->put('student_registration_identity', [
+            'student_number' => $student->student_number,
+            'name' => $student->name,
+            'email' => $student->account_verification_email,
+            'verification_student_number' => $student->student_number,
+            'verified_at' => now()->timestamp,
         ]);
 
-        $verified = DB::transaction(function () use ($validated): bool {
-            $activation = StudentAccountActivation::query()
-                ->where('token_hash', hash('sha256', $validated['token']))
-                ->whereNull('used_at')
-                ->lockForUpdate()
-                ->first();
+        return redirect()->route('student.registration.request');
+    }
 
-            if ($activation === null
-                || $activation->expires_at->isPast()
-                || $activation->verification_attempts >= self::MAX_CODE_ATTEMPTS
-                || ! is_string($activation->verification_code_hash)
-                || ! is_string($activation->password_hash)) {
-                return false;
-            }
+    public function store(Request $request): RedirectResponse
+    {
+        $identity = $request->session()->get('student_registration_identity');
+        if (! is_array($identity)
+            || now()->timestamp - ($identity['verified_at'] ?? 0) > self::IDENTITY_LIFETIME_MINUTES * 60
+            || ! isset($identity['verification_student_number'])) {
+            $request->session()->forget('student_registration_identity');
 
-            if (! hash_equals(
-                $activation->verification_code_hash,
-                $this->verificationCodeHash($validated['code'])
-            )) {
-                $activation->increment('verification_attempts');
+            return redirect()->route('student.registration.request')->withErrors([
+                'student_number' => 'Please verify your student details again before setting your account password.',
+            ]);
+        }
 
-                return false;
-            }
+        $validated = $request->validate([
+            'password' => ['required', 'confirmed', PasswordRule::min(12)->max(64)->mixedCase()->numbers(), 'regex:/[^\pL\pN\s]/u'],
+        ], $this->passwordValidationMessages());
 
-            $student = Student::query()
-                ->where('student_number', $activation->student_number)
-                ->lockForUpdate()
-                ->first();
-            $requiresRoster = (bool) config('security.student_registration.require_roster', false);
-            $rosterMatches = ! $requiresRoster || ($student !== null
-                && $this->namesMatch($student->name, (string) $activation->submitted_name)
-                && is_string($activation->lrn)
-                && hash_equals((string) $student->resolvedLrn(), $activation->lrn)
-                && is_string($student->official_email)
-                && hash_equals(Str::lower(trim($student->official_email)), $activation->email));
+        $validated['student_number'] = $identity['student_number'];
+        $validated['name'] = $identity['name'];
+        $validated['email'] = $identity['email'];
 
-            if (! $rosterMatches
-                || ! is_string($activation->lrn)
-                || ! $this->accountCanBeCreated($activation->student_number, $activation->email)
-                || ! $this->gmailCanBeAssigned($activation->student_number, $activation->email)
-                || ! $this->lrnCanBeAssigned($activation->student_number, $activation->lrn)) {
-                return false;
-            }
+        $student = Student::find($validated['student_number']);
+        $requiresRoster = (bool) config('security.student_registration.require_roster', false);
+        $rosterMatches = ! $requiresRoster || ($student !== null
+            && $student->masterlist_active
+            && $this->namesMatch($student->name, $validated['name']));
+        $accountCanBeCreated = $this->accountCanBeCreated($validated['student_number'], $validated['email']);
+        $gmailCanBeAssigned = $this->gmailCanBeAssigned($validated['student_number'], $validated['email']);
 
-            if ($student === null) {
-                $student = new Student;
-                $student->student_number = $activation->student_number;
-            }
+        if (! $rosterMatches) {
+            $request->session()->forget('student_registration_identity');
 
-            if (! $requiresRoster) {
-                $student->lrn = $activation->lrn;
-                $student->name = (string) $activation->submitted_name;
-                $student->official_email = $activation->email;
-                $student->save();
-            }
+            return redirect()->route('student.registration.request')->withErrors([
+                'student_number' => 'Your masterlist record changed. Please verify your student details again.',
+            ]);
+        }
+        if (! $accountCanBeCreated) {
+            return back()->withInput($request->only('email'))->withErrors([
+                'email' => 'An active account already exists for this Student Number or Gmail address. Use Sign In or Forgot Password instead.',
+            ]);
+        }
+        if (! $gmailCanBeAssigned) {
+            return back()->withInput($request->only('email'))->withErrors([
+                'email' => 'This Gmail address is already linked to another student record. Use a different Gmail address or contact the Registrar.',
+            ]);
+        }
 
-            $user = User::query()
-                ->where('student_number', $student->student_number)
-                ->orWhereRaw('LOWER(email) = ?', [$activation->email])
-                ->lockForUpdate()
-                ->first() ?? new User;
+        if ($this->dailyCapacity()['remainingAccounts'] < 1) {
+            return back()->withErrors([
+                'password' => 'The daily account creation limit has been reached. Please try again tomorrow.',
+            ]);
+        }
 
-            $user->forceFill([
+        DB::transaction(function () use ($validated): void {
+            $student = Student::query()->lockForUpdate()->findOrFail($validated['student_number']);
+            abort_unless($student->account_verification_status === 'approved'
+                && hash_equals((string) $student->account_verification_email, $validated['email'])
+                && $student->account_verification_expires_at?->isFuture(), 422, 'The identity approval is no longer valid.');
+
+            $this->releaseStaleGmailReservation($student->student_number, $validated['email']);
+            $student->official_email = $validated['email'];
+            Storage::disk('local')->delete(array_filter([$student->school_id_path, $student->school_id_selfie_path]));
+            $student->school_id_path = null;
+            $student->school_id_selfie_path = null;
+            $student->account_verification_status = 'completed';
+            $student->account_verification_token_hash = null;
+            $student->account_verification_expires_at = null;
+            $student->save();
+
+            User::create([
                 'name' => $student->name,
-                'email' => $activation->email,
+                'email' => $validated['email'],
                 'email_verified_at' => now(),
-                'pending_email' => null,
-                'password' => $activation->password_hash,
+                'password' => Hash::make($validated['password']),
                 'role' => 'student',
                 'student_number' => $student->student_number,
                 'remember_token' => Str::random(60),
-            ])->save();
-
-            DB::table(config('session.table', 'sessions'))
-                ->where('user_id', $user->getKey())
-                ->delete();
-            DB::table(config('auth.passwords.users.table', 'password_reset_tokens'))
-                ->where('email', $activation->email)
-                ->delete();
-
-            $activation->update(['used_at' => now()]);
-
-            return true;
+            ]);
+            StudentAccountActivation::where('student_number', $student->student_number)->delete();
         });
 
-        if (! $verified) {
-            return back()->withErrors([
-                'code' => 'The verification code is invalid or expired. Request a new code and try again.',
-            ]);
-        }
+        $request->session()->forget('student_registration_identity');
 
-        return redirect()->route('login')->with(
-            'status',
-            'Your student account is verified and active. You can now sign in.'
-        );
+        return redirect()->route('login')->with('status', 'Your student account is active. You can now sign in.');
     }
 
     private function accountCanBeCreated(string $studentNumber, string $email): bool
@@ -255,27 +263,33 @@ class StudentRegistrationController extends Controller
     {
         $studentUsingEmail = Student::whereRaw('LOWER(official_email) = ?', [$email])->first();
 
-        return $studentUsingEmail === null
-            || hash_equals((string) $studentUsingEmail->student_number, $studentNumber);
-    }
-
-    private function lrnCanBeAssigned(string $studentNumber, string $lrn): bool
-    {
-        $studentUsingLrn = Student::where('lrn', $lrn)->first();
-
-        if ($studentUsingLrn !== null) {
-            return hash_equals((string) $studentUsingLrn->student_number, $studentNumber);
+        if ($studentUsingEmail === null
+            || hash_equals((string) $studentUsingEmail->student_number, $studentNumber)) {
+            return true;
         }
 
-        try {
-            $schoolFormStudent = SchoolFormStudent::query()
-                ->where('lrn', $lrn)
-                ->first();
+        // Old/inactive roster rows may contain test or outdated email values.
+        // They must not reserve an address forever when no login account exists.
+        return ! in_array($studentUsingEmail->account_verification_status, ['pending', 'approved'], true)
+            && ! User::where('student_number', $studentUsingEmail->student_number)
+                ->orWhereRaw('LOWER(email) = ?', [$email])
+                ->exists();
+    }
 
-            return $schoolFormStudent === null
-                || hash_equals((string) $schoolFormStudent->student_number, $studentNumber);
-        } catch (Throwable) {
-            return true;
+    private function releaseStaleGmailReservation(string $studentNumber, string $email): void
+    {
+        $staleStudent = Student::query()
+            ->whereRaw('LOWER(official_email) = ?', [$email])
+            ->where('student_number', '!=', $studentNumber)
+            ->lockForUpdate()
+            ->first();
+
+        if ($staleStudent !== null
+            && ! in_array($staleStudent->account_verification_status, ['pending', 'approved'], true)
+            && ! User::where('student_number', $staleStudent->student_number)
+                ->orWhereRaw('LOWER(email) = ?', [$email])
+                ->exists()) {
+            $staleStudent->update(['official_email' => null]);
         }
     }
 
@@ -287,26 +301,24 @@ class StudentRegistrationController extends Controller
         );
     }
 
+    private function partialNameMatches(string $officialName, string $firstName, string $lastName): bool
+    {
+        $officialTokens = explode('|', $this->nameFingerprint($officialName));
+        $submittedTokens = array_merge(
+            explode('|', $this->nameFingerprint($firstName)),
+            explode('|', $this->nameFingerprint($lastName))
+        );
+
+        return $submittedTokens !== []
+            && count(array_diff($submittedTokens, $officialTokens)) === 0;
+    }
+
     private function nameFingerprint(string $name): string
     {
         $tokens = preg_split('/[^a-z0-9]+/', Str::lower(Str::ascii($name)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         sort($tokens, SORT_STRING);
 
         return implode('|', $tokens);
-    }
-
-    private function verificationCodeHash(string $code): string
-    {
-        return hash_hmac('sha256', $code, (string) config('app.key'));
-    }
-
-    private function registrationFingerprint(string $studentNumber, string $email): string
-    {
-        return hash_hmac(
-            'sha256',
-            Str::upper(trim($studentNumber)).'|'.Str::lower(trim($email)),
-            (string) config('app.key')
-        );
     }
 
     private function passwordValidationMessages(): array
@@ -318,6 +330,24 @@ class StudentRegistrationController extends Controller
             'password.numbers' => 'The password is too weak. Include at least one number.',
             'password.regex' => 'The password is too weak. Include at least one symbol.',
             'password.confirmed' => 'The password confirmation does not match.',
+        ];
+    }
+
+    private function dailyCapacity(): array
+    {
+        $limit = max(1, (int) config('security.student_registration.daily_account_limit', 200));
+        $manilaNow = now('Asia/Manila');
+        $createdToday = User::query()
+            ->where('role', 'student')
+            ->whereBetween('created_at', [
+                $manilaNow->copy()->startOfDay()->utc(),
+                $manilaNow->copy()->endOfDay()->utc(),
+            ])->count();
+
+        return [
+            'dailyAccountLimit' => $limit,
+            'accountsCreatedToday' => $createdToday,
+            'remainingAccounts' => max(0, $limit - $createdToday),
         ];
     }
 }

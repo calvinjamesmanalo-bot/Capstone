@@ -20,14 +20,12 @@
             <h1 class="text-xl font-bold">F138 Draft Preview</h1>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a href="{{ route('school-forms.home', ['student' => $student->student_number ?: $student->lrn, 'school_year' => $enrollment->school_year]) }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Back</a>
+            <a href="{{ $requestId ? route('requests.index', ['open_request' => $requestId]) : route('requests.index') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Back to Request Details</a>
             @unless($requestId)
                 <a href="{{ route('school-forms.f138.pdf', ['student' => $student->student_number ?: $student->lrn, 'school_year' => $enrollment->school_year]) }}" target="_blank" class="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-bold text-slate-700">View protected PDF</a>
             @endunless
             @if($issuedDocument?->status === 'valid' && $issuedDocument?->officialArtifact)
                 <a href="{{ route('documents.issued', $issuedDocument) }}" class="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-bold text-white">View issued document</a>
-            @elseif($requestId)
-                <a href="{{ route('requests.index') }}#request-{{ $requestId }}" class="rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white">Back to request</a>
             @endif
         </div>
     </div>
@@ -91,8 +89,11 @@
 
 @if($requestId && auth()->user()->role === 'records_officer')
 <section class="relative z-20 mx-auto mb-10 max-w-6xl rounded-xl border border-slate-300 bg-white p-6 shadow-sm" aria-labelledby="f138-review-title">
+    @if($errors->any())
+        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>
+    @endif
     <h2 id="f138-review-title" class="text-lg font-bold text-slate-900">Final document check</h2>
-    <p class="mt-1 text-sm text-slate-600">Check the complete report card above before downloading and forwarding it for approval.</p>
+    <p class="mt-1 text-sm text-slate-600">Check the complete report card above. Confirming it enables all document actions.</p>
     <label class="mt-5 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-4 text-sm font-semibold text-slate-800">
         <input id="f138-correct" type="checkbox" class="mt-0.5 h-5 w-5 rounded border-slate-300 text-blue-600">
         <span>I reviewed the learner information, school year, section, grades, attendance, and school details. Everything is correct.</span>
@@ -107,7 +108,7 @@
         <form method="POST" action="{{ route('requests.update-status', $requestId) }}">
             @csrf
             <input type="hidden" name="status" value="processed">
-            <button id="f138-forward" type="submit" disabled class="rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Downloaded - forward to registrar</button>
+            <button id="f138-forward" type="submit" disabled class="rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Forward to Registrar</button>
         </form>
     </div>
 </section>
@@ -123,9 +124,8 @@
                 action.classList.toggle('opacity-50', !checkbox.checked);
                 action.setAttribute('aria-disabled', checkbox.checked ? 'false' : 'true');
             });
-            if (!checkbox.checked) forward.disabled = true;
+            forward.disabled = !checkbox.checked;
         });
-        download.addEventListener('click', () => window.setTimeout(() => { forward.disabled = false; }, 700));
     })();
 </script>
 @endif

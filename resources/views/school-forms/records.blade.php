@@ -21,9 +21,11 @@
         .portal-tab.is-active .portal-tab-number { background: #ffd22d; color: #000638; }
         .portal-tab.is-active .portal-tab-description { color: #cbd5e1; }
         .portal-tab:focus-visible { outline: 3px solid #ffd22d; outline-offset: 3px; }
+        .portal-surface { box-shadow: 0 18px 45px rgba(0, 6, 56, .08); }
+        .upload-progress-fill { transition: width .3s ease; }
     </style>
 </head>
-<body class="min-h-screen bg-[#f6f7fb] font-sans text-slate-950">
+<body class="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(37,99,235,.09),_transparent_32%),#f6f7fb] font-sans text-slate-950">
 <header class="border-b border-white/10 bg-[#000638] text-white shadow-lg shadow-slate-950/10">
     <div class="mx-auto flex max-w-6xl flex-col items-stretch gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
         <a href="{{ route('grade-portal.index') }}" class="flex min-w-0 items-center gap-3">
@@ -37,8 +39,8 @@
     </div>
 </header>
 
-<main class="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
-    <div class="mb-7 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+<main class="mx-auto max-w-7xl px-4 py-7 sm:px-8 sm:py-10">
+    <div class="portal-surface mb-7 overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div class="max-w-2xl">
                 <p class="text-xs font-bold uppercase tracking-[.18em] text-slate-500">Registrar workspace</p>
@@ -123,15 +125,15 @@
                             <p class="mt-1 text-sm text-slate-200">Student number: {{ $selectedStudent->student_number ?: 'Not recorded' }} &middot; LRN: {{ $selectedStudent->lrn ?: 'Not recorded' }}</p>
                         </div>
                         @forelse ($selectedStudent->enrollments as $enrollment)
-                            @php $gradesByArea = $enrollment->grades->groupBy('learning_area')->sortKeys(); @endphp
+                            @php $gradesByArea = \App\Support\LearningAreaNormalizer::matrix($enrollment->grades); @endphp
                             <div class="mb-5 overflow-hidden rounded-xl border border-slate-200 last:mb-0">
                                 <div class="bg-slate-50 px-5 py-4"><h4 class="font-bold text-[#000638]">{{ $enrollment->school_year }} &middot; {{ $enrollment->level }} - {{ $enrollment->section }}</h4></div>
-                                @if ($gradesByArea->isEmpty())
+                                @if (empty($gradesByArea))
                                     <p class="px-5 py-5 text-sm text-slate-500">No imported grades for this class yet.</p>
                                 @else
                                     <div class="overflow-x-auto"><table class="w-full min-w-[560px] text-left text-sm">
                                         <thead class="bg-white text-xs uppercase text-slate-500"><tr><th class="px-5 py-3">Learning area</th>@foreach (\App\Support\AcademicPeriod::numbers($enrollment->school_year, $enrollment->level) as $period)<th class="px-4 py-3">{{ \App\Support\AcademicPeriod::usesTerms($enrollment->school_year, $enrollment->level) ? 'Term' : 'Quarter' }} {{ $period }}</th>@endforeach</tr></thead>
-                                        <tbody class="divide-y divide-slate-100">@foreach ($gradesByArea as $area => $grades)<tr><th class="px-5 py-3 font-semibold">{{ $area }}</th>@foreach (\App\Support\AcademicPeriod::numbers($enrollment->school_year, $enrollment->level) as $period)<td class="px-4 py-3">{{ $grades->firstWhere('grading_period', $period)?->grade ?? '—' }}</td>@endforeach</tr>@endforeach</tbody>
+                                        <tbody class="divide-y divide-slate-100">@foreach ($gradesByArea as $area => $grades)<tr><th class="px-5 py-3 font-semibold">{{ $area }}</th>@foreach (\App\Support\AcademicPeriod::numbers($enrollment->school_year, $enrollment->level) as $period)<td class="px-4 py-3">{{ $grades[$period] ?? '—' }}</td>@endforeach</tr>@endforeach</tbody>
                                     </table></div>
                                 @endif
                             </div>
@@ -159,10 +161,10 @@
         $quarterlyPeriod = (int) old('quarterly_period', 1);
         $uploadPeriodCount = \App\Support\AcademicPeriod::count($uploadYear, $uploadLevel);
         $initialSlots = $hasSearch
-            ? $uploads->whereIn('grading_period', range(1, $uploadPeriodCount))->keyBy(fn ($upload) => $upload->grading_period.':'.$upload->file_type)
+            ? $uploads->whereIn('grading_period', range(1, $uploadPeriodCount))->where('file_type', 'summary')->keyBy(fn ($upload) => $upload->grading_period.':'.$upload->file_type)
             : collect();
     @endphp
-    <section id="upload-workspace" class="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" data-portal-panel="upload" data-bulk-uploader data-status-url="{{ route('school-forms.grade-sheets.status') }}" data-template-url="{{ route('school-forms.grade-sheets.template', ['type' => '__TYPE__']) }}">
+    <section id="upload-workspace" class="portal-surface scroll-mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white" data-portal-panel="upload" data-bulk-uploader data-status-url="{{ route('school-forms.grade-sheets.status') }}" data-template-url="{{ route('school-forms.grade-sheets.template', ['type' => '__TYPE__']) }}">
         <div class="flex flex-col gap-4 border-b border-slate-200 p-6 sm:flex-row sm:items-start sm:justify-between sm:p-8">
             <div class="flex items-start gap-4">
                 <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#000638] text-[#ffd22d]">
@@ -174,37 +176,50 @@
                 </div>
             </div>
             <div class="min-w-52 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div class="flex items-center justify-between text-xs font-bold"><span>Class completeness</span><span data-completion-label>{{ $initialSlots->count() }}/{{ $uploadPeriodCount * 2 }}</span></div>
-                <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><span data-completion-bar class="block h-full rounded-full bg-emerald-500 transition-all" style="width: {{ ($initialSlots->count() / ($uploadPeriodCount * 2)) * 100 }}%"></span></div>
+                <div class="flex items-center justify-between text-xs font-bold"><span>Class completeness</span><span data-completion-label>{{ $initialSlots->count() }}/{{ $uploadPeriodCount }}</span></div>
+                <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><span data-completion-bar class="block h-full rounded-full bg-emerald-500 transition-all" style="width: {{ ($initialSlots->count() / max(1, $uploadPeriodCount)) * 100 }}%"></span></div>
             </div>
         </div>
 
-        <div class="border-b border-slate-200 bg-blue-50/60 p-6 sm:p-8">
+        <div class="border-b border-blue-100 bg-gradient-to-br from-blue-50 via-white to-amber-50 p-6 sm:p-8">
             <form method="POST" action="{{ route('school-forms.grade-sheets.auto-batch') }}" enctype="multipart/form-data" data-auto-batch-form>
                 @csrf
-                <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
                     <div class="max-w-2xl">
                         <div class="flex items-center gap-3">
                             <span class="rounded-full bg-blue-600 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white">New</span>
                             <h3 class="font-bold text-[#000638]">Automatic batch upload</h3>
                         </div>
-                        <p class="mt-2 text-sm leading-6 text-slate-600">Select workbooks from different school years, grade levels, sections, and periods. The system reads each file and places it in the correct Summary or Attendance slot automatically.</p>
-                        <p class="mt-1 text-xs text-slate-500">Nothing is imported if a file cannot be identified, two files target the same slot, or a workbook header is invalid.</p>
+                        <p class="mt-2 text-sm leading-6 text-slate-600">Select the new school workbooks from different school years, grade levels, and sections. Q1–Q3 files are imported into their matching quarter. A consolidated Q4 report-card workbook automatically imports both Q4 grades and its included attendance.</p>
+                        <p class="mt-1 text-xs font-semibold text-blue-800">Expected set per class: Q1, Q2, Q3, and one Q4 + attendance workbook.</p>
+                        <p class="mt-3 rounded-xl border border-blue-100 bg-white/80 px-4 py-3 text-xs leading-5 text-slate-600"><strong class="text-[#000638]">Excel identifier:</strong> Numeric values such as <strong>20240879</strong> are saved as Student Number, even when the source workbook incorrectly labels that column as Student&rsquo;s Name.</p>
+                        <p class="mt-2 text-xs text-slate-500">Duplicate or unreadable workbooks are skipped and listed after processing; valid files continue importing.</p>
                     </div>
-                    <div class="flex min-w-72 flex-col gap-3">
+                    <div class="flex min-w-0 flex-col gap-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
                         <div class="grid grid-cols-2 gap-2">
                             <label class="cursor-pointer rounded-xl border-2 border-dashed border-blue-300 bg-white px-4 py-4 text-center transition hover:border-blue-500">
                                 <span class="block text-sm font-bold text-blue-700">Choose files</span>
-                                <span class="mt-1 block text-[11px] text-slate-500">Select individual workbooks</span>
+                                <span class="mt-1 block text-[11px] text-slate-500">Q1–Q3 or Q4 files</span>
                                 <input type="file" name="auto_files[]" accept=".xlsx" multiple class="sr-only" data-auto-batch-input>
                             </label>
                             <label class="cursor-pointer rounded-xl border-2 border-dashed border-blue-300 bg-white px-4 py-4 text-center transition hover:border-blue-500">
                                 <span class="block text-sm font-bold text-blue-700">Choose folder</span>
-                                <span class="mt-1 block text-[11px] text-slate-500">Includes nested subfolders</span>
+                                <span class="mt-1 block text-[11px] text-slate-500">Import all class folders</span>
                                 <input type="file" name="auto_files[]" accept=".xlsx" multiple webkitdirectory directory class="sr-only" data-auto-batch-input>
                             </label>
                         </div>
                         <p class="text-center text-xs font-semibold text-blue-700" data-auto-batch-label>Choose files or a folder · up to 1,000 workbooks</p>
+                        <div class="hidden rounded-xl border border-slate-200 bg-slate-50 p-3" data-auto-batch-progress aria-live="polite">
+                            <div class="flex items-center justify-between gap-3 text-xs font-bold text-[#000638]">
+                                <span data-auto-batch-progress-text>Preparing upload&hellip;</span>
+                                <span data-auto-batch-percent>0%</span>
+                            </div>
+                            <div class="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-200">
+                                <span class="upload-progress-fill block h-full w-0 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500" data-auto-batch-progress-bar></span>
+                            </div>
+                            <p class="mt-2 truncate text-[11px] text-slate-500" data-auto-batch-current></p>
+                            <p class="mt-1 text-[11px] font-semibold text-slate-600" data-auto-batch-counts></p>
+                        </div>
                         <label class="flex items-start gap-2 text-xs leading-5 text-slate-600">
                             <input type="checkbox" name="replace_existing" value="1" class="mt-0.5 rounded border-slate-300">
                             <span>Replace any slots that already contain a workbook.</span>
@@ -302,7 +317,7 @@
 
             <div class="mt-6 flex items-center gap-3">
                 <span class="grid h-7 w-7 place-items-center rounded-lg bg-[#ffd22d] text-xs font-bold text-[#000638]">2</span>
-                <div><h3 class="font-bold">Workbook slots</h3><p class="text-xs text-slate-500">Empty slots are left unchanged. Workbook headers are verified before anything is imported.</p></div>
+                <div><h3 class="font-bold">Workbook slots</h3><p class="text-xs text-slate-500">Upload the separate Q1–Q3 summary files. For Q4, the complete report-card workbook may include both fourth-quarter grades and annual attendance.</p></div>
             </div>
             <div class="mt-4 grid gap-4 lg:grid-cols-2">
                 @foreach (range(1, 4) as $period)
@@ -312,12 +327,13 @@
                             <span class="shrink-0 whitespace-nowrap rounded-full bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600" data-period-state>Incomplete</span>
                         </header>
                         <div class="grid gap-3 p-4">
-                            @foreach (['summary' => 'Summary', 'attendance' => 'Attendance'] as $type => $label)
+                            @foreach (['summary' => ($period === 4 ? 'Q4 grades + attendance workbook' : 'Quarter '.$period.' grades')] as $type => $label)
                                 @php $existingUpload = $initialSlots->get($period.':'.$type); @endphp
                                 <div class="rounded-xl border border-slate-200 bg-white p-4" data-upload-slot data-period="{{ $period }}" data-type="{{ $type }}" data-existing="{{ $existingUpload ? '1' : '0' }}" data-existing-name="{{ $existingUpload?->original_name }}">
                                     <div class="flex min-w-0 items-start justify-between gap-3">
                                         <div class="min-w-0 flex-1">
                                             <p class="text-sm font-bold text-slate-800">{{ $label }}</p>
+                                            @if ($type === 'summary' && $period === 4)<p class="mt-1 text-[11px] leading-4 text-blue-700">If attendance is inside this workbook, the portal imports it automatically. No second upload is needed.</p>@endif
                                             <p class="mt-1 break-all text-[11px] leading-4 text-slate-500" data-file-name title="{{ $existingUpload?->original_name }}">{{ $existingUpload?->original_name ?? 'No file selected' }}</p>
                                         </div>
                                         <span class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold {{ $existingUpload ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500' }}" data-slot-status>{{ $existingUpload ? 'Stored' : 'Missing' }}</span>
@@ -621,6 +637,12 @@
         const inputs = [...form.querySelectorAll('[data-auto-batch-input]')];
         const label = form.querySelector('[data-auto-batch-label]');
         const submit = form.querySelector('[data-auto-batch-submit]');
+        const progress = form.querySelector('[data-auto-batch-progress]');
+        const progressText = form.querySelector('[data-auto-batch-progress-text]');
+        const progressPercent = form.querySelector('[data-auto-batch-percent]');
+        const progressBar = form.querySelector('[data-auto-batch-progress-bar]');
+        const currentFile = form.querySelector('[data-auto-batch-current]');
+        const counts = form.querySelector('[data-auto-batch-counts]');
         let resumeOffset = 0;
         let batchToken = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
         const refresh = (changedInput) => {
@@ -637,6 +659,8 @@
                 : 'Choose files or a folder · up to 1,000 workbooks';
             submit.disabled = xlsxCount === 0 || xlsxCount > 1000;
             if (xlsxCount > 1000) label.textContent = `${xlsxCount} workbooks selected · maximum is 1,000`;
+            progress.classList.add('hidden');
+            progressBar.style.width = '0%';
         };
         inputs.forEach((input) => input.addEventListener('change', () => {
             refresh(input);
@@ -648,6 +672,20 @@
             if (!files.length || files.length > 1000) return;
             submit.disabled = true;
             let completed = resumeOffset;
+            let imported = 0;
+            let skipped = 0;
+            let replaced = 0;
+            let skippedStudents = 0;
+            progress.classList.remove('hidden');
+            const showProgress = (processed, filename = '') => {
+                const percent = Math.round((processed / files.length) * 100);
+                progressText.textContent = `${processed} of ${files.length} files processed`;
+                progressPercent.textContent = `${percent}%`;
+                progressBar.style.width = `${percent}%`;
+                currentFile.textContent = filename ? `Now processing: ${filename}` : '';
+                counts.textContent = `${imported} files imported · ${skipped} files skipped · ${skippedStudents} conflicting students skipped · ${replaced} replaced`;
+            };
+            showProgress(completed);
             try {
                 for (let offset = resumeOffset; offset < files.length;) {
                     const chunk = [];
@@ -666,6 +704,7 @@
                     if (form.querySelector('[name="replace_existing"]').checked) payload.append('replace_existing', '1');
                     chunk.forEach((file) => payload.append('auto_files[]', file, file.name));
                     submit.textContent = `Importing ${completed + 1}–${completed + chunk.length} of ${files.length}…`;
+                    showProgress(completed, chunk.length === 1 ? chunk[0].name : `${chunk[0].name} + ${chunk.length - 1} more`);
                     let response;
                     for (let attempt = 1; attempt <= 4; attempt++) {
                         try {
@@ -693,14 +732,26 @@
                         const errors = Object.values(result.errors || {}).flat();
                         throw new Error(errors[0] || result.message || 'The batch could not be imported.');
                     }
+                    imported += Number(result.uploaded || 0);
+                    skipped += Number(result.skipped || 0);
+                    skippedStudents += Number(result.skipped_students || 0);
+                    replaced += Number(result.replaced || 0);
                     completed += chunk.length;
                     resumeOffset = completed;
                     offset += chunk.length;
-                    label.textContent = `${completed} of ${files.length} workbooks imported`;
+                    label.textContent = `${completed} of ${files.length} workbooks processed`;
+                    showProgress(completed);
                 }
-                window.location.assign('{{ route('school-forms.records') }}?batch_uploaded=' + completed);
+                progressText.textContent = 'Batch upload complete';
+                currentFile.textContent = skipped
+                    ? `${skipped} duplicate or unreadable workbook(s) were safely skipped.`
+                    : 'All selected workbooks were processed successfully.';
+                submit.textContent = 'Upload complete';
+                setTimeout(() => window.location.assign('{{ route('school-forms.records') }}?batch_uploaded=' + imported + '&batch_skipped=' + skipped), 1200);
             } catch (error) {
-                label.textContent = `${completed} of ${files.length} imported. ${error.message}`;
+                label.textContent = `${completed} of ${files.length} processed. ${error.message}`;
+                showProgress(completed);
+                currentFile.textContent = error.message;
                 submit.textContent = completed ? 'Continue remaining upload' : 'Try batch upload again';
                 submit.disabled = false;
             }
@@ -801,13 +852,14 @@
             root.querySelectorAll('[data-period-card]').forEach((card) => {
                 const cardSlots = [...card.querySelectorAll('[data-upload-slot]')];
                 const ready = cardSlots.filter((slot) => slot.dataset.existing === '1' || slot.querySelector('[data-slot-input]').files?.length).length;
-                card.querySelector('[data-period-progress]').textContent = `${ready} of 2 available`;
+                const target = cardSlots.length;
+                card.querySelector('[data-period-progress]').textContent = `${ready} of ${target} available`;
                 const state = card.querySelector('[data-period-state]');
-                state.textContent = ready === 2 ? 'Complete' : ready === 1 ? 'Partial' : 'Incomplete';
-                state.className = 'shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ' + (ready === 2 ? 'bg-emerald-100 text-emerald-700' : ready === 1 ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600');
+                state.textContent = ready === target ? 'Complete' : ready > 0 ? 'Partial' : 'Incomplete';
+                state.className = 'shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ' + (ready === target ? 'bg-emerald-100 text-emerald-700' : ready > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600');
             });
 
-            const totalSlots = periodCount() * 2;
+            const totalSlots = periodCount();
             const available = Math.min(totalSlots, stored + selected);
             completionLabel.textContent = `${available}/${totalSlots}`;
             completionBar.style.width = `${(available / totalSlots) * 100}%`;
@@ -876,7 +928,7 @@
             const unmatched = [];
             [...files].forEach((file) => {
                 const type = detectType(file.name);
-                const period = currentMode() === 'quarterly' ? selectedQuarter() : detectPeriod(file.name);
+                const period = type === 'attendance' ? 1 : (currentMode() === 'quarterly' ? selectedQuarter() : detectPeriod(file.name));
                 const slot = type && period ? slotFor(period, type) : null;
                 if (!slot || slot.querySelector('[data-slot-input]').files?.length) {
                     unmatched.push(file.name);
@@ -911,7 +963,9 @@
                 const data = await response.json();
                 if (requestId !== statusRequest) return;
                 slots.forEach((slot) => {
-                    const existing = data.slots[`${slot.dataset.period}:${slot.dataset.type}`];
+                    const existing = slot.dataset.type === 'attendance'
+                        ? data.slots.annual_attendance
+                        : data.slots[`${slot.dataset.period}:${slot.dataset.type}`];
                     slot.dataset.existing = existing ? '1' : '0';
                     slot.dataset.existingName = existing?.name || '';
                 });

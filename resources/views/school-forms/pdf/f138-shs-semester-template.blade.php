@@ -4,38 +4,42 @@
     <meta charset="utf-8">
     <title>Senior High School Form 138</title>
     <style>
-        @page { size: a4 portrait; margin: 18px 28px; }
+        @page { size: a4 portrait; margin: 12px 24px; }
         * { box-sizing: border-box; }
         body { margin: 0; color: #000; font: 8px Arial, Helvetica, sans-serif; }
-        .header { position: relative; min-height: 72px; text-align: center; }
-        .seal { position: absolute; top: 0; left: 132px; width: 58px; height: 58px; object-fit: contain; }
-        h1 { margin: 0; font: bold 25px DejaVu Serif, Georgia, serif; }
-        .location { margin-top: 3px; font-size: 10px; font-weight: bold; }
-        .title { margin-top: 8px; font-size: 16px; font-weight: bold; }
-        .division { margin-top: 2px; font-size: 10px; }
+        .header { position: relative; min-height: 65px; text-align: center; }
+        .seal { position: absolute; top: 0; left: 126px; width: 54px; height: 54px; object-fit: contain; }
+        h1 { margin: 0; font: bold 24px DejaVu Serif, Georgia, serif; }
+        .location { margin-top: 2px; font-size: 9px; font-weight: bold; }
+        .title { margin-top: 5px; font-size: 15px; font-weight: bold; }
+        .division { margin-top: 1px; font-size: 9px; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        .student { margin: 7px 0 6px; }
-        .student td { height: 16px; padding: 1px 4px; border-bottom: 1px solid #999; font-size: 9px; }
+        .student { margin: 4px 0; }
+        .student td { height: 14px; padding: 1px 4px; border-bottom: 1px solid #999; font-size: 8.2px; }
         .student .label { width: 80px; font-weight: bold; }
-        .grades th, .grades td { height: 18px; border: 1px solid #000; padding: 2px 4px; text-align: center; }
+        .grades th, .grades td { height: 13.5px; border: 1px solid #000; padding: 1px 3px; text-align: center; line-height: 1.08; }
         .grades .area { width: 43%; text-align: left; }
         .grades thead .area { text-align: center; }
         .grades .rating { width: 18%; }
         .grades .remarks-col { width: 14%; }
-        .grades .section-row th { height: 17px; background: #eee; text-align: left; font-style: italic; }
+        .grades .section-row th { height: 13px; background: #eee; text-align: left; font-style: italic; }
         .grades .general-label { text-align: right; font-weight: bold; }
-        .section-title { padding: 5px 0 3px; text-align: center; font: italic bold 9px Georgia, serif; }
-        .attendance th, .attendance td { height: 17px; border: 1px solid #000; text-align: center; }
+        .section-title { padding: 3px 0 2px; text-align: center; font: italic bold 8px Georgia, serif; }
+        .attendance th, .attendance td { height: 13px; border: 1px solid #000; text-align: center; }
         .attendance .row-label { width: 25%; padding-left: 4px; text-align: left; }
-        .weighted td { height: 19px; border: 1px solid #000; text-align: center; font-weight: bold; }
+        .weighted td { height: 15px; border: 1px solid #000; text-align: center; font-weight: bold; }
         .weighted .label { width: 43%; text-align: right; padding-right: 7px; }
-        .remarks { margin-top: 8px; }
+        .remarks { margin-top: 5px; }
         .remarks th, .remarks td { border: 1px solid #000; }
-        .remarks th { height: 19px; padding: 3px; text-align: left; }
+        .remarks th { height: 16px; padding: 2px 3px; text-align: left; }
         .remarks .promotion { text-align: center; }
-        .remarks .writing { height: 28px; }
-        .signatures td { height: 27px; padding-top: 13px; text-align: center; font-weight: bold; }
-        .roles td { height: 14px; text-align: center; font: italic 8px Georgia, serif; }
+        .remarks .writing { height: 18px; }
+        .signatures td { height: 23px; padding-top: 9px; text-align: center; font-weight: bold; }
+        .roles td { height: 11px; text-align: center; font: italic 7.5px Georgia, serif; }
+        .shs-verification { height: 115px; overflow: hidden; text-align: center; page-break-inside: avoid; }
+        .shs-verification > div { margin-top: 4px !important; }
+        .shs-verification img { width: 100px !important; height: 100px !important; }
+        .shs-verification div div { font-size: 6px !important; line-height: 1.1 !important; }
         .draft-watermark { position: fixed; top: 43%; left: 13%; width: 74%; z-index: 99; transform: rotate(-28deg); border: 5px solid rgba(185,28,28,.16); padding: 14px; color: rgba(185,28,28,.16); font-size: 42px; font-weight: bold; letter-spacing: 5px; text-align: center; }
         .draft-watermark span { font-size: 13px; letter-spacing: 2px; }
     </style>
@@ -101,12 +105,12 @@
         <tr><td class="row-label">Days of School</td>@foreach($semesterMonths[$semester] as $month)<td>{{ $attendance[$month]['school_days'] ?? '' }}</td>@endforeach<td>{{ collect($semesterMonths[$semester])->sum(fn ($month) => $attendance[$month]['school_days'] ?? 0) ?: '' }}</td></tr>
         <tr><td class="row-label">Days Present</td>@foreach($semesterMonths[$semester] as $month)<td>{{ $attendance[$month]['days_present'] ?? '' }}</td>@endforeach<td>{{ collect($semesterMonths[$semester])->sum(fn ($month) => $attendance[$month]['days_present'] ?? 0) ?: '' }}</td></tr>
     </table>
-    @if($semester === 1)<div style="height:6px"></div>@endif
+    @if($semester === 1)<div style="height:4px"></div>@endif
 @endforeach
 <table class="weighted"><tr><td class="label">GENERAL WEIGHTED AVERAGE</td><td>{{ $semesterAverages[1] !== null ? number_format($semesterAverages[1], 0) : '' }}</td><td>{{ $semesterAverages[2] !== null ? number_format($semesterAverages[2], 0) : '' }}</td><td>{{ $weightedAverage !== null ? number_format($weightedAverage, 0) : '' }}</td></tr></table>
 <table class="remarks"><tr><th>REMARKS: {{ $result }}</th><th class="promotion">{{ $promotion }}</th></tr><tr class="writing"><td></td><td></td></tr><tr class="signatures"><td>{{ $enrollment->adviser_name ?: '____________________________' }}</td><td>____________________________</td></tr><tr class="roles"><td>Adviser</td><td>Vice Principal</td></tr></table>
 @if(in_array(($documentMode ?? 'draft'), ['generated', 'official'], true))
-    @include('documents.partials.qr', ['qrDocumentType'=>'Form 138','qrSubject'=>$student->name,'qrRequestId'=>$requestId ?? null,'qrHolderIdentifier'=>$student->student_number ?? $student->lrn,'qrPdfWillBeSigned'=>true,'qrFields'=>['school_year'=>$enrollment->school_year,'level'=>$enrollment->level,'section'=>$enrollment->section,'grades'=>$gradeMatrix,'attendance'=>$attendance]])
+    <div class="shs-verification">@include('documents.partials.qr', ['qrDocumentType'=>'Form 138','qrSubject'=>$student->name,'qrRequestId'=>$requestId ?? null,'qrHolderIdentifier'=>$student->student_number ?? $student->lrn,'qrPdfWillBeSigned'=>true,'qrFields'=>['school_year'=>$enrollment->school_year,'level'=>$enrollment->level,'section'=>$enrollment->section,'grades'=>$gradeMatrix,'attendance'=>$attendance]])</div>
 @endif
 </body>
 </html>

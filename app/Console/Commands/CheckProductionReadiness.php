@@ -45,8 +45,16 @@ class CheckProductionReadiness extends Command
         $turnstile = config('services.turnstile');
         $host = parse_url($appUrl, PHP_URL_HOST);
         $allowedHosts = (array) ($turnstile['allowed_hostnames'] ?? []);
+        $turnstileSiteKey = (string) ($turnstile['site_key'] ?? '');
+        $turnstileSecretKey = (string) ($turnstile['secret_key'] ?? '');
+        $hasRealTurnstileKeys = filled($turnstileSiteKey)
+            && filled($turnstileSecretKey)
+            && ! str_starts_with(strtoupper($turnstileSiteKey), 'SET_')
+            && ! str_starts_with(strtoupper($turnstileSecretKey), 'SET_')
+            && ! str_contains(strtolower($turnstileSiteKey), 'your-')
+            && ! str_contains(strtolower($turnstileSecretKey), 'your-');
         $add('Turnstile enabled', (bool) ($turnstile['enabled'] ?? false), 'Set TURNSTILE_ENABLED=true.');
-        $add('Turnstile production keys', ! ($turnstile['using_test_keys'] ?? true) && filled($turnstile['site_key']) && filled($turnstile['secret_key']), 'Disable test keys and configure production site/secret keys.');
+        $add('Turnstile production keys', ! ($turnstile['using_test_keys'] ?? true) && $hasRealTurnstileKeys, 'Disable test keys and configure real production site/secret keys.');
         $add('Turnstile hostname allowlist', is_string($host) && in_array($host, $allowedHosts, true), 'Add the APP_URL hostname to TURNSTILE_ALLOWED_HOSTNAMES.');
 
         $mailUser = (string) config('mail.mailers.smtp.username');

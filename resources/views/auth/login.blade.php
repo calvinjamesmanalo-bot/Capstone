@@ -207,12 +207,7 @@
                     Sign in
                 </button>
                 @if ($accountType === 'student')
-                    <p class="text-center text-sm text-slate-600">
-                        New student?
-                        <a href="{{ route('student.registration.request') }}" class="font-semibold text-[#000638] hover:underline">
-                            Create Student Account
-                        </a>
-                    </p>
+                    <p class="text-center text-xs leading-5 text-slate-500">Student accounts are issued by the school from the official masterlist. Ask the Admin for your temporary password.</p>
                 @endif
             </form>
 

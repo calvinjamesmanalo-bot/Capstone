@@ -144,18 +144,16 @@
         const previewBtn = document.getElementById('previewBtn');
         const generateBtn = document.getElementById('generateBtn');
         const submitRegistrarBtn = document.getElementById('submitRegistrarBtn');
-        let documentPrepared = @json($hasPreparedDocument);
-
         function updateButtons() {
             const allChecked = Array.from(checkboxes).every(cb => cb.checked);
             previewBtn.disabled = !allChecked;
             generateBtn.disabled = !allChecked;
-            if (submitRegistrarBtn) submitRegistrarBtn.disabled = !allChecked || !documentPrepared;
+            if (submitRegistrarBtn) submitRegistrarBtn.disabled = !allChecked;
             
             if (allChecked) {
                 previewBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 generateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                if (submitRegistrarBtn && documentPrepared) submitRegistrarBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                if (submitRegistrarBtn) submitRegistrarBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             } else {
                 previewBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 generateBtn.classList.add('opacity-50', 'cursor-not-allowed');
@@ -172,11 +170,6 @@
                 }
             });
         }
-
-        generateBtn.addEventListener('click', function() {
-            documentPrepared = true;
-            window.setTimeout(updateButtons, 250);
-        });
 
         checkboxes.forEach(cb => {
             cb.addEventListener('change', updateButtons);

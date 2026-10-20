@@ -71,6 +71,15 @@
                     </select>
                     <p id="academic-record-hint" class="mt-2 text-xs text-slate-500">Options come from the selected student's school-form records.</p>
                 </div>
+                <div id="manual-academic-fields" class="hidden rounded-xl border-2 border-amber-200 bg-amber-50 p-4 md:col-span-2">
+                    <p class="text-sm font-bold text-amber-950">Enter student information manually</p>
+                    <p class="mt-1 text-xs text-amber-800">No academic record was found in the system. Verify the information from the student's official school record before continuing.</p>
+                    <div class="mt-4 grid gap-4 md:grid-cols-3">
+                        <label class="text-sm font-semibold text-slate-700">Grade level<input data-manual-academic data-field-name="grade_level" value="{{ $form['grade_level'] }}" maxlength="50" disabled class="mt-2 w-full rounded-lg border-slate-300 bg-white" placeholder="Example: Grade 7"></label>
+                        <label class="text-sm font-semibold text-slate-700">School year<input data-manual-academic data-field-name="school_year" value="{{ $form['school_year'] }}" maxlength="9" pattern="\d{4}-\d{4}" disabled class="mt-2 w-full rounded-lg border-slate-300 bg-white" placeholder="Example: 2024-2025"></label>
+                        <label class="text-sm font-semibold text-slate-700">Section <span class="font-normal text-slate-500">(optional)</span><input data-manual-academic data-field-name="section" value="{{ $form['section'] }}" maxlength="50" disabled class="mt-2 w-full rounded-lg border-slate-300 bg-white" placeholder="Example: Erbium"></label>
+                    </div>
+                </div>
                 <div>
                     <label class="block text-sm font-semibold text-slate-700 mb-2">Issue date</label>
                     <input type="date" name="issue_date" value="{{ $form['issue_date'] }}" required class="w-full rounded-lg border-slate-300">
@@ -110,6 +119,8 @@
     const schoolYear = document.getElementById('school_year');
     const section = document.getElementById('section');
     const hint = document.getElementById('academic-record-hint');
+    const manualFields = document.getElementById('manual-academic-fields');
+    const manualInputs = [...document.querySelectorAll('[data-manual-academic]')];
 
     const unique = (values) => [...new Set(values.filter(Boolean))];
 
@@ -135,10 +146,28 @@
         }
     };
 
+    const setManualMode = (enabled, preferred = {}) => {
+        manualFields.classList.toggle('hidden', !enabled);
+        manualInputs.forEach((input) => {
+            input.disabled = !enabled;
+            input.required = enabled && input.dataset.fieldName !== 'section';
+            if (enabled) {
+                input.name = input.dataset.fieldName;
+                if (preferred[input.dataset.fieldName]) input.value = preferred[input.dataset.fieldName];
+            } else {
+                input.removeAttribute('name');
+            }
+        });
+        [gradeLevel, schoolYear, section].forEach((select) => {
+            if (enabled) select.disabled = true;
+        });
+    };
+
     const updateAcademicFields = (preferred = {}) => {
         const records = academicRecordsByStudent[studentSelect.value] ?? [];
 
         if (!studentSelect.value) {
+            setManualMode(false);
             showUnavailable(gradeLevel, 'Select a student first');
             showUnavailable(schoolYear, 'Select a grade level first');
             showUnavailable(section, 'Select a school year first');
@@ -147,12 +176,15 @@
         }
 
         if (records.length === 0) {
+            setManualMode(true, preferred);
             showUnavailable(gradeLevel, 'No grade levels available');
             showUnavailable(schoolYear, 'No school years available');
             showUnavailable(section, 'No sections available');
-            hint.textContent = 'No imported enrollment records were found for this student.';
+            hint.textContent = 'No imported enrollment record found. Use the manual fields below.';
             return;
         }
+
+        setManualMode(false);
 
         showOptions(
             gradeLevel,

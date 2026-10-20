@@ -6,6 +6,7 @@ use App\Models\DocumentAuthenticity;
 use App\Models\DocumentVerificationAudit;
 use App\Support\DocumentQrCode;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -100,6 +101,71 @@ class DocumentVerificationController extends Controller
         $this->audit($request, $document, $fileVerification['result']);
 
         return view('documents.verify', compact('document', 'verification', 'fileVerification'));
+    }
+
+    public function verifyPhotoText(Request $request, string $identifier, DocumentQrCode $qr): JsonResponse
+    {
+        $document = DocumentAuthenticity::with('requestDocument')
+            ->where(fn ($query) => $query->where('verification_token', $identifier)
+                ->orWhere('control_number', strtoupper($identifier)))
+            ->firstOrFail();
+        $verification = $qr->verify($document, $request->input('signature'));
+        abort_unless($verification['authentic'], 422, 'The signed verification record is not valid.');
+
+        $validated = $request->validate(['ocr_text' => ['required', 'string', 'min:20', 'max:100000']]);
+        $result = $this->comparePhotoText($document, $validated['ocr_text']);
+        $this->audit($request, $document, 'photo_'.$result['status']);
+
+        return response()->json($result);
+    }
+
+    private function comparePhotoText(DocumentAuthenticity $document, string $ocrText): array
+    {
+        $normalize = static fn (string $value): string => trim(preg_replace('/\s+/u', ' ', mb_strtoupper(preg_replace('/[^\pL\pN]+/u', ' ', $value))) ?? '');
+        $lines = array_values(array_filter(array_map($normalize, preg_split('/\R/u', $ocrText) ?: [])));
+        $allText = implode(' ', $lines);
+        $identityChecks = array_filter([
+            $normalize($document->holder_name),
+            $normalize((string) $document->holder_identifier),
+            $normalize($document->control_number),
+        ]);
+        $identityMatches = collect($identityChecks)->filter(fn ($expected) => str_contains($allText, $expected))->count();
+
+        $fields = $document->source_data['fields'] ?? [];
+        $grades = is_array($fields['grades'] ?? null) ? $fields['grades'] : [];
+        $checkedRows = 0;
+        $mismatchedRows = 0;
+        foreach ($grades as $subject => $periods) {
+            if (! is_array($periods)) continue;
+            $subjectNeedle = $normalize((string) $subject);
+            if (mb_strlen($subjectNeedle) < 2) continue;
+            $lineIndex = collect($lines)->search(fn ($line) => str_contains($line, $subjectNeedle));
+            if ($lineIndex === false) {
+                $mismatchedRows++;
+                continue;
+            }
+            $checkedRows++;
+            $nearby = implode(' ', array_slice($lines, max(0, $lineIndex - 1), 3));
+            $expectedGrades = array_values(array_filter(array_map(
+                fn ($grade) => is_numeric($grade) ? (string) (int) round((float) $grade) : null,
+                $periods
+            )));
+            foreach ($expectedGrades as $grade) {
+                if (! preg_match('/(?<!\d)'.preg_quote($grade, '/').'(?!\d)/', $nearby)) {
+                    $mismatchedRows++;
+                    break;
+                }
+            }
+        }
+
+        if (mb_strlen($allText) < 80 || $identityMatches === 0 || ($grades !== [] && $checkedRows < max(2, (int) floor(count($grades) * .35)))) {
+            return ['status' => 'unreadable', 'title' => 'Photo is not clear enough', 'message' => 'Retake a straight, brighter photo showing the entire document. No official grades were exposed.'];
+        }
+        if ($mismatchedRows > 0 || $identityMatches < min(2, count($identityChecks))) {
+            return ['status' => 'mismatch', 'title' => 'Possible changes detected', 'message' => 'Some visible information does not match the protected school record. Do not accept this copy; ask the school to inspect it.'];
+        }
+
+        return ['status' => 'match', 'title' => 'Photo matches the protected record', 'message' => 'The readable identity and document entries match the signed school record. The photo was not saved.'];
     }
 
     public function revoke(Request $request, DocumentAuthenticity $document): RedirectResponse

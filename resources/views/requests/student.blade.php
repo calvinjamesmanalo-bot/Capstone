@@ -18,7 +18,8 @@
         'Certificate of Recognition' => 'Academic recognition record',
         'Diploma' => 'Official graduation credential',
     ];
-    $initialStep = $errors->hasAny(['delivery_method', 'release_location', 'payment_method', 'transcript_receipt']) ? 2 : 1;
+    $initialStep = $errors->hasAny(['delivery_method', 'release_location', 'payment_method', 'school_id_proof']) ? 2 : 1;
+    $dynamicTypeIds = $dynamicTypes->pluck('id', 'name');
     foreach ($dynamicTypes as $type) { $documentDescriptions[$type->name] = 'Prepared manually by the registrar'; }
 @endphp
 
@@ -59,20 +60,6 @@
 
 <div class="request-a11y mx-auto w-full min-w-0 max-w-[1440px]">
     @include('requests.partials.school-content')
-    @if($errors->any())
-        <div class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800" role="alert">
-            <div class="flex items-start gap-3">
-                <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16a2 2 0 001.73 3z" />
-                </svg>
-                <div>
-                    <p class="text-sm font-bold">Please check the information below.</p>
-                    <p class="mt-1 text-sm">Some required details are missing or invalid. Your previous selections have been kept.</p>
-                </div>
-            </div>
-        </div>
-    @endif
-
     <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 bg-slate-50 px-5 py-5 sm:px-7">
             <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -138,7 +125,7 @@
                             <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                 @foreach($documentPrices as $document => $price)
                                     <label class="request-choice block cursor-pointer">
-                                        <input class="sr-only" type="radio" name="document_type" value="{{ $document }}" data-price="{{ number_format($price, 2, '.', '') }}" required @checked($selectedDocument === $document)>
+                                        <input class="sr-only" type="radio" name="document_type" value="{{ $document }}" data-price="{{ number_format($price, 2, '.', '') }}" @if($dynamicTypeIds->has($document)) data-request-type-id="{{ $dynamicTypeIds[$document] }}" @endif required @checked($selectedDocument === $document)>
                                         <span class="request-choice-card flex min-h-24 items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-400 hover:bg-slate-50">
                                             <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[#000638]">
                                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 3h7l4 4v14H7a2 2 0 01-2-2V5a2 2 0 012-2zm7 0v5h5M9 13h6M9 17h4" /></svg>
@@ -188,6 +175,63 @@
                             @error('school_level')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
                         </div>
 
+                        <div id="f137_purpose_field" class="mt-6 hidden rounded-xl border border-slate-200 bg-slate-50 p-5">
+                            <fieldset>
+                                <legend class="text-base font-bold text-slate-800">What is the Form 137 for?</legend>
+                                <p class="mt-1 text-sm text-slate-500">The purpose determines whether the document is transmitted to a school or reviewed for pickup.</p>
+                                <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                                    @foreach(['transfer_enrollment' => ['Transfer / Enrollment', 'School-to-school only'], 'employment' => ['Employment', 'Registrar review required'], 'other' => ['Other valid purpose', 'Registrar review required']] as $value => $details)
+                                        <label class="request-choice block cursor-pointer">
+                                            <input class="sr-only" type="radio" name="request_purpose" value="{{ $value }}" @checked(old('request_purpose', 'transfer_enrollment') === $value)>
+                                            <span class="request-choice-card flex min-h-20 items-center justify-between gap-3 rounded-xl border border-slate-300 bg-white px-4 py-3">
+                                                <span><span class="block text-sm font-bold text-slate-800">{{ $details[0] }}</span><span class="mt-1 block text-xs text-slate-500">{{ $details[1] }}</span></span>
+                                                <svg class="request-choice-check h-5 w-5 shrink-0 scale-75 text-[#000638] opacity-0 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m5 12 4 4L19 6" /></svg>
+                                            </span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </fieldset>
+                            @error('request_purpose')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
+                            <div id="transfer_details" class="mt-5 hidden space-y-4 border-t border-slate-200 pt-5">
+                                <div><label for="receiving_school_name" class="mb-2 block text-sm font-semibold text-slate-700">Receiving school name</label><input id="receiving_school_name" name="receiving_school_name" maxlength="160" value="{{ old('receiving_school_name') }}" class="w-full rounded-xl border border-slate-300 px-4 py-3">@error('receiving_school_name')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror</div>
+                                <fieldset class="rounded-xl border border-slate-200 bg-white p-4">
+                                    <legend class="px-2 text-sm font-bold text-slate-800">Receiving school location</legend>
+                                    <div class="flex flex-wrap gap-4">
+                                        <label class="flex items-center gap-2 text-sm font-semibold"><input type="radio" name="receiving_address_scope" value="domestic" @checked(old('receiving_address_scope', 'domestic') === 'domestic')> Philippines</label>
+                                        <label class="flex items-center gap-2 text-sm font-semibold"><input type="radio" name="receiving_address_scope" value="overseas" @checked(old('receiving_address_scope') === 'overseas')> Overseas</label>
+                                    </div>
+                                    <div class="mt-4 space-y-4">
+                                        <div>
+                                            <label for="receiving_school_address" class="mb-2 block text-sm font-semibold text-slate-700">Complete school address</label>
+                                            <textarea id="receiving_school_address" name="receiving_school_address" rows="4" maxlength="1000" placeholder="Building/Street, Barangay, City/Municipality, Province, Postal Code" class="w-full rounded-xl border border-slate-300 px-4 py-3">{{ old('receiving_school_address') }}</textarea>
+                                            <p id="address_format_help" class="mt-2 text-xs text-slate-500"><strong>Format:</strong> Building/Street, Barangay, City/Municipality, Province, Postal Code</p>
+                                        </div>
+                                    </div>
+                                    @foreach(['receiving_address_scope', 'receiving_school_address', 'receiving_region_code'] as $field)@error($field)<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror @endforeach
+                                </fieldset>
+                                <div><label for="purpose_details" class="mb-2 block text-sm font-semibold text-slate-700">Reason / purpose details</label><textarea id="purpose_details" name="purpose_details" rows="3" class="w-full rounded-xl border border-slate-300 px-4 py-3">{{ old('purpose_details') }}</textarea>@error('purpose_details')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror</div>
+                                <div><label for="request_proof" class="mb-2 block text-sm font-semibold text-slate-700">Receiving-school request proof</label><input id="request_proof" name="request_proof" type="file" accept=".jpg,.jpeg,.png,.pdf" class="block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm"><p class="mt-2 text-sm text-slate-500">Required request letter, official email, certification, or screenshot (up to 5 MB).</p>@error('request_proof')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror</div>
+                            </div>
+                            <div id="other_details" class="mt-5 hidden border-t border-slate-200 pt-5">
+                                <label for="other_purpose_details" class="mb-2 block text-sm font-semibold text-slate-700">Explain the purpose</label>
+                                <textarea id="other_purpose_details" rows="3" class="w-full rounded-xl border border-slate-300 px-4 py-3"></textarea>
+                            </div>
+                            <div id="employment_details" class="mt-5 hidden space-y-4 border-t border-slate-200 pt-5">
+                                <div>
+                                    <label for="employer_name" class="mb-2 block text-sm font-semibold text-slate-700">Company or employer name</label>
+                                    <input id="employer_name" name="employer_name" type="text" maxlength="160" value="{{ old('employer_name') }}" class="w-full rounded-xl border border-slate-300 px-4 py-3" placeholder="Employer name">
+                                    @error('employer_name')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
+                                </div>
+                                <div>
+                                    <label for="employment_proof" class="mb-2 block text-sm font-semibold text-slate-700">Employment requirement proof</label>
+                                    <input id="employment_proof" name="employment_proof" type="file" accept=".jpg,.jpeg,.png,.pdf" class="block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm">
+                                    <p class="mt-2 text-sm text-slate-500">Upload an employer request, job requirement, or proof of employment (JPG, PNG, or PDF; up to 5 MB).</p>
+                                    @error('employment_proof')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="active_request_limit_error" class="mt-6 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800" role="alert"></div>
                         <div class="mt-8 flex justify-end">
                             <button type="button" data-next-step="2" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#000638] px-6 py-3.5 text-base font-bold text-white transition hover:bg-[#10175a] focus:outline-none focus:ring-4 focus:ring-[#ffd22d]/50 sm:w-auto">Continue to delivery <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 5 7 7-7 7" /></svg></button>
                         </div>
@@ -197,15 +241,22 @@
                         <div class="mb-6">
                             <p class="text-sm font-semibold text-[#b28100]">Step 2 of 3</p>
                             <h4 id="step-two-title" class="mt-1 text-2xl font-bold text-[#000638]">Delivery and payment</h4>
-                            <p class="mt-2 text-sm text-slate-500">Choose your preferred options and attach your Accounting clearance receipt.</p>
+                            <p id="delivery_payment_help" class="mt-2 text-sm text-slate-500">Choose your preferred options and attach a clear copy of your School ID.</p>
                         </div>
 
                         <div class="space-y-7">
+                            <div id="f137_assessment_notice" class="hidden rounded-xl border border-blue-200 bg-blue-50 p-5 text-blue-950">
+                                <p class="font-bold">Delivery and payment will be assessed by the Records Officer</p>
+                                <p class="mt-2 text-sm leading-relaxed">After Registrar approval, the Records Officer will review the receiving-school address, choose <strong>LBC shipping</strong> or <strong>staff delivery</strong>, and enter the total amount. You will be notified before paying <strong>cash at the school</strong>.</p>
+                                <p class="mt-2 text-sm font-semibold">Upload your School ID proof below. The delivery charge will still be assessed later.</p>
+                            </div>
+
                             <fieldset>
                                 <legend class="text-base font-bold text-slate-800">How would you like to receive the document?</legend>
                                 <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                    <label class="request-choice hidden" data-delivery-option="school_to_school"><input class="sr-only" type="radio" name="delivery_method" value="school_to_school"><span class="request-choice-card flex min-h-20 items-center gap-3 rounded-xl border border-slate-300 bg-white p-4"><span><strong>School-to-School</strong><small class="block">The school will transmit the F137 directly.</small></span></span></label>
                                     @foreach(['pickup' => ["Pickup at Registrar's Office", 'No delivery fee'], 'delivery' => ['Deliver to my address', 'Additional fee may apply']] as $value => $details)
-                                        <label class="request-choice block cursor-pointer">
+                                        <label class="request-choice block cursor-pointer" data-delivery-option="{{ $value }}">
                                             <input class="sr-only" type="radio" name="delivery_method" value="{{ $value }}" required @checked($selectedDelivery === $value)>
                                             <span class="request-choice-card flex min-h-20 items-center gap-3 rounded-xl border border-slate-300 bg-white p-4 transition hover:border-slate-500">
                                                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[#000638]">
@@ -226,11 +277,15 @@
                                 <p class="mt-2 text-sm text-slate-500">The Registrar will confirm the delivery fee before processing.</p>
                                 @error('release_location')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
                             </div>
+                            <div id="pickup_location_field" class="hidden rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                                <strong>Pickup location:</strong> {{ $schoolProfile['school'] }}{{ $schoolProfile['address'] ? ' — '.$schoolProfile['address'] : '' }}
+                                <p class="mt-1 text-xs">This location is set by the school and cannot be changed.</p>
+                            </div>
 
-                            <fieldset>
-                                <legend class="text-base font-bold text-slate-800">How would you like to pay?</legend>
-                                <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                                    @foreach(['cash' => ['Cash', 'Pay at Registrar'], 'gcash' => ['GCash', 'Mobile payment'], 'bank_transfer' => ['Bank transfer', 'Online transfer']] as $value => $details)
+                            <fieldset id="payment_method_field">
+                                <legend class="text-base font-bold text-slate-800">Payment method</legend>
+                                <div class="mt-3 grid grid-cols-1 gap-3">
+                                    @foreach(['cash' => ['Cash', 'Pay at the school']] as $value => $details)
                                         <label class="request-choice block cursor-pointer">
                                             <input class="sr-only" type="radio" name="payment_method" value="{{ $value }}" required @checked($selectedPayment === $value)>
                                             <span class="request-choice-card flex min-h-20 items-center justify-between gap-3 rounded-xl border border-slate-300 bg-white p-4 transition hover:border-slate-500">
@@ -243,16 +298,16 @@
                                 @error('payment_method')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
                             </fieldset>
 
-                            <div>
-                                <label for="transcript_receipt" class="block text-base font-bold text-slate-800">Accounting clearance receipt <span class="text-red-600">*</span></label>
-                                <p class="mt-1 text-sm text-slate-500">Upload the transcript clearance receipt issued by Accounting. Staff will verify clearance and document payment separately; uploading a file does not confirm either one.</p>
-                                <label for="transcript_receipt" class="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-5 py-7 text-center transition hover:border-[#000638] hover:bg-blue-50">
+                            <div id="school_id_proof_field">
+                                <label for="school_id_proof" class="block text-base font-bold text-slate-800">School ID proof <span class="text-red-600">*</span></label>
+                                <p class="mt-1 text-sm text-slate-500">Upload a clear photo or scanned copy of your School ID for identity verification.</p>
+                                <label for="school_id_proof" class="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-5 py-7 text-center transition hover:border-[#000638] hover:bg-blue-50">
                                     <svg class="h-8 w-8 text-[#000638]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.9-7.9A5 5 0 0115.9 7H17a4 4 0 010 8h-1m-4-5v9m0-9-3 3m3-3 3 3" /></svg>
                                     <span id="receipt_file_name" class="mt-3 text-sm font-bold text-[#000638]">Choose a JPG, PNG, or PDF file</span>
                                     <span class="mt-1 text-sm text-slate-500">Maximum file size: 5 MB</span>
                                 </label>
-                                <input type="file" name="transcript_receipt" id="transcript_receipt" accept="image/jpeg,image/png,.pdf" required class="sr-only">
-                                @error('transcript_receipt')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
+                                <input type="file" name="school_id_proof" id="school_id_proof" accept="image/jpeg,image/png,.pdf" required class="sr-only">
+                                @error('school_id_proof')<p class="mt-2 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
                             </div>
                         </div>
 
@@ -273,10 +328,11 @@
                             <dl class="divide-y divide-slate-200">
                                 <div class="grid grid-cols-1 gap-1 bg-white px-5 py-4 sm:grid-cols-[180px_1fr]"><dt class="text-sm font-medium text-slate-500">Document</dt><dd id="review_document" class="text-base font-bold text-slate-800"></dd></div>
                                 <div id="review_school_detail_row" class="grid grid-cols-1 gap-1 bg-white px-5 py-4 sm:grid-cols-[180px_1fr]"><dt id="review_school_detail_label" class="text-sm font-medium text-slate-500"></dt><dd id="review_school_detail" class="text-base font-semibold text-slate-800"></dd></div>
+                                <div id="review_purpose_row" class="hidden grid-cols-1 gap-1 bg-white px-5 py-4 sm:grid-cols-[180px_1fr]"><dt class="text-sm font-medium text-slate-500">Purpose</dt><dd id="review_purpose" class="text-base font-semibold text-slate-800"></dd></div>
                                 <div class="grid grid-cols-1 gap-1 bg-white px-5 py-4 sm:grid-cols-[180px_1fr]"><dt class="text-sm font-medium text-slate-500">Delivery</dt><dd id="review_delivery" class="text-base font-semibold text-slate-800"></dd></div>
                                 <div id="review_address_row" class="hidden grid-cols-1 gap-1 bg-white px-5 py-4 sm:grid-cols-[180px_1fr]"><dt class="text-sm font-medium text-slate-500">Delivery address</dt><dd id="review_address" class="break-words text-base font-semibold text-slate-800"></dd></div>
                                 <div class="grid grid-cols-1 gap-1 bg-white px-5 py-4 sm:grid-cols-[180px_1fr]"><dt class="text-sm font-medium text-slate-500">Payment</dt><dd id="review_payment" class="text-base font-semibold text-slate-800"></dd></div>
-                                <div class="grid grid-cols-1 gap-1 bg-white px-5 py-4 sm:grid-cols-[180px_1fr]"><dt class="text-sm font-medium text-slate-500">Receipt</dt><dd id="review_receipt" class="break-all text-base font-semibold text-slate-800"></dd></div>
+                                <div id="review_receipt_row" class="grid grid-cols-1 gap-1 bg-white px-5 py-4 sm:grid-cols-[180px_1fr]"><dt class="text-sm font-medium text-slate-500">School ID proof</dt><dd id="review_receipt" class="break-all text-base font-semibold text-slate-800"></dd></div>
                             </dl>
                             <div class="flex items-center justify-between gap-4 bg-[#000638] px-5 py-4 text-white"><span class="text-sm font-semibold">Document fee</span><strong id="review_total" class="text-xl text-[#ffd22d]"></strong></div>
                         </div>
@@ -337,10 +393,32 @@
     const schoolYearSelect = document.getElementById('school_year');
     const schoolLevelField = document.getElementById('school_level_field');
     const schoolLevelInputs = Array.from(form.querySelectorAll('input[name="school_level"]'));
+    const purposeField = document.getElementById('f137_purpose_field');
+    const purposeInputs = Array.from(form.querySelectorAll('input[name="request_purpose"]'));
+    const employmentDetails = document.getElementById('employment_details');
+    const transferDetails = document.getElementById('transfer_details');
+    const otherDetails = document.getElementById('other_details');
+    const receivingSchoolName = document.getElementById('receiving_school_name');
+    const addressScopeInputs = Array.from(form.querySelectorAll('input[name="receiving_address_scope"]'));
+    const receivingSchoolAddress = document.getElementById('receiving_school_address');
+    const addressFormatHelp = document.getElementById('address_format_help');
+    const purposeDetails = document.getElementById('purpose_details');
+    const requestProof = document.getElementById('request_proof');
+    const otherPurposeDetails = document.getElementById('other_purpose_details');
+    const employerName = document.getElementById('employer_name');
+    const employmentProof = document.getElementById('employment_proof');
     const addressField = document.getElementById('release_location_field');
     const addressInput = document.getElementById('release_location');
-    const receiptInput = document.getElementById('transcript_receipt');
+    const pickupLocationField = document.getElementById('pickup_location_field');
+    const receiptInput = document.getElementById('school_id_proof');
     const receiptFileName = document.getElementById('receipt_file_name');
+    const paymentMethodField = document.getElementById('payment_method_field');
+    const transcriptReceiptField = document.getElementById('school_id_proof_field');
+    const assessmentNotice = document.getElementById('f137_assessment_notice');
+    const deliveryPaymentHelp = document.getElementById('delivery_payment_help');
+    const activeRequestLimitError = document.getElementById('active_request_limit_error');
+    const activeRequestLimits = new Set(@json($activeRequestLimits));
+    const canBypassRequestLimit = @json($canBypassRequestLimit);
     let currentStep = Number(form.dataset.initialStep || 1);
     let highestVisited = currentStep;
 
@@ -349,10 +427,39 @@
     const selectedDocumentName = () => selectedDocumentInput()?.value || '';
     const selectedPrice = () => Number(selectedDocumentInput()?.dataset.price || 0);
     const money = (amount) => '\u20B1' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const readableDelivery = () => checkedValue('delivery_method') === 'delivery' ? 'Delivery to my address' : "Pickup at Registrar's Office";
-    const readablePayment = () => ({ cash: 'Cash at Registrar', gcash: 'GCash', bank_transfer: 'Bank transfer' }[checkedValue('payment_method')] || 'Not selected');
+    const readableDelivery = () => checkedValue('delivery_method') === 'school_to_school' ? 'School-to-School' : (checkedValue('delivery_method') === 'delivery' ? 'Delivery to my address' : "Pickup at Registrar's Office");
+    const readablePayment = () => checkedValue('payment_method') === 'cash' ? 'Cash at school' : 'Not selected';
     const documentDescriptions = @json($documentDescriptions);
+    const addressScope = () => checkedValue('receiving_address_scope') || 'domestic';
+    function selectedRequestLimitKey() {
+        const input = selectedDocumentInput();
+        if (!input) return '';
+        if (input.dataset.requestTypeId) return 'custom:' + input.dataset.requestTypeId;
+        if (input.value === 'Form 137') {
+            if (checkedValue('request_purpose') === 'employment') return 'f137:employment';
+            const level = checkedValue('school_level');
+            return level ? 'f137:' + (level === 'kinder' ? 'elementary' : level) : '';
+        }
+        return 'document:' + input.value.toLowerCase();
+    }
 
+    function hasActiveRequestConflict() {
+        const key = selectedRequestLimitKey();
+        if (canBypassRequestLimit || !key || !activeRequestLimits.has(key)) {
+            activeRequestLimitError.classList.add('hidden');
+            activeRequestLimitError.textContent = '';
+            return false;
+        }
+
+        const documentName = selectedDocumentName();
+        const category = key === 'f137:employment'
+            ? 'Form 137 for employment'
+            : (key.startsWith('f137:') ? 'Form 137 for this school level' : documentName);
+        activeRequestLimitError.textContent = 'You already have an active request for ' + category + ". Please complete it at the Registrar's Office before requesting another copy.";
+        activeRequestLimitError.classList.remove('hidden');
+        activeRequestLimitError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return true;
+    }
     function setText(id, value) {
         const element = document.getElementById(id);
         if (element) element.textContent = value;
@@ -362,13 +469,57 @@
         const documentName = selectedDocumentName();
         const needsYear = documentName === 'Form 138';
         const needsLevel = documentName === 'Form 137';
+        const pickupOnly = ['Form 138', 'Diploma'].includes(documentName);
+        const employment = needsLevel && checkedValue('request_purpose') === 'employment';
+        const transfer = needsLevel && checkedValue('request_purpose') === 'transfer_enrollment';
+        const other = needsLevel && checkedValue('request_purpose') === 'other';
+        const deliveryOption = form.querySelector('[data-delivery-option="delivery"]');
+        const pickupOption = form.querySelector('[data-delivery-option="pickup"]');
+        const schoolOption = form.querySelector('[data-delivery-option="school_to_school"]');
+        const pickupInput = form.querySelector('input[name="delivery_method"][value="pickup"]');
+        const schoolInput = form.querySelector('input[name="delivery_method"][value="school_to_school"]');
+        if (transfer) schoolInput.checked = true;
+        else if ((pickupOnly || checkedValue('delivery_method') === 'school_to_school')) pickupInput.checked = true;
+        deliveryOption.classList.toggle('hidden', pickupOnly || transfer);
+        pickupOption.classList.toggle('hidden', transfer);
+        schoolOption.classList.toggle('hidden', !transfer);
         const needsAddress = checkedValue('delivery_method') === 'delivery';
         schoolYearField.classList.toggle('hidden', !needsYear);
         schoolYearSelect.required = needsYear;
         schoolLevelField.classList.toggle('hidden', !needsLevel);
         schoolLevelInputs.forEach((input) => input.required = needsLevel);
+        purposeField.classList.toggle('hidden', !needsLevel);
+        purposeInputs.forEach((input) => input.required = needsLevel);
+        employmentDetails.classList.toggle('hidden', !employment);
+        transferDetails.classList.toggle('hidden', !transfer);
+        otherDetails.classList.toggle('hidden', !other);
+        employerName.required = employment;
+        employmentProof.required = employment;
+        receivingSchoolName.required = transfer;
+        const overseasTransfer = transfer && addressScope() === 'overseas';
+        receivingSchoolAddress.required = transfer;
+        receivingSchoolAddress.placeholder = overseasTransfer
+            ? 'Building/Street, City/State, Postal Code, Country'
+            : 'Building/Street, Barangay, City/Municipality, Province, Postal Code';
+        addressFormatHelp.innerHTML = overseasTransfer
+            ? '<strong>Format:</strong> Building/Street, City/State, Postal Code, Country'
+            : '<strong>Format:</strong> Building/Street, Barangay, City/Municipality, Province, Postal Code';
+        purposeDetails.required = transfer;
+        requestProof.required = transfer;
+        otherPurposeDetails.required = other;
+        otherPurposeDetails.name = other ? 'purpose_details' : '';
+        if (other) purposeDetails.name = ''; else purposeDetails.name = 'purpose_details';
         addressField.classList.toggle('hidden', !needsAddress);
         addressInput.required = needsAddress;
+        pickupLocationField.classList.toggle('hidden', !needsYear);
+        paymentMethodField.classList.toggle('hidden', transfer);
+        transcriptReceiptField.classList.remove('hidden');
+        assessmentNotice.classList.toggle('hidden', !transfer);
+        deliveryPaymentHelp.textContent = transfer
+            ? 'The Records Officer will determine delivery and the amount after reviewing the request.'
+            : 'Choose your preferred options and attach a clear copy of your School ID.';
+        paymentInputs.forEach((input) => input.required = !transfer);
+        receiptInput.required = true;
     }
 
     function updateSummary() {
@@ -380,12 +531,16 @@
         setText('summary_document', documentName);
         setText('summary_document_detail', documentDescriptions[documentName] || 'Official school document');
         setText('summary_delivery', readableDelivery());
-        setText('summary_payment', readablePayment());
+        const transfer = documentName === 'Form 137' && checkedValue('request_purpose') === 'transfer_enrollment';
+        const paymentText = transfer ? 'Cash at school after assessment' : readablePayment();
+        setText('summary_payment', paymentText);
         setText('summary_total', money(price));
         setText('review_document', documentName);
         setText('review_delivery', readableDelivery());
-        setText('review_payment', readablePayment());
+        setText('review_payment', paymentText);
         setText('review_receipt', receiptInput.files[0]?.name || 'No file selected');
+        document.getElementById('review_receipt_row').classList.remove('hidden');
+        document.getElementById('review_receipt_row').classList.add('grid');
         setText('review_total', money(price));
 
         const detailRow = document.getElementById('review_school_detail_row');
@@ -393,6 +548,14 @@
         detailRow.classList.toggle('grid', Boolean(schoolDetail));
         setText('review_school_detail_label', documentName === 'Form 137' ? 'School level' : 'School year');
         setText('review_school_detail', schoolDetail);
+
+        const purposeRow = document.getElementById('review_purpose_row');
+        const purpose = documentName === 'Form 137'
+            ? ({transfer_enrollment: 'Transfer / Enrollment — ' + (receivingSchoolName.value || 'school not entered'), employment: 'Employment — ' + (employerName.value || 'employer not entered'), other: 'Other valid purpose'}[checkedValue('request_purpose')] || '')
+            : '';
+        purposeRow.classList.toggle('hidden', !purpose);
+        purposeRow.classList.toggle('grid', Boolean(purpose));
+        setText('review_purpose', purpose);
 
         const addressRow = document.getElementById('review_address_row');
         const hasAddress = checkedValue('delivery_method') === 'delivery';
@@ -438,17 +601,24 @@
         return true;
     }
 
-    documentInputs.forEach((input) => input.addEventListener('change', () => { updateConditionalFields(); updateSummary(); }));
+    documentInputs.forEach((input) => input.addEventListener('change', () => { updateConditionalFields(); updateSummary(); activeRequestLimitError.classList.add('hidden'); }));
     deliveryInputs.forEach((input) => input.addEventListener('change', () => { updateConditionalFields(); updateSummary(); }));
     paymentInputs.forEach((input) => input.addEventListener('change', updateSummary));
-    schoolLevelInputs.forEach((input) => input.addEventListener('change', updateSummary));
+    schoolLevelInputs.forEach((input) => input.addEventListener('change', () => { updateSummary(); activeRequestLimitError.classList.add('hidden'); }));
+    purposeInputs.forEach((input) => input.addEventListener('change', () => { updateConditionalFields(); updateSummary(); activeRequestLimitError.classList.add('hidden'); }));
+    addressScopeInputs.forEach((input) => input.addEventListener('change', () => { updateConditionalFields(); updateSummary(); }));
+    receivingSchoolAddress.addEventListener('input', updateSummary);
+    employerName.addEventListener('input', updateSummary);
     schoolYearSelect.addEventListener('change', updateSummary);
     addressInput.addEventListener('input', updateSummary);
     receiptInput.addEventListener('change', () => {
         receiptFileName.textContent = receiptInput.files[0]?.name || 'Choose a JPG, PNG, or PDF file';
         updateSummary();
     });
-    form.querySelectorAll('[data-next-step]').forEach((button) => button.addEventListener('click', () => { if (validateStep(currentStep)) showStep(Number(button.dataset.nextStep)); }));
+    form.querySelectorAll('[data-next-step]').forEach((button) => button.addEventListener('click', () => {
+        if (currentStep === 1 && hasActiveRequestConflict()) return;
+        if (validateStep(currentStep)) showStep(Number(button.dataset.nextStep));
+    }));
     form.querySelectorAll('[data-previous-step]').forEach((button) => button.addEventListener('click', () => showStep(Number(button.dataset.previousStep))));
     stepTargets.forEach((button) => button.addEventListener('click', () => { const target = Number(button.dataset.stepTarget); if (target <= highestVisited) showStep(target); }));
     form.addEventListener('submit', (event) => {

@@ -7,10 +7,10 @@ use App\Models\SchoolFormStudent as Student;
 use App\Models\SchoolFormUpload as GradeSheetUpload;
 use App\Models\Student as RequestStudent;
 use App\Support\AcademicPeriod;
-use App\Support\Form137WorkbookGenerator;
-use App\Support\GradeSheetImporter;
 use App\Support\DocumentQrCode;
+use App\Support\Form137WorkbookGenerator;
 use App\Support\GeneratedPdfProtection;
+use App\Support\GradeSheetImporter;
 use App\Support\LearningAreaNormalizer;
 use App\Support\SchoolProfile;
 use App\Support\XlsxWorkbookReader;
@@ -105,6 +105,38 @@ class SchoolFormF137Controller extends Controller
             'name_parts' => $this->splitName($student->name),
         ], $records->all(), $schoolProfile->values(), $schoolLevel);
         $fileIdentifier = $student->student_number ?: $student->lrn;
+
+        // The Registrar reviews a protected PDF even when the Records Officer
+        // chooses the editable Excel download. Prepare and store that protected
+        // review copy here so forwarding is not blocked after the download.
+        if ($requestedId) {
+            $profile = $schoolProfile->values();
+            $nameParts = $this->splitName($student->name);
+            $requestId = $requestedId;
+            $html = view('school-forms.pdf.f137-template', compact(
+                'student',
+                'records',
+                'profile',
+                'nameParts',
+                'requestId',
+                'schoolLevel',
+            ))->render();
+            $options = new Options;
+            $options->set('isHtml5ParserEnabled', true);
+            $options->set('isRemoteEnabled', true);
+            $pdf = new Dompdf($options);
+            $pdf->loadHtml($html);
+            $pdf->setPaper('a4', 'portrait');
+            $pdf->render();
+            $qr = app(DocumentQrCode::class)->make('Form 137', $student->name, [
+                'request_id' => $requestedId,
+                'holder_identifier' => $fileIdentifier,
+                'issued_at' => now(),
+                'fields' => ['school_level' => $schoolLevel, 'records' => $records->all()],
+            ]);
+            app(GeneratedPdfProtection::class)->protect($qr['document'], $pdf->output(), "F137-{$fileIdentifier}.pdf");
+        }
+
         return response()->download(
             $path,
             "F137-{$fileIdentifier}.xlsx",

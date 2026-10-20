@@ -106,7 +106,7 @@
         <h1>F137 Draft Preview</h1>
     </div>
     <div class="toolbar-actions">
-        <a class="action" href="{{ route('school-forms.home', ['student' => $identifier, 'form' => 'f137']) }}">Back</a>
+        <a class="action" href="{{ $requestId ? route('requests.index', ['open_request' => $requestId]) : route('requests.index') }}">Back to Request Details</a>
         <button class="action" type="button" onclick="window.print()">Print preview</button>
         @unless($requestId)
             <a class="action primary" href="{{ route('school-forms.f137.pdf', $downloadParameters) }}">Download F137 PDF</a>
@@ -222,8 +222,13 @@
 </main>
 @if($requestId && auth()->user()->role === 'records_officer')
 <section class="review-checker" aria-labelledby="f137-review-title">
+    @if($errors->any())
+        <div style="margin-bottom:14px;border:1px solid #fecaca;border-radius:9px;background:#fef2f2;padding:12px 14px;color:#991b1b;font-size:13px;font-weight:700">
+            @foreach($errors->all() as $error)<div>{{ $error }}</div>@endforeach
+        </div>
+    @endif
     <h2 id="f137-review-title">Final document check</h2>
-    <p>Confirm the details, preview the protected PDF, then download the Excel file before forwarding it for approval.</p>
+    <p>Confirm the details below. Checking the confirmation enables all document actions.</p>
     <label class="review-confirm">
         <input id="f137-correct" type="checkbox">
         <span>I reviewed the learner information, school years, subjects, grades, and school details. Everything is correct.</span>
@@ -231,12 +236,12 @@
     <div class="review-actions">
         <a id="f137-preview-pdf" class="action review-gated is-disabled" target="_blank" rel="noopener" aria-disabled="true"
            href="{{ route('school-forms.f137.pdf', [...$downloadParameters, 'reviewed' => 1, 'preview' => 1]) }}">Preview F137 PDF</a>
-        <a id="f137-download-excel" class="action primary is-disabled" aria-disabled="true"
+        <a id="f137-download-excel" class="action primary review-gated is-disabled" aria-disabled="true"
            href="{{ route('school-forms.f137.download', [...$downloadParameters, 'reviewed' => 1]) }}">Download F137 Excel</a>
         <form method="POST" action="{{ route('requests.update-status', $requestId) }}">
             @csrf
             <input type="hidden" name="status" value="processed">
-            <button id="f137-forward" class="action" type="submit" disabled>Downloaded - forward to registrar</button>
+            <button id="f137-forward" class="action" type="submit" disabled>Forward to Registrar</button>
         </form>
     </div>
 </section>
@@ -252,17 +257,8 @@
                 action.classList.toggle('is-disabled', !checkbox.checked);
                 action.setAttribute('aria-disabled', checkbox.checked ? 'false' : 'true');
             });
-            if (!checkbox.checked) {
-                downloadExcel.classList.add('is-disabled');
-                downloadExcel.setAttribute('aria-disabled', 'true');
-                forward.disabled = true;
-            }
+            forward.disabled = !checkbox.checked;
         });
-        previewPdf.addEventListener('click', () => window.setTimeout(() => {
-            downloadExcel.classList.remove('is-disabled');
-            downloadExcel.setAttribute('aria-disabled', 'false');
-        }, 700));
-        downloadExcel.addEventListener('click', () => window.setTimeout(() => { forward.disabled = false; }, 700));
     })();
 </script>
 @endif

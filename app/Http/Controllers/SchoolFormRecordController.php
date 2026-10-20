@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SchoolFormUpload as GradeSheetUpload;
 use App\Models\SchoolFormStudent;
+use App\Models\SchoolFormUpload as GradeSheetUpload;
 use App\Support\AcademicPeriod;
 use App\Support\CurriculumSubjects;
 use App\Support\XlsxWorkbookReader;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -27,20 +29,21 @@ class SchoolFormRecordController extends Controller
         $schoolYear = trim((string) $request->query('school_year'));
         $level = trim((string) $request->query('level'));
         $section = trim((string) $request->query('section'));
-        $recordClasses = GradeSheetUpload::query()
+        $schoolFormsReady = Schema::connection('school_forms')->hasTable('grade_sheet_uploads');
+        $recordClasses = $schoolFormsReady ? GradeSheetUpload::query()
             ->select(['school_year', 'level', 'section'])
             ->distinct()
             ->orderByDesc('school_year')
             ->orderBy('level')
             ->orderBy('section')
-            ->get();
+            ->get() : collect();
         $hasSearch = $schoolYear !== '' && $level !== '' && $section !== ''
             && $recordClasses->contains(fn (GradeSheetUpload $class) => $class->school_year === $schoolYear
                 && $class->level === $level && $class->section === $section);
         $studentSearch = trim((string) $request->query('search_student', ''));
         $matchingStudents = collect();
         $selectedStudent = null;
-        if ($studentSearch !== '') {
+        if ($studentSearch !== '' && Schema::connection('school_forms')->hasTable('students')) {
             $term = '%'.addcslashes($studentSearch, '%_\\').'%';
             $matchingStudents = SchoolFormStudent::query()
                 ->where(function ($query) use ($term) {
@@ -70,11 +73,11 @@ class SchoolFormRecordController extends Controller
             'level' => $class->level,
             'section' => $class->section,
         ])->values()->all();
-        $uploads = GradeSheetUpload::query()
+        $uploads = $schoolFormsReady ? GradeSheetUpload::query()
             ->when(! $hasSearch, fn ($query) => $query->whereRaw('1 = 0'))
             ->when($hasSearch, fn ($query) => $query->where('school_year', $schoolYear)
                 ->where('level', $level)->where('section', $section))
-            ->orderBy('grading_period')->orderBy('file_type')->get();
+            ->orderBy('grading_period')->orderBy('file_type')->get() : collect();
         $attendanceUploads = $uploads->where('file_type', 'attendance')->values();
         $summaryUploads = $uploads->where('file_type', 'summary')->values();
 
@@ -159,11 +162,15 @@ class SchoolFormRecordController extends Controller
             ->where('school_year', $validated['school_year'])
             ->where('level', $validated['level'])
             ->where('section', $validated['section'])
+            ->where('file_type', 'summary')
             ->whereIn('grading_period', AcademicPeriod::numbers($validated['school_year'], $validated['level']))
             ->get();
         $slots = [];
         foreach ($uploads as $upload) {
-            $slots["{$upload->grading_period}:{$upload->file_type}"] = [
+            $slotKey = $upload->file_type === 'attendance' && (int) $upload->grading_period === 0
+                ? 'annual_attendance'
+                : "{$upload->grading_period}:{$upload->file_type}";
+            $slots[$slotKey] = [
                 'name' => $upload->original_name,
                 'updated_at' => optional($upload->updated_at)->toIso8601String(),
             ];
@@ -172,7 +179,7 @@ class SchoolFormRecordController extends Controller
         return response()->json([
             'slots' => $slots,
             'completed' => count($slots),
-            'total' => AcademicPeriod::count($validated['school_year'], $validated['level']) * 2,
+            'total' => AcademicPeriod::count($validated['school_year'], $validated['level']),
         ]);
     }
 
@@ -189,7 +196,9 @@ class SchoolFormRecordController extends Controller
 
         $spreadsheet = $this->makeTemplate($type, $validated);
         $periodName = ['First', 'Second', 'Third', 'Fourth'][(int) $validated['period'] - 1];
-        $filename = str_replace(' ', '-', strtolower("{$validated['level']}-{$validated['section']}-{$periodName}-{$type}.xlsx"));
+        $filename = str_replace(' ', '-', strtolower($type === 'attendance'
+            ? "{$validated['level']}-{$validated['section']}-whole-school-year-attendance.xlsx"
+            : "{$validated['level']}-{$validated['section']}-{$periodName}-{$type}.xlsx"));
 
         return response()->streamDownload(function () use ($spreadsheet) {
             (new Xlsx($spreadsheet))->save('php://output');
@@ -283,7 +292,7 @@ class SchoolFormRecordController extends Controller
             $sheet->freezePane('D4');
             $sheet->getColumnDimension('B')->setWidth(18);
             $sheet->getColumnDimension('C')->setWidth(32);
-            $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
+            $lastColumn = Coordinate::stringFromColumnIndex(count($headers));
             foreach (range('D', $lastColumn) as $column) {
                 $sheet->getColumnDimension($column)->setWidth(18);
             }
@@ -312,7 +321,7 @@ class SchoolFormRecordController extends Controller
         }
 
         $lastColumn = $type === 'summary'
-            ? \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers))
+            ? Coordinate::stringFromColumnIndex(count($headers))
             : chr(67 + count($months));
         $sheet->mergeCells("A1:{$lastColumn}1");
         $sheet->getRowDimension(1)->setRowHeight(28);
@@ -352,8 +361,8 @@ class SchoolFormRecordController extends Controller
 
         if ($type === 'summary') {
             $subjects = CurriculumSubjects::for($details['level'], $details['section']);
-            $headers = array_merge(['No.', 'LRN', "Student's Name"], array_map('strtoupper', $subjects), ['GEN. AVE.']);
-            $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
+            $headers = array_merge(['No.', 'Student Number', "Student's Name"], array_map('strtoupper', $subjects), ['GEN. AVE.']);
+            $lastColumn = Coordinate::stringFromColumnIndex(count($headers));
             $sheet->setCellValue('A2', 'SUMMARY SHEET')->mergeCells("A2:{$lastColumn}2");
             $sheet->setCellValue('A3', "Academic Year {$details['school_year']}")->mergeCells('A3:E3');
             $sheet->setCellValue('F3', 'TEACHER-IN-CHARGE')->mergeCells('F3:G3');
@@ -370,22 +379,20 @@ class SchoolFormRecordController extends Controller
             $headerRow = 6;
             $firstStudentRow = 7;
         } else {
-            $months = AcademicPeriod::usesTerms($details['school_year'], $details['level'])
-                ? [1 => ['June', 'July', 'August', 'September'], 2 => ['October', 'November', 'December', 'January'], 3 => ['February', 'March', 'April']][$period]
-                : [1 => ['June', 'July', 'August'], 2 => ['September', 'October', 'November'], 3 => ['December', 'January', 'February'], 4 => ['March', 'April', 'May']][$period];
-            $lastMonthColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + count($months));
-            $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(4 + count($months));
+            $months = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March', 'April'];
+            $lastMonthColumn = Coordinate::stringFromColumnIndex(3 + count($months));
+            $lastColumn = Coordinate::stringFromColumnIndex(4 + count($months));
             $sheet->setCellValue('A2', 'ATTENDANCE SHEET')->mergeCells("A2:{$lastColumn}2");
             $sheet->setCellValue('A3', "Academic Year {$details['school_year']}")->mergeCells("A3:{$lastColumn}3");
             $sheet->setCellValue('A4', 'LEVEL AND SECTION:')->mergeCells('A4:B4');
             $sheet->setCellValue('C4', $levelHeading)->mergeCells('C4:D4');
             $sheet->setCellValue('E4', 'TEACHER-IN-CHARGE')->mergeCells('E4:F4');
             $sheet->setCellValue('G4', '');
-            $sheet->setCellValue('A5', 'No.')->setCellValue('B5', 'LRN')->setCellValue('C5', "Student's Name");
-            $sheet->setCellValue('D5', $periodHeading)->mergeCells("D5:{$lastMonthColumn}5");
+            $sheet->setCellValue('A5', 'No.')->setCellValue('B5', 'Student Number')->setCellValue('C5', "Student's Name");
+            $sheet->setCellValue('D5', 'WHOLE SCHOOL YEAR')->mergeCells("D5:{$lastMonthColumn}5");
             $sheet->setCellValue("{$lastColumn}5", 'Total');
             foreach ($months as $index => $month) {
-                $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(4 + $index);
+                $column = Coordinate::stringFromColumnIndex(4 + $index);
                 $sheet->setCellValue("{$column}6", strtoupper($month));
             }
             $sheet->getColumnDimension('B')->setWidth(16);

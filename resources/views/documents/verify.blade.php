@@ -89,6 +89,38 @@
         </p>
 
         @if($signatureValid && $contentHashValid)
+            <section class="photo-check" id="photo-check">
+                <div class="file-check-heading">
+                    <span class="file-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h3l2-2h6l2 2h3v12H4Z"/><circle cx="12" cy="13" r="3"/></svg></span>
+                    <div><h2>Check the QR from a printed document</h2><p>Take a clear photo showing the QR code. The photo stays on this device and is not uploaded to the school server.</p></div>
+                </div>
+
+                <label class="photo-upload" for="printed_document_photo">
+                    <strong>Take or choose a photo</strong>
+                    <span>JPG, PNG, or a phone camera photo</span>
+                </label>
+                <input id="printed_document_photo" class="sr-file-input" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-no-universal-preview>
+
+                <div id="photo-verification-result" class="photo-result" hidden aria-live="polite"></div>
+                <div id="photo-comparison" class="photo-comparison" hidden>
+                    <div class="photo-preview-wrap">
+                        <p class="comparison-title">Uploaded photo</p>
+                        <img id="printed-document-preview" alt="Preview of the photographed printed document">
+                    </div>
+                    <div class="official-comparison">
+                        <p class="comparison-title">Official school record</p>
+                        <dl>
+                            <div><dt>Document</dt><dd>{{ $document->document_type }}</dd></div>
+                            <div><dt>Student</dt><dd>{{ $document->holder_name }}</dd></div>
+                            @if($document->holder_identifier)<div><dt>Student number</dt><dd>{{ $document->holder_identifier }}</dd></div>@endif
+                            <div><dt>Control number</dt><dd>{{ $document->control_number }}</dd></div>
+                            <div><dt>Issue date</dt><dd>{{ $document->issued_at->format('F j, Y') }}</dd></div>
+                        </dl>
+                        <p class="comparison-note"><strong>Privacy protected:</strong> grades and other sensitive entries stay hidden. The system compares them privately and returns only the verification result.</p>
+                    </div>
+                </div>
+            </section>
+
             <section class="file-check">
                 <div class="file-check-heading">
                     <span class="file-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3 4 6v5c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
@@ -114,7 +146,7 @@
                             Upload and check file
                         </button>
                     </form>
-                    <p><strong>Important:</strong> use the original digital download. A printed-and-scanned copy creates a different file and will not match.</p>
+                    <p><strong>For PDF/XLSX only:</strong> use the original digital download for an exact file check. Use the photo checker above for a printed copy.</p>
                 @else
                     <div class="file-result file-mismatch"><strong>Exact-file checking unavailable.</strong>This older copy has no registered official file hash. Generate it again to enable exact-file checking.</div>
                 @endif
@@ -129,5 +161,77 @@
 </main>
 
 @include('partials.loading-overlay')
+@if($document && $signatureValid && $contentHashValid)
+<script>
+(() => {
+    const input = document.getElementById('printed_document_photo');
+    const preview = document.getElementById('printed-document-preview');
+    const comparison = document.getElementById('photo-comparison');
+    const result = document.getElementById('photo-verification-result');
+    if (!input || !preview || !comparison || !result) return;
+
+    const expectedUrl = @json(app(\App\Support\DocumentQrCode::class)->verificationUrl($document));
+    const photoCheckUrl = @json(route('documents.verify-photo', ['identifier' => $document->control_number]));
+    const csrfToken = @json(csrf_token());
+    const signature = @json(request('signature'));
+    let previewUrl;
+    const showResult = (state, title, message) => {
+        result.hidden = false;
+        result.className = `photo-result ${state}`;
+        result.innerHTML = `<strong>${title}</strong><span>${message}</span>`;
+    };
+
+    input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            showResult('bad', 'Invalid file', 'Choose a JPG, PNG, or phone camera photo.');
+            return;
+        }
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = URL.createObjectURL(file);
+        preview.src = previewUrl;
+        comparison.hidden = false;
+        showResult('checking', 'Reading the printed document...', 'This can take up to a minute. The photo stays on this device and is not saved by the school.');
+
+        try {
+            if ('BarcodeDetector' in window) {
+                const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                const bitmap = await createImageBitmap(file);
+                const codes = await detector.detect(bitmap);
+                bitmap.close?.();
+                const urls = codes.map(code => code.rawValue).filter(Boolean);
+                if (urls.length && !urls.includes(expectedUrl)) {
+                    showResult('bad', 'Different or invalid QR', 'The QR does not belong to this official record. Do not accept the document.');
+                    return;
+                }
+            }
+
+            if (!window.Tesseract) {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+            }
+            const recognition = await window.Tesseract.recognize(file, 'eng');
+            const response = await fetch(photoCheckUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken},
+                body: JSON.stringify({ocr_text: recognition.data.text, signature}),
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.message || 'Unable to check photo.');
+            const state = payload.status === 'match' ? 'good' : (payload.status === 'mismatch' ? 'bad' : 'manual');
+            showResult(state, payload.title, payload.message);
+        } catch (_) {
+            showResult('manual', 'Photo could not be checked automatically', 'Check your internet connection, then retake a clear full-page photo and try again.');
+        }
+    });
+})();
+</script>
+@endif
 </body>
 </html>

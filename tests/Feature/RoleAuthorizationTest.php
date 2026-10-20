@@ -2,11 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\RequestDocument;
 use App\Models\DocumentAuthenticity;
+use App\Models\RequestDocument;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class RoleAuthorizationTest extends TestCase
@@ -57,6 +58,23 @@ class RoleAuthorizationTest extends TestCase
         }
     }
 
+    public function test_records_officer_can_open_complete_details_for_each_request(): void
+    {
+        $documentRequest = $this->documentRequest();
+
+        $this->actingAs($this->user('records_officer'))
+            ->get(route('requests.index'))
+            ->assertOk()
+            ->assertSee('View Request')
+            ->assertSee('Complete request details')
+            ->assertSee('Student information')
+            ->assertSee('Purpose and destination')
+            ->assertSee('Release and payment')
+            ->assertSee('Transmission and claim')
+            ->assertSee('Complete status history')
+            ->assertSee($documentRequest->ticket_number);
+    }
+
     public function test_only_admin_can_access_system_pages_and_clear_logs(): void
     {
         foreach (['student', 'registrar', 'records_officer'] as $role) {
@@ -96,8 +114,7 @@ class RoleAuthorizationTest extends TestCase
 
         $this->actingAs($this->user('records_officer'))
             ->post(route('requests.update-clearance', $documentRequest->id), [
-                'clearance_status' => 'has_balance',
-                'financial_balance' => 500,
+                'clearance_status' => 'pending_clearance',
             ])
             ->assertForbidden();
 
@@ -105,12 +122,11 @@ class RoleAuthorizationTest extends TestCase
 
         $this->actingAs($this->user('registrar'))
             ->post(route('requests.update-clearance', $documentRequest->id), [
-                'clearance_status' => 'has_balance',
-                'financial_balance' => 500,
+                'clearance_status' => 'pending_clearance',
             ])
             ->assertRedirect();
 
-        $this->assertSame('has_balance', $documentRequest->fresh()->clearance_status);
+        $this->assertSame('pending_clearance', $documentRequest->fresh()->clearance_status);
     }
 
     public function test_only_admin_can_clear_request_history(): void
@@ -133,7 +149,7 @@ class RoleAuthorizationTest extends TestCase
         $documentRequest = $this->documentRequest(['status' => 'processing']);
         $document = DocumentAuthenticity::create([
             'request_document_id' => $documentRequest->id,
-            'verification_token' => (string) \Illuminate\Support\Str::uuid(),
+            'verification_token' => (string) Str::uuid(),
             'control_number' => 'TEST-RESET-001',
             'document_type' => 'Certificate of Enrollment',
             'holder_name' => 'Request Test Student',

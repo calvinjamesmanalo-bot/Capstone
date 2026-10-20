@@ -5,6 +5,7 @@ use App\Http\Middleware\EnforceProductionHttps;
 use App\Http\Middleware\EnsureStudentAccountIsVerified;
 use App\Http\Middleware\EnforceConfiguredPortalState;
 use App\Http\Middleware\RequireRole;
+use App\Http\Middleware\RequirePasswordChange;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -34,6 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
         $middleware->web(append: [
             EnforceConfiguredPortalState::class,
+            RequirePasswordChange::class,
             AddSecurityHeaders::class,
             'throttle:web',
         ]);

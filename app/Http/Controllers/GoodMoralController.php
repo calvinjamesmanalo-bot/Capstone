@@ -55,7 +55,7 @@ class GoodMoralController extends Controller
 
         record_log('Submitted Good Moral to Registrar', 'Requests', "Request #{$docRequest->id} submitted for approval");
 
-        return redirect()->route('requests.index')->with('success', 'Good Moral has been submitted to Registrar for approval.');
+        return redirect()->route('requests.index', ['open_request' => $docRequest->id])->with('success', 'Good Moral has been submitted to Registrar for approval.');
     }
 
     public function previewFromRequest($id)

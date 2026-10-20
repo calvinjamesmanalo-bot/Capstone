@@ -2,7 +2,7 @@
 
 @section('title', 'Request History')
 @section('page_title', 'Request History')
-@section('page_subtitle', 'Archive of all completed and rejected document requests')
+@section('page_subtitle', auth()->user()->role === 'registrar' ? 'History of requests reviewed by the Registrar' : 'Archive of all completed and rejected document requests')
 
 @section('content')
 <div class="space-y-10">
@@ -117,7 +117,7 @@
                 </tbody>
             </table>
             @if($requests->isEmpty())
-                <x-empty-state heading="No request history yet" description="Released and rejected requests will appear here once they leave the active list." :action-url="route('requests.index')" action-label="View active requests" />
+                <x-empty-state heading="No request history yet" :description="auth()->user()->role === 'registrar' ? 'Requests will appear here after the Registrar approves or rejects them.' : 'Released and rejected requests will appear here once they leave the active list.'" :action-url="route('requests.index')" action-label="View active requests" />
             @endif
         </div>
     </div>

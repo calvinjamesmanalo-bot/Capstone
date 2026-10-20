@@ -63,10 +63,11 @@ class SettingController extends Controller
             'document_requests_enabled' => ['nullable', 'boolean'],
             'grade_uploads_enabled' => ['nullable', 'boolean'],
             'public_verification_enabled' => ['nullable', 'boolean'],
+            'dark_mode_enabled' => ['nullable', 'boolean'],
         ]);
 
         // Persist only validated public settings, never arbitrary submitted keys or credentials.
-        foreach (['maintenance_mode', 'student_registration_enabled', 'student_email_verification_required', 'document_requests_enabled', 'grade_uploads_enabled', 'public_verification_enabled'] as $toggle) {
+        foreach (['maintenance_mode', 'student_registration_enabled', 'student_email_verification_required', 'document_requests_enabled', 'grade_uploads_enabled', 'public_verification_enabled', 'dark_mode_enabled'] as $toggle) {
             if ($request->has($toggle)) {
                 $data[$toggle] = $request->boolean($toggle) ? '1' : '0';
             }

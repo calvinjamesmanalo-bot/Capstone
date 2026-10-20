@@ -5,270 +5,159 @@ namespace Tests\Feature;
 use App\Models\Student;
 use App\Models\StudentAccountActivation;
 use App\Models\User;
-use App\Notifications\VerifyStudentAccountCode;
-use Illuminate\Auth\Notifications\ResetPassword;
+use App\Notifications\StudentIdentityApproved;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class StudentRegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_only_login_page_links_to_student_registration(): void
+    protected function setUp(): void
     {
-        $this->get(route('login'))
-            ->assertOk()
-            ->assertSee('Create Student Account')
-            ->assertSee(route('student.registration.request'));
-
-        $this->get(route('password.request'))
-            ->assertOk()
-            ->assertDontSee('Create account')
-            ->assertDontSee(route('student.registration.request'));
-
-        $this->get(route('student.registration.request'))
-            ->assertOk()
-            ->assertSee('Student number')
-            ->assertSee('Learner Reference Number (LRN)')
-            ->assertSee('name="lrn"', false)
-            ->assertSee('Full name')
-            ->assertSee('Official Gmail address')
-            ->assertSee('Password')
-            ->assertDontSee('Forgot password?');
+        parent::setUp();
+        Storage::fake('local');
+        Notification::fake();
+        config(['services.turnstile.enabled' => false]);
     }
 
-    public function test_valid_registration_details_send_a_hashed_six_digit_code(): void
+    public function test_registration_collects_identity_photos_without_requesting_a_password_yet(): void
     {
-        Notification::fake();
-
-        $response = $this->post(route('student.registration.store'), $this->registrationData())
-            ->assertRedirect()
-            ->assertSessionHas('status', $this->genericStatus());
-
-        $code = $this->verificationCodeFromNotification();
-        $activation = StudentAccountActivation::firstOrFail();
-
-        $this->assertMatchesRegularExpression('/^\d{6}$/', $code);
-        $this->assertNotSame($code, $activation->verification_code_hash);
-        $this->assertSame('123456789012', $activation->lrn);
-        $this->assertNotSame('Strong Student!2026', $activation->password_hash);
-        $this->assertTrue(Hash::check('Strong Student!2026', $activation->password_hash));
-        $this->assertSame('argon2id', password_get_info($activation->password_hash)['algoName']);
-        $response->assertRedirectContains('/create-student-account/verify/');
-        $this->assertDatabaseCount('students', 0);
-        $this->assertDatabaseCount('users', 0);
+        $this->get(route('student.registration.request'))->assertOk()
+            ->assertSee('Photo of School ID')->assertSee('Selfie holding your School ID')
+            ->assertSee('Middle name')->assertSee('(optional)')
+            ->assertDontSee('name="password"', false);
     }
 
-    public function test_name_order_and_punctuation_are_normalized_against_the_roster(): void
+    public function test_optional_middle_name_does_not_change_first_and_last_name_matching(): void
     {
-        Notification::fake();
-        config(['security.student_registration.require_roster' => true]);
         $this->officialStudent();
+        $data = $this->proofData();
+        $data['middle_name'] = 'A different optional middle name';
 
-        $this->post(route('student.registration.store'), $this->registrationData([
-            'name' => 'JUAN SANTOS DELA CRUZ',
-        ]))->assertSessionHas('status');
-
-        Notification::assertSentOnDemand(VerifyStudentAccountCode::class);
+        $this->post(route('student.registration.lookup'), $data)
+            ->assertRedirectContains('/create-student-account/status/');
     }
 
-    public function test_registration_does_not_require_an_existing_roster_when_disabled(): void
+    public function test_matching_student_waits_for_admin_review_before_any_email(): void
     {
-        Notification::fake();
-
-        $this->post(route('student.registration.store'), $this->registrationData())
-            ->assertSessionHas('status', $this->genericStatus());
-
-        $this->assertDatabaseCount('student_account_activations', 1);
-        Notification::assertSentOnDemand(VerifyStudentAccountCode::class);
-    }
-
-    public function test_roster_mode_rejects_a_mismatched_name_or_gmail(): void
-    {
-        Notification::fake();
-        config(['security.student_registration.require_roster' => true]);
-        $this->officialStudent();
-
-        $this->post(route('student.registration.store'), $this->registrationData([
-            'name' => 'Different Person',
-        ]))->assertSessionHas('status', $this->genericStatus());
-        $this->post(route('student.registration.store'), $this->registrationData([
-            'email' => 'attacker@gmail.com',
-        ]))->assertSessionHas('status', $this->genericStatus());
-        $this->post(route('student.registration.store'), $this->registrationData([
-            'lrn' => '999999999999',
-        ]))->assertSessionHas('status', $this->genericStatus());
-
-        $this->assertDatabaseCount('student_account_activations', 0);
-        Notification::assertNothingSent();
-    }
-
-    public function test_registration_requires_a_gmail_address(): void
-    {
-        $this->post(route('student.registration.store'), $this->registrationData([
-            'email' => 'student@fiat.edu.ph',
-        ]))->assertSessionHasErrors([
-            'email' => 'Use the official Gmail address registered in the student roster.',
-        ]);
-    }
-
-    public function test_correct_code_creates_a_verified_active_student_account(): void
-    {
-        Notification::fake();
-        $response = $this->post(route('student.registration.store'), $this->registrationData());
-        $token = basename((string) parse_url($response->headers->get('Location'), PHP_URL_PATH));
-        $code = $this->verificationCodeFromNotification();
-
-        $this->get(route('student.registration.code', ['token' => $token]))
-            ->assertOk()
-            ->assertSee('Check your Gmail');
-
-        $this->post(route('student.registration.verify'), [
-            'token' => $token,
-            'code' => $code,
-        ])->assertRedirect(route('login'))
-            ->assertSessionHas('status', 'Your student account is verified and active. You can now sign in.');
-
-        $student = Student::findOrFail('2026-0001');
-        $user = User::where('student_number', $student->student_number)->firstOrFail();
-        $this->assertSame('123456789012', $student->lrn);
-        $this->assertSame($student->name, $user->name);
-        $this->assertSame($student->official_email, $user->email);
-        $this->assertSame('student', $user->role);
-        $this->assertTrue($user->hasVerifiedEmail());
-        $this->assertTrue(Hash::check('Strong Student!2026', $user->password));
-        $this->assertSame('argon2id', password_get_info($user->password)['algoName']);
-        $this->assertNotNull(StudentAccountActivation::firstOrFail()->used_at);
-    }
-
-    public function test_code_is_locked_after_five_incorrect_attempts(): void
-    {
-        Notification::fake();
-        $response = $this->post(route('student.registration.store'), $this->registrationData());
-        $token = basename((string) parse_url($response->headers->get('Location'), PHP_URL_PATH));
-        $correctCode = $this->verificationCodeFromNotification();
-
-        for ($attempt = 0; $attempt < 5; $attempt++) {
-            $this->post(route('student.registration.verify'), [
-                'token' => $token,
-                'code' => '000000',
-            ])->assertSessionHasErrors('code');
-        }
-
-        $this->assertSame(5, StudentAccountActivation::firstOrFail()->verification_attempts);
-        $this->post(route('student.registration.verify'), [
-            'token' => $token,
-            'code' => $correctCode,
-        ])->assertSessionHasErrors('code');
-        $this->assertDatabaseCount('users', 0);
-    }
-
-    public function test_expired_code_is_rejected(): void
-    {
-        Notification::fake();
-        $response = $this->post(route('student.registration.store'), $this->registrationData());
-        $token = basename((string) parse_url($response->headers->get('Location'), PHP_URL_PATH));
-        $code = $this->verificationCodeFromNotification();
-        StudentAccountActivation::query()->update(['expires_at' => now()->subMinute()]);
-
-        $this->post(route('student.registration.verify'), [
-            'token' => $token,
-            'code' => $code,
-        ])->assertSessionHasErrors('code');
-
-        $this->assertDatabaseCount('users', 0);
-    }
-
-    public function test_registration_password_must_meet_the_security_policy(): void
-    {
-        $this->post(route('student.registration.store'), $this->registrationData([
-            'password' => 'short',
-            'password_confirmation' => 'short',
-        ]))->assertSessionHasErrors([
-            'password' => 'The password is too short. Use at least 12 characters.',
-        ]);
-    }
-
-    public function test_existing_active_account_cannot_register_again(): void
-    {
-        Notification::fake();
         $student = $this->officialStudent();
-        User::factory()->create([
-            'student_number' => $student->student_number,
-            'email' => $student->official_email,
-            'role' => 'student',
-        ]);
-
-        $this->post(route('student.registration.store'), $this->registrationData())
-            ->assertSessionHas('status', $this->genericStatus());
-
-        $this->assertDatabaseCount('student_account_activations', 0);
+        $response = $this->post(route('student.registration.lookup'), $this->proofData());
+        $response->assertRedirectContains('/create-student-account/status/');
+        $student->refresh();
+        $this->assertSame('pending', $student->account_verification_status);
+        $this->assertNotNull($student->account_verification_token_hash);
+        Storage::disk('local')->assertExists($student->school_id_path);
+        Storage::disk('local')->assertExists($student->school_id_selfie_path);
         Notification::assertNothingSent();
+        $this->get($response->headers->get('Location'))->assertOk()
+            ->assertSee('Wait for the Admin or Registrar to verify your account')
+            ->assertSee('No verification code is required')
+            ->assertDontSee('Copy status link');
     }
 
-    public function test_forgot_password_works_after_code_verification(): void
+    public function test_mismatched_identity_is_rejected_before_files_are_stored(): void
     {
-        Notification::fake();
-        $response = $this->post(route('student.registration.store'), $this->registrationData());
-        $token = basename((string) parse_url($response->headers->get('Location'), PHP_URL_PATH));
-        $code = $this->verificationCodeFromNotification();
+        $this->officialStudent();
+        $data = $this->proofData();
+        $data['first_name'] = 'Different';
+        $this->post(route('student.registration.lookup'), $data)->assertSessionHasErrors('student_number');
+        $this->assertSame([], Storage::disk('local')->allFiles('student-identity-proofs'));
+    }
 
-        $this->post(route('student.registration.verify'), [
-            'token' => $token,
-            'code' => $code,
-        ]);
+    public function test_admin_approval_emails_private_continue_link(): void
+    {
+        [$student, $token] = $this->pendingVerification();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin)->post(route('account-verifications.approve', $student))->assertSessionHas('success');
+        $student->refresh();
+        $this->assertSame('approved', $student->account_verification_status);
+        $this->assertNotSame(hash('sha256', $token), $student->account_verification_token_hash);
+        Notification::assertSentOnDemand(StudentIdentityApproved::class);
+    }
 
-        Notification::fake();
-        $this->post(route('password.email'), ['email' => 'student@gmail.com'])
-            ->assertSessionHas('status');
+    public function test_approved_email_link_allows_student_to_set_password_and_create_account(): void
+    {
+        [$student, $token] = $this->pendingVerification();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin)->post(route('account-verifications.approve', $student))->assertSessionHas('success');
+        auth()->logout();
+        $continueUrl = '';
+        Notification::assertSentOnDemand(
+            StudentIdentityApproved::class,
+            function (StudentIdentityApproved $notification) use (&$continueUrl): bool {
+                $continueUrl = $notification->continueUrl;
+                return true;
+            }
+        );
+        $approvalToken = basename((string) parse_url($continueUrl, PHP_URL_PATH));
+        $this->get(route('student.registration.continue', ['token' => $approvalToken]))->assertRedirect(route('student.registration.request'));
+        $this->post(route('student.registration.store'), [
+            'password' => 'Strong Student!2026',
+            'password_confirmation' => 'Strong Student!2026',
+        ])->assertRedirect(route('login'));
+        $user = User::where('student_number', $student->student_number)->firstOrFail();
+        $this->assertSame('student@gmail.com', $user->email);
+        $this->assertTrue(Hash::check('Strong Student!2026', $user->password));
+        $student->refresh();
+        $this->assertSame('completed', $student->account_verification_status);
+        $this->assertNull($student->account_verification_token_hash);
+        $this->assertNull($student->school_id_path);
+        $this->assertDatabaseMissing('student_account_activations', ['student_number' => $student->student_number]);
+    }
 
-        $user = User::where('email', 'student@gmail.com')->firstOrFail();
-        Notification::assertSentTo($user, ResetPassword::class);
+    public function test_registration_page_hides_capacity_and_blocks_processing_at_limit(): void
+    {
+        config(['security.student_registration.daily_account_limit' => 1]);
+        User::factory()->create(['role' => 'student', 'created_at' => now()]);
+
+        $this->get(route('student.registration.request'))->assertOk()
+            ->assertDontSee('Daily account capacity')->assertDontSee('1 / 1')
+            ->assertSee('Account creation is unavailable for today')
+            ->assertDontSee('Submit for account verification');
+
+        $this->post(route('student.registration.lookup'), [])
+            ->assertRedirect(route('student.registration.request'))
+            ->assertSessionHasErrors('student_number');
+    }
+
+    public function test_rejected_student_sees_reason_and_can_submit_again(): void
+    {
+        [$student, $token] = $this->pendingVerification();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin)->post(route('account-verifications.reject', $student), ['reason' => 'The School ID photo is blurry.'])->assertSessionHas('success');
+        auth()->logout();
+        $this->get(route('student.registration.status', ['token' => $token]))->assertOk()
+            ->assertSee('Verification rejected')->assertSee('The School ID photo is blurry.')->assertSee('Submit new photos');
+        $student->refresh();
+        $this->assertNull($student->school_id_path);
+        $this->assertNull($student->school_id_selfie_path);
     }
 
     private function officialStudent(): Student
     {
-        return Student::create([
-            'student_number' => '2026-0001',
-            'lrn' => '123456789012',
-            'name' => 'Dela Cruz, Santos, Juan,',
-            'official_email' => 'student@gmail.com',
-        ]);
+        return Student::create(['student_number' => '2026-0001', 'name' => 'Dela Cruz, Santos, Juan,', 'masterlist_active' => true]);
     }
 
-    private function registrationData(array $overrides = []): array
+    private function proofData(): array
     {
-        return array_merge([
-            'student_number' => '2026-0001',
-            'lrn' => '123456789012',
-            'name' => 'Juan Santos Dela Cruz',
-            'email' => 'STUDENT@GMAIL.COM',
-            'password' => 'Strong Student!2026',
-            'password_confirmation' => 'Strong Student!2026',
-        ], $overrides);
+        return [
+            'student_number' => '2026-0001', 'first_name' => 'Juan', 'last_name' => 'Dela Cruz',
+            'email' => 'student@gmail.com', 'school_id' => UploadedFile::fake()->image('school-id.jpg'),
+            'school_id_selfie' => UploadedFile::fake()->image('selfie.jpg'),
+        ];
     }
 
-    private function verificationCodeFromNotification(): string
+    private function pendingVerification(): array
     {
-        $verificationCode = '';
+        $student = $this->officialStudent();
+        $response = $this->post(route('student.registration.lookup'), $this->proofData());
+        $token = basename((string) parse_url($response->headers->get('Location'), PHP_URL_PATH));
 
-        Notification::assertSentOnDemand(
-            VerifyStudentAccountCode::class,
-            function (VerifyStudentAccountCode $notification, array $channels, AnonymousNotifiable $notifiable) use (&$verificationCode): bool {
-                $verificationCode = $notification->verificationCode;
-
-                return $notifiable->routes['mail'] === 'student@gmail.com';
-            }
-        );
-
-        return $verificationCode;
-    }
-
-    private function genericStatus(): string
-    {
-        return 'If the details match an eligible official student record, a verification code has been sent to the Gmail address.';
+        return [$student->fresh(), $token];
     }
 }

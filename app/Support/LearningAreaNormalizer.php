@@ -16,6 +16,7 @@ final class LearningAreaNormalizer
         'art' => 'Art',
         'physical education' => 'P.E.',
         'edukasyon sa pagpapakatao' => 'Edukasyon sa Pagpapakatao',
+        'cptle' => 'CP/ T. L. E.',
     ];
 
     private const ALIASES = [
@@ -25,6 +26,12 @@ final class LearningAreaNormalizer
         'pe' => 'physical education',
         'p e' => 'physical education',
         'arts' => 'art',
+        'tle' => 'cptle',
+        't l e' => 'cptle',
+        'cp tle' => 'cptle',
+        'cp t l e' => 'cptle',
+        'c p tle' => 'cptle',
+        'c p t l e' => 'cptle',
     ];
 
     private const SUMMARY_FIELDS = [

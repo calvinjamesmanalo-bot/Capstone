@@ -61,6 +61,17 @@ class RequestPricingManagementTest extends TestCase
             ];
             if ($name === 'Form 137') {
                 $payload['school_level'] = 'elementary';
+                $payload['request_purpose'] = 'transfer_enrollment';
+                $payload['purpose_details'] = 'Enrollment at another school';
+                $payload['receiving_school_name'] = 'Receiving School';
+                $payload['receiving_address_scope'] = 'domestic';
+                $payload['receiving_school_street'] = 'School Address';
+                $payload['receiving_barangay'] = 'San Jose';
+                $payload['receiving_city'] = 'City of Dasmariñas';
+                $payload['receiving_province'] = 'Cavite';
+                $payload['receiving_region_code'] = '0400000000';
+                $payload['request_proof'] = UploadedFile::fake()->create('school-request.pdf', 50, 'application/pdf');
+                $payload['delivery_method'] = 'school_to_school';
             }
             if ($name === 'Form 138') {
                 $payload['school_year'] = config('academics.school_years')[0];

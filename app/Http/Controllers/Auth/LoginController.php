@@ -10,6 +10,8 @@ use App\Support\TurnstileVerifier;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -181,9 +183,16 @@ class LoginController extends Controller
         try {
             $authenticated = Auth::attempt($loginCredentials, $remember);
         } catch (\RuntimeException) {
-            // Strict Argon2id verification rejects legacy hashes. The same public
-            // response is used; affected users can securely reset their password.
-            $authenticated = false;
+            // A previous bulk importer used Argon2id directly. Some deployments
+            // use a different configured driver with strict verification, so let
+            // PHP verify that known hash once, then migrate it to Laravel's active
+            // driver before completing authentication.
+            $authenticated = $this->migrateGeneratedStudentHash(
+                $identifier,
+                $credentials['password'],
+                $credentials['account_type'],
+                $remember
+            );
         }
 
         if ($authenticated) {
@@ -201,6 +210,30 @@ class LoginController extends Controller
                 );
 
                 return $this->failedLoginResponse();
+            }
+
+            if ($user->role === 'student'
+                && $user->must_change_password
+                && $this->isLegacyPredictablePassword($user, $credentials['password'])) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return back()->withErrors([
+                    'identifier' => 'For your security, the old initials-based password is no longer accepted. Please ask the Registrar for a new random temporary password.',
+                ])->onlyInput('identifier', 'account_type');
+            }
+
+            if ($user->role === 'student'
+                && $user->must_change_password
+                && $user->updated_at?->lt(now()->subDays(7))) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return back()->withErrors([
+                    'identifier' => 'Your temporary password has expired. Please ask the Registrar to issue a new one.',
+                ])->onlyInput('identifier', 'account_type');
             }
 
             $security->clearAccount($identifier);
@@ -236,6 +269,58 @@ class LoginController extends Controller
             'admin' => $user->role === 'admin',
             default => false,
         };
+    }
+
+    private function isLegacyPredictablePassword(User $user, string $plainPassword): bool
+    {
+        $name = trim((string) $user->student?->name);
+        if ($name === '') {
+            return false;
+        }
+        if (str_contains($name, ',')) {
+            [$lastName, $givenNames] = array_pad(array_map('trim', explode(',', $name, 2)), 2, '');
+            $name = trim($givenNames.' '.$lastName);
+        }
+
+        $initials = '';
+        foreach (preg_split('/[^\pL\pN]+/u', $name) ?: [] as $word) {
+            if ($word !== '' && ! in_array(mb_strtoupper($word), ['JR', 'SR', 'II', 'III', 'IV', 'V'], true)) {
+                $initials .= mb_strtoupper(mb_substr($word, 0, 1));
+            }
+        }
+
+        return $initials !== ''
+            && hash_equals($initials.(string) $user->student_number, $plainPassword);
+    }
+
+    private function migrateGeneratedStudentHash(
+        string $identifier,
+        string $plainPassword,
+        string $accountType,
+        bool $remember
+    ): bool {
+        if ($accountType !== 'student') {
+            return false;
+        }
+
+        $user = User::query()
+            ->where('role', 'student')
+            ->where('student_number', $identifier)
+            ->first();
+
+        if (! $user || ! password_verify($plainPassword, (string) $user->getRawOriginal('password'))) {
+            return false;
+        }
+
+        $configuredHash = Hash::driver((string) config('hashing.driver', 'argon2id'))
+            ->make($plainPassword);
+        DB::table('users')->where('id', $user->getKey())->update([
+            'password' => $configuredHash,
+            'updated_at' => now(),
+        ]);
+        Auth::login($user, $remember);
+
+        return true;
     }
 
     private function looksAutomated(array $credentials): bool

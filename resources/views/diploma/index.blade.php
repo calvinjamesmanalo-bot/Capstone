@@ -8,7 +8,7 @@
     $isProcessed = $docRequest && in_array($docRequest->status, ['processed', 'ready_to_release', 'completed'], true);
     $requirements = [
         'Completed all academic units',
-        'Financial clearance (no balance)',
+        'Registrar clearance',
         'Library clearance (returned books)',
         'Final grades submitted and verified',
     ];
@@ -56,10 +56,22 @@
                 </div>
                 <div class="flex flex-col gap-4 border-t border-slate-100 pt-8 sm:flex-row sm:items-center sm:justify-between">
                     <p class="text-xs font-semibold text-slate-500">No PDF, preview, or digital diploma will be generated.</p>
-                    <button type="submit" @disabled($isProcessed) class="rounded-2xl bg-emerald-600 px-8 py-4 text-xs font-black uppercase tracking-wide text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">{{ $isProcessed ? 'Already forwarded' : 'Forward physical request' }}</button>
+                    <button id="diploma-forward" type="submit" disabled class="rounded-2xl bg-emerald-600 px-8 py-4 text-xs font-black uppercase tracking-wide text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">{{ $isProcessed ? 'Already forwarded' : 'Forward physical request' }}</button>
                 </div>
             </form>
         @endif
     </div>
 </div>
+@if($docRequest && !$isProcessed)
+<script>
+    (() => {
+        const form = document.querySelector('form[action="{{ route('diploma.submit') }}"]');
+        const button = document.getElementById('diploma-forward');
+        const checks = form?.querySelectorAll('input[name="checklist[]"]') ?? [];
+        const sync = () => { button.disabled = !Array.from(checks).every((check) => check.checked); };
+        checks.forEach((check) => check.addEventListener('change', sync));
+        sync();
+    })();
+</script>
+@endif
 @endsection

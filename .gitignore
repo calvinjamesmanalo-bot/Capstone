@@ -6,6 +6,9 @@
 /storage/app/backup-staging-*/
 /storage/app/restore-test-*/
 .env.production
+/*.sql
+*.sql.gz
+*.sql.zip
 .phpactor.json
 .phpunit.result.cache
 /.fleet

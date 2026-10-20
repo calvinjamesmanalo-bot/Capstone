@@ -10,14 +10,16 @@ use App\Models\Student as RequestStudent;
 use App\Support\AcademicPeriod;
 use App\Support\CurriculumSubjects;
 use App\Support\DocumentIssuanceService;
+use App\Support\DocumentQrCode;
+use App\Support\GeneratedPdfProtection;
 use App\Support\GradeSheetImporter;
 use App\Support\GradeSheetRecordImporter;
 use App\Support\LearningAreaNormalizer;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -54,36 +56,62 @@ class SchoolFormF138Controller extends Controller
         }
 
         $items = [];
-        $slots = [];
+        $skipped = [];
+        $batchSlotsKey = $request->filled('batch_token')
+            ? 'grade-auto-batch-slots:'.sha1($request->user()->id.'|'.$request->input('batch_token'))
+            : null;
+        $slots = $batchSlotsKey ? Cache::get($batchSlotsKey, []) : [];
         foreach ($request->file('auto_files', []) as $file) {
             try {
                 $destination = $importer->destination($file->getRealPath(), $file->getClientOriginalName());
             } catch (RuntimeException $exception) {
-                throw ValidationException::withMessages([
-                    'auto_files' => $file->getClientOriginalName().': '.$exception->getMessage(),
-                ]);
+                $skipped[] = [
+                    'file' => $file->getClientOriginalName(),
+                    'reason' => $exception->getMessage(),
+                ];
+
+                continue;
             }
 
-            $slot = implode('|', [$destination['schoolYear'], $destination['level'], $destination['section'], $destination['period'], $destination['type']]);
-            if (isset($slots[$slot])) {
-                throw ValidationException::withMessages([
-                    'auto_files' => "Duplicate destination: {$file->getClientOriginalName()} and {$slots[$slot]} both map to the same workbook slot.",
-                ]);
+            $destinations = [$destination];
+            if ($destination['type'] === 'summary' && $destination['period'] === 4
+                && $importer->includesAnnualAttendance($file->getRealPath())) {
+                $destinations[] = array_merge($destination, ['type' => 'attendance', 'period' => 0]);
             }
-            $slots[$slot] = $file->getClientOriginalName();
-            $items[] = ['file' => $file] + $destination;
+            $detectedSlots = collect($destinations)->mapWithKeys(function (array $detectedDestination) {
+                $slot = implode('|', [$detectedDestination['schoolYear'], $detectedDestination['level'], $detectedDestination['section'], $detectedDestination['period'], $detectedDestination['type']]);
+
+                return [$slot => $detectedDestination];
+            });
+            $duplicateSlot = $detectedSlots->keys()->first(fn (string $slot) => isset($slots[$slot]));
+            if ($duplicateSlot) {
+                $skipped[] = [
+                    'file' => $file->getClientOriginalName(),
+                    'reason' => "Same destination as {$slots[$duplicateSlot]}; the first selected workbook was kept.",
+                ];
+
+                continue;
+            }
+
+            foreach ($detectedSlots as $slot => $detectedDestination) {
+                $slots[$slot] = $file->getClientOriginalName();
+                $items[] = ['file' => $file] + $detectedDestination;
+            }
         }
 
-        $existing = GradeSheetUpload::query()->where(function ($query) use ($items) {
-            foreach ($items as $item) {
-                $query->orWhere(fn ($slot) => $slot
-                    ->where('school_year', $item['schoolYear'])
-                    ->where('level', $item['level'])
-                    ->where('section', $item['section'])
-                    ->where('grading_period', $item['period'])
-                    ->where('file_type', $item['type']));
-            }
-        })->get();
+        $existing = collect();
+        if ($items !== []) {
+            $existing = GradeSheetUpload::query()->where(function ($query) use ($items) {
+                foreach ($items as $item) {
+                    $query->orWhere(fn ($slot) => $slot
+                        ->where('school_year', $item['schoolYear'])
+                        ->where('level', $item['level'])
+                        ->where('section', $item['section'])
+                        ->where('grading_period', $item['period'])
+                        ->where('file_type', $item['type']));
+                }
+            })->get();
+        }
 
         if ($existing->isNotEmpty() && ! $request->boolean('replace_existing')) {
             throw ValidationException::withMessages([
@@ -93,14 +121,16 @@ class SchoolFormF138Controller extends Controller
 
         $newPaths = [];
         $oldPaths = [];
+        $recordConflicts = [];
         try {
-            DB::connection('school_forms')->transaction(function () use ($items, $recordImporter, &$newPaths, &$oldPaths): void {
+            DB::connection('school_forms')->transaction(function () use ($items, $recordImporter, &$newPaths, &$oldPaths, &$recordConflicts): void {
                 foreach ($items as $item) {
-                    [$newPath, $oldPath] = $this->importFile(
+                    [$newPath, $oldPath, $importResult] = $this->importFile(
                         $item['file'], $item['type'], $item['period'], $item['schoolYear'],
-                        $item['level'], $item['section'], $recordImporter,
+                        $item['level'], $item['section'], $recordImporter, true,
                     );
                     $newPaths[] = $newPath;
+                    $recordConflicts = array_merge($recordConflicts, $importResult['conflicts']);
                     if ($oldPath && $oldPath !== $newPath) {
                         $oldPaths[] = $oldPath;
                     }
@@ -115,15 +145,23 @@ class SchoolFormF138Controller extends Controller
         }
 
         Storage::disk('school_forms_local')->delete(array_unique($oldPaths));
+        if ($batchSlotsKey) {
+            Cache::put($batchSlotsKey, $slots, now()->addHours(12));
+        }
         $classes = collect($items)->map(fn (array $item) => "{$item['schoolYear']} {$item['level']}-{$item['section']}")->unique()->count();
 
-        $message = count($items)." workbook(s) automatically identified and imported into {$classes} class(es). {$existing->count()} existing slot(s) replaced.";
+        $workbookCount = collect($items)->map(fn (array $item) => spl_object_id($item['file']))->unique()->count();
+        $message = $workbookCount." workbook(s) automatically identified and imported into {$classes} class(es). {$existing->count()} existing slot(s) replaced. ".count($skipped).' duplicate or unreadable workbook(s) skipped. '.count($recordConflicts).' conflicting student record(s) skipped.';
         if ($request->expectsJson()) {
             $result = [
                 'message' => $message,
-                'uploaded' => count($items),
+                'uploaded' => $workbookCount,
                 'classes' => $classes,
                 'replaced' => $existing->count(),
+                'skipped' => count($skipped),
+                'skip_details' => $skipped,
+                'skipped_students' => count($recordConflicts),
+                'student_conflicts' => $recordConflicts,
             ];
             if ($cacheKey) {
                 Cache::put($cacheKey, $result, now()->addHours(12));
@@ -166,7 +204,7 @@ class SchoolFormF138Controller extends Controller
         $periodNumbers = AcademicPeriod::numbers($schoolYear, $level);
         $files = [];
 
-        foreach (['summary_files', 'attendance_files'] as $field) {
+        foreach (['summary_files'] as $field) {
             foreach (array_keys($request->file($field, [])) as $period) {
                 if (! in_array((int) $period, $periodNumbers, true)) {
                     throw ValidationException::withMessages([
@@ -177,11 +215,29 @@ class SchoolFormF138Controller extends Controller
         }
 
         foreach ($periodNumbers as $period) {
-            foreach (['summary', 'attendance'] as $type) {
-                $file = $request->file("{$type}_files.{$period}");
-                if ($file) {
-                    $files[] = compact('file', 'type', 'period');
-                }
+            $file = $request->file("summary_files.{$period}");
+            if ($file) {
+                $type = 'summary';
+                $files[] = compact('file', 'type', 'period');
+            }
+        }
+
+        $attendanceFiles = collect($request->file('attendance_files', []))->filter();
+        if ($attendanceFiles->count() > 1) {
+            throw ValidationException::withMessages(['grade_sheets' => 'Upload only one attendance workbook containing June through April for the whole school year.']);
+        }
+        if ($attendanceFiles->isNotEmpty()) {
+            $file = $attendanceFiles->first();
+            $type = 'attendance';
+            $period = 0;
+            $files[] = compact('file', 'type', 'period');
+        } else {
+            $fourthPeriodFile = $request->file('summary_files.4');
+            if ($fourthPeriodFile && $importer->includesAnnualAttendance($fourthPeriodFile->getRealPath())) {
+                $file = $fourthPeriodFile;
+                $type = 'attendance';
+                $period = 0;
+                $files[] = compact('file', 'type', 'period');
             }
         }
 
@@ -270,10 +326,10 @@ class SchoolFormF138Controller extends Controller
         }
 
         Storage::disk('school_forms_local')->delete(array_unique($oldPaths));
-        $periods = collect($files)->pluck('period')->unique()->sort()->map(
-            fn (int $period) => AcademicPeriod::label($schoolYear, $period, $level)
-        )->join(', ');
-        $uploadedCount = count($files);
+        $periods = collect($files)->map(fn (array $item) => $item['type'] === 'attendance'
+            ? 'Whole-school-year attendance'
+            : AcademicPeriod::label($schoolYear, $item['period'], $level))->unique()->join(', ');
+        $uploadedCount = collect($files)->map(fn (array $item) => spl_object_id($item['file']))->unique()->count();
         $replacementCount = $replacements->count();
         $sampleEnrollment = StudentEnrollment::query()
             ->with('student')
@@ -461,6 +517,32 @@ class SchoolFormF138Controller extends Controller
             ];
         }
 
+        // For Junior High School, the Q4 CARD JHS worksheet is the official
+        // consolidated card source. Prefer its four grading periods, subject
+        // order, and annual attendance when it is available.
+        $gradeNumber = (int) filter_var((string) $enrollment->level, FILTER_SANITIZE_NUMBER_INT);
+        if ($gradeNumber >= 7 && $gradeNumber <= 10) {
+            $q4Upload = GradeSheetUpload::query()->where([
+                'school_year' => $enrollment->school_year,
+                'level' => $enrollment->level,
+                'section' => $enrollment->section,
+                'grading_period' => 4,
+                'file_type' => 'summary',
+            ])->latest('id')->first();
+            if ($q4Upload && Storage::disk('school_forms_local')->exists($q4Upload->stored_path)) {
+                $card = app(GradeSheetImporter::class)->jhsReportCard(
+                    Storage::disk('school_forms_local')->path($q4Upload->stored_path),
+                    $student->student_number ?: $student->lrn,
+                );
+                if (($card['grades'] ?? []) !== []) {
+                    $gradeMatrix = $card['grades'];
+                }
+                if (($card['attendance'] ?? []) !== []) {
+                    $attendance = $card['attendance'];
+                }
+            }
+        }
+
         return [$student, $enrollment, $gradeMatrix, $attendance];
     }
 
@@ -490,7 +572,7 @@ class SchoolFormF138Controller extends Controller
         ];
     }
 
-    private function importFile($file, string $type, int $period, string $schoolYear, string $level, string $section, GradeSheetRecordImporter $importer): array
+    private function importFile($file, string $type, int $period, string $schoolYear, string $level, string $section, GradeSheetRecordImporter $importer, bool $skipEnrollmentConflicts = false): array
     {
         if (! $file) {
             throw new RuntimeException("Missing {$type} file for grading period {$period}.");
@@ -510,25 +592,28 @@ class SchoolFormF138Controller extends Controller
         $upload->fill(['original_name' => $file->getClientOriginalName(), 'stored_path' => $path])->save();
 
         try {
-            $importer->import(
+            $importResult = $importer->import(
                 Storage::disk('school_forms_local')->path($path),
                 $type,
                 $period,
                 $schoolYear,
                 $level,
                 $section,
+                $skipEnrollmentConflicts,
             );
         } catch (Throwable $exception) {
             Storage::disk('school_forms_local')->delete($path);
             throw $exception;
         }
 
-        return [$path, $oldPath];
+        return [$path, $oldPath, $importResult];
     }
 
     private function uploadSlotLabel(string $schoolYear, string $level, int $period, string $type): string
     {
-        return AcademicPeriod::label($schoolYear, $period, $level).' '.ucfirst($type);
+        return $type === 'attendance'
+            ? "{$schoolYear} whole-school-year attendance"
+            : AcademicPeriod::label($schoolYear, $period, $level).' '.ucfirst($type);
     }
 
     private function ensureTeacherName(StudentEnrollment $enrollment): void
@@ -561,7 +646,7 @@ class SchoolFormF138Controller extends Controller
             ->where('school_year', $enrollment->school_year)
             ->latest('id')
             ->value('id');
-        $qr = app(\App\Support\DocumentQrCode::class)->make('Form 138', $student->name, [
+        $qr = app(DocumentQrCode::class)->make('Form 138', $student->name, [
             'request_id' => $requestId,
             'holder_identifier' => $student->student_number ?? $student->lrn,
             'issued_at' => now(),
@@ -574,7 +659,7 @@ class SchoolFormF138Controller extends Controller
             ],
         ]);
         $disposition = $download ? 'attachment' : 'inline';
-        $bytes = app(\App\Support\GeneratedPdfProtection::class)->protect(
+        $bytes = app(GeneratedPdfProtection::class)->protect(
             $qr['document'],
             $this->renderPdfBytes($student, $enrollment, $gradeMatrix, $attendance, $requestId, 'generated', $qr),
             $filename,

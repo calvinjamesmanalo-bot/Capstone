@@ -59,6 +59,35 @@ class ShsF138DocumentTest extends TestCase
         $this->assertStringContainsString('GENERAL MATHEMATICS', $html);
     }
 
+    public function test_full_shs_report_card_with_qr_stays_on_one_readable_page(): void
+    {
+        $subjects = ['Earth and Life Science', 'Empowerment Technologies', 'General Mathematics', 'Komunikasyon at Pananaliksik', 'Oral Communication', 'Personal Development', 'Physical Education and Health', 'Physical Science', 'Practical Research', 'Reading and Writing', 'Statistics and Probability', 'Understanding Culture Society and Politics'];
+        $grades = [];
+        foreach ($subjects as $index => $subject) {
+            $grades[$subject] = [1 => 84 + $index % 10, 2 => 85 + $index % 10, 3 => 86 + $index % 10, 4 => 87 + $index % 10];
+        }
+        $attendance = collect(['June','July','August','September','October','November','December','January','February','March','April','May'])
+            ->mapWithKeys(fn ($month) => [$month => ['school_days' => 20, 'days_present' => 19]])->all();
+        $svg = base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220"><rect width="220" height="220" fill="white"/><rect x="10" y="10" width="200" height="200" fill="black"/></svg>');
+        $html = view('school-forms.pdf.f138-shs-semester-template', [
+            'student' => (object) ['student_number' => 'TEST-CJM-2026', 'lrn' => '999999999999', 'name' => 'Manalo, Calvin James'],
+            'enrollment' => (object) ['school_year' => '2024-2025', 'level' => 'Grade 11', 'section' => 'St. Augustine', 'adviser_name' => 'Demo Adviser 12'],
+            'gradeMatrix' => $grades,
+            'attendance' => $attendance,
+            'documentMode' => 'generated',
+            'requestId' => null,
+            'documentQr' => ['data_uri' => 'data:image/svg+xml;base64,'.$svg, 'reference' => 'F138-TEST-ONEPAGE', 'document' => (object) ['content_hash' => str_repeat('a', 64)]],
+        ])->render();
+        $pdf = new \Dompdf\Dompdf;
+        $pdf->loadHtml($html);
+        $pdf->setPaper('a4', 'portrait');
+        $pdf->render();
+
+        $this->assertSame(1, $pdf->getCanvas()->get_page_count());
+        $this->assertStringContainsString('width: 100px', $html);
+        $this->assertStringContainsString('GENERAL WEIGHTED AVERAGE', $html);
+    }
+
     public function test_grade_portal_uses_section_specific_shs_subjects(): void
     {
         $this->assertContains('Finite Mathematics 1', CurriculumSubjects::for('Grade 11', 'Aristotle'));

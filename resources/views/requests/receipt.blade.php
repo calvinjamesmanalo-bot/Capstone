@@ -23,6 +23,10 @@
         'processing' => 'Processing',
         'processed' => 'Processed',
         'ready_to_release' => 'Ready for Release',
+        'ready_for_transmission' => 'Ready for Transmission',
+        'transmitted' => 'Transmitted',
+        'ready_for_pickup' => 'Ready for Pickup',
+        'claimed' => 'Claimed',
         'completed' => 'Released',
         'rejected' => 'Rejected',
         default => ucfirst(str_replace('_', ' ', $requestDocument->status ?: 'unknown')),
@@ -67,6 +71,9 @@
                     @if($schoolProfile['school_id'])
                         <p class="mt-1 text-xs font-semibold text-slate-500">School ID: {{ $schoolProfile['school_id'] }}</p>
                     @endif
+                    @if($schoolProfile['address'])
+                        <p class="mt-1 text-sm text-slate-600">{{ $schoolProfile['address'] }}</p>
+                    @endif
                 </div>
             </div>
         </header>
@@ -103,6 +110,13 @@
                 <div class="receipt-row grid gap-1 px-4 py-3 sm:grid-cols-[190px_1fr]"><dt class="text-sm font-medium text-slate-500">Requested Document</dt><dd class="font-semibold text-slate-900">{{ $requestDocument->document_type }}</dd></div>
                 @if($requestDocument->school_year)
                     <div class="receipt-row grid gap-1 px-4 py-3 sm:grid-cols-[190px_1fr]"><dt class="text-sm font-medium text-slate-500">School Year</dt><dd class="font-semibold text-slate-900">{{ $requestDocument->school_year }}</dd></div>
+                @endif
+                @if($requestDocument->request_purpose)
+                    <div class="receipt-row grid gap-1 px-4 py-3 sm:grid-cols-[190px_1fr]"><dt class="text-sm font-medium text-slate-500">Purpose</dt><dd class="font-semibold text-slate-900">{{ match($requestDocument->request_purpose) { 'employment' => 'Employment'.($requestDocument->employer_name ? ' — '.$requestDocument->employer_name : ''), 'transfer_enrollment' => 'Transfer / Enrollment', 'other' => 'Other valid purpose', default => ucfirst(str_replace('_', ' ', $requestDocument->request_purpose)) } }}</dd></div>
+                    @if($requestDocument->receiving_school_name)<div class="receipt-row grid gap-1 px-4 py-3 sm:grid-cols-[190px_1fr]"><dt class="text-sm font-medium text-slate-500">Receiving School</dt><dd class="font-semibold text-slate-900">{{ $requestDocument->receiving_school_name }}<br><span class="font-normal text-slate-600">{{ $requestDocument->receiving_school_address }}</span></dd></div>@endif
+                @endif
+                @if($requestDocument->is_f137_employment_exception)
+                    <div class="receipt-row grid gap-1 px-4 py-3 sm:grid-cols-[190px_1fr]"><dt class="text-sm font-medium text-slate-500">Exception Review</dt><dd class="font-semibold text-slate-900">{{ $requestDocument->exception_approved_at ? 'Approved by Registrar' : 'Pending Registrar approval' }}</dd></div>
                 @endif
                 <div class="receipt-row grid gap-1 px-4 py-3 sm:grid-cols-[190px_1fr]"><dt class="text-sm font-medium text-slate-500">Amount</dt><dd class="font-semibold text-slate-900">{{ $requestDocument->document_price !== null ? '₱'.number_format((float) $requestDocument->document_price, 2) : 'Not recorded' }}</dd></div>
                 <div class="receipt-row grid gap-1 px-4 py-3 sm:grid-cols-[190px_1fr]"><dt class="text-sm font-medium text-slate-500">Payment Method</dt><dd class="font-semibold text-slate-900">{{ $paymentMethod }}</dd></div>

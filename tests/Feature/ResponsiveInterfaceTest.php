@@ -52,7 +52,7 @@ class ResponsiveInterfaceTest extends TestCase
             ->assertSee('for="request-status-'.$request->id.'"', false)
             ->assertSee('for="status-remarks-'.$request->id.'"', false)
             ->assertSee('for="clearance-status-'.$request->id.'"', false)
-            ->assertSee('for="financial-balance-'.$request->id.'"', false)
+            ->assertDontSee('financial_balance', false)
             ->assertSee('aria-label="Update status for request', false)
             ->assertSee('aria-label="Open certification maker for request', false);
     }
@@ -65,17 +65,15 @@ class ResponsiveInterfaceTest extends TestCase
 
         $response->assertOk()
             ->assertSee('aria-label="Active request cards"', false)
-            ->assertSee('xl:grid-cols-2', false)
-            ->assertSee('border-l-amber-300', false)
+            ->assertSee('lg:grid-cols-2', false)
+            ->assertSee('border-l-amber-400', false)
             ->assertDontSee('border-b-4 border-[#ffd22d]', false)
             ->assertSee('All active')
-            ->assertSee('Ticket '.$request->ticket_number)
-            ->assertSee('Requested document')
-            ->assertSee('Accounting check')
+            ->assertSee($request->ticket_number)
+            ->assertSee('New Request')
+            ->assertSee('Open Request')
             ->assertSee('Next step')
-            ->assertSee('Start processing')
-            ->assertSee('Reject request')
-            ->assertSee('More filters: status, document, payment, delivery, school year')
+            ->assertSee('Show more search options')
             ->assertDontSee('aria-label="Request management table"', false);
     }
 
@@ -88,7 +86,7 @@ class ResponsiveInterfaceTest extends TestCase
             ->assertOk()
             ->assertSee('aria-label="Step 1: Choose document"', false)
             ->assertSee('for="school_year"', false)
-            ->assertSee('for="transcript_receipt"', false)
+            ->assertSee('for="school_id_proof"', false)
             ->assertSee('request-a11y', false);
 
         $this->get(route('student.my-requests'))
@@ -96,7 +94,7 @@ class ResponsiveInterfaceTest extends TestCase
             ->assertSee('request-a11y', false)
             ->assertSee('min-w-0 p-5 sm:p-10', false)
             ->assertSee('Pending')
-            ->assertSee('View Transcript Receipt');
+            ->assertSee('View School ID Proof');
     }
 
     public function test_receipt_and_dashboard_have_mobile_actions_and_accessible_status(): void

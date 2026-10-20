@@ -22,7 +22,35 @@ class Student extends Model
         'lrn',
         'name',
         'official_email',
+        'masterlist_import_id',
+        'masterlist_school_year',
+        'masterlist_campus',
+        'masterlist_grade_level',
+        'masterlist_section',
+        'gender',
+        'masterlist_active',
+        'registration_code_hash',
+        'registration_code_expires_at',
+        'account_verification_status',
+        'account_verification_email',
+        'school_id_path',
+        'school_id_selfie_path',
+        'account_verification_token_hash',
+        'account_verification_expires_at',
+        'account_verification_reviewed_by',
+        'account_verification_reviewed_at',
+        'account_verification_notes',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'masterlist_active' => 'boolean',
+            'registration_code_expires_at' => 'datetime',
+            'account_verification_expires_at' => 'datetime',
+            'account_verification_reviewed_at' => 'datetime',
+        ];
+    }
 
     public function resolvedLrn(): ?string
     {
@@ -45,7 +73,8 @@ class Student extends Model
 
     public function user()
     {
-        return $this->hasOne(User::class, 'student_number', 'student_number');
+        return $this->hasOne(User::class, 'student_number', 'student_number')
+            ->where('role', 'not like', 'archived_%');
     }
 
     public function grades()

@@ -263,6 +263,73 @@ class LoginSecurityTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
+    public function test_generated_student_hash_from_a_different_driver_is_migrated_on_login(): void
+    {
+        config(['hashing.driver' => 'bcrypt', 'hashing.verify' => true]);
+        Hash::clearResolvedInstance('hash');
+        $student = Student::create([
+            'student_number' => '2026-0635',
+            'name' => 'Reyes,,Juan Pedro,',
+            'official_email' => '2026-0635@student.fiatlux.local',
+        ]);
+        $user = User::factory()->create([
+            'role' => 'student',
+            'student_number' => $student->student_number,
+            'email' => $student->official_email,
+            'must_change_password' => true,
+            'password' => Hash::driver('bcrypt')->make('unused-password'),
+        ]);
+        $legacyHash = password_hash('K7mP-4QxR-9Tva', PASSWORD_ARGON2ID, [
+            'memory_cost' => 8192,
+            'time_cost' => 1,
+            'threads' => 1,
+        ]);
+        \DB::table('users')->where('id', $user->id)->update(['password' => $legacyHash]);
+
+        $this->login($student->student_number, 'K7mP-4QxR-9Tva')
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertAuthenticatedAs($user);
+        $this->assertStringStartsWith('$2y$', (string) $user->fresh()->getRawOriginal('password'));
+    }
+
+    public function test_predictable_initials_password_does_not_repair_an_out_of_sync_generated_account(): void
+    {
+        $student = Student::create([
+            'student_number' => '20260635',
+            'name' => 'Reyes,,Juan Pedro R.,',
+            'official_email' => '20260635@student.fiatlux.local',
+        ]);
+        $user = User::factory()->create([
+            'role' => 'student',
+            'student_number' => $student->student_number,
+            'email' => $student->official_email,
+            'must_change_password' => true,
+            'password' => Hash::make('JPRR20260635'),
+        ]);
+
+        $this->login('20260635', 'JPRR20260635')->assertSessionHasErrors('identifier');
+        $this->assertGuest();
+        $this->assertTrue(Hash::check('JPRR20260635', $user->fresh()->password));
+    }
+
+    public function test_expired_temporary_password_is_rejected_after_seven_days(): void
+    {
+        $student = Student::create(['student_number' => 'EXP-100', 'name' => 'Expired,,Student,', 'official_email' => 'exp-100@student.fiatlux.local']);
+        $user = User::factory()->create([
+            'role' => 'student',
+            'student_number' => $student->student_number,
+            'email' => $student->official_email,
+            'password' => Hash::make('TEMP-ACCESS-1'),
+            'must_change_password' => true,
+            'updated_at' => now()->subDays(8),
+        ]);
+
+        $this->login($user->student_number, 'TEMP-ACCESS-1')
+            ->assertSessionHasErrors(['identifier' => 'Your temporary password has expired. Please ask the Registrar to issue a new one.']);
+        $this->assertGuest();
+    }
+
     public function test_admin_uses_password_and_turnstile_without_an_access_code(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'remember_token' => null]);
@@ -295,7 +362,8 @@ class LoginSecurityTest extends TestCase
             ->assertSee("window.turnstile.execute('#turnstile-widget')", false)
             ->assertDontSee('Quick access for testing')
             ->assertSee('Remember me')
-            ->assertSee('Create Student Account')
+            ->assertSee('Student accounts are issued by the school')
+            ->assertDontSee('Create Student Account')
             ->assertDontSee('overflow-y-auto', false)
             ->assertDontSee('aria-label="Account login portals"', false)
             ->assertDontSee('name="account_type"', false)

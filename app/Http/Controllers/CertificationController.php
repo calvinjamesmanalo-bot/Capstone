@@ -8,10 +8,14 @@ use App\Models\Student;
 use App\Support\DocumentIssuanceService;
 use App\Support\DocumentQrCode;
 use App\Support\GeneratedPdfProtection;
+use App\Support\RequestNotificationService;
+use App\Support\RequestStatusTransitions;
+use App\Support\SystemContent;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Throwable;
@@ -96,9 +100,14 @@ class CertificationController extends Controller
     public function preview(Request $request)
     {
         $this->authorizeStaff();
-        $data = $this->viewData($this->validatedForm($request));
+        $form = $this->validatedForm($request);
+        $data = $this->viewData($form);
         $data['documentMode'] = 'draft';
         if (($data['form']['request_id'] ?? '') !== '') {
+            $documentRequest = RequestDocument::findOrFail($data['form']['request_id']);
+            if (! $documentRequest->hasPreparedDocument()) {
+                $this->protectedPdf($data, $form);
+            }
             record_log('Draft Generated', 'Document Issuance', "Generated certificate draft for request #{$data['form']['request_id']}");
         }
 
@@ -110,6 +119,63 @@ class CertificationController extends Controller
         $this->authorizeStaff();
         $form = $this->validatedForm($request);
         $data = $this->viewData($form);
+        [$bytes, $filename] = $this->protectedPdf($data, $form);
+
+        $disposition = $request->input('output') !== 'stream' ? 'attachment' : 'inline';
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, private',
+        ]);
+    }
+
+    public function forward(Request $request, RequestStatusTransitions $transitions, RequestNotificationService $notifications)
+    {
+        abort_unless($request->user()?->role === 'records_officer', 403);
+        $form = $this->validatedForm($request);
+        abort_if($form['request_id'] === '', 422, 'An existing certificate request is required.');
+
+        $documentRequest = RequestDocument::with('student')->findOrFail($form['request_id']);
+        $data = $this->viewData($form);
+        abort_unless($documentRequest->document_type === $data['certificate']['label'], 422, 'The request document type does not match this certificate.');
+        abort_unless($documentRequest->student_number === $form['student_number'], 422, 'The request student does not match this certificate.');
+        abort_unless(in_array($documentRequest->status, ['pending', 'processing'], true), 422, 'This certificate is no longer awaiting preparation.');
+
+        if (! $documentRequest->hasPreparedDocument()) {
+            $this->protectedPdf($data, $form);
+            $documentRequest->refresh();
+        }
+        abort_unless($documentRequest->hasPreparedDocument(), 422, 'The protected certificate could not be prepared.');
+
+        DB::transaction(function () use ($documentRequest, $request, $transitions): void {
+            $locked = RequestDocument::query()->lockForUpdate()->findOrFail($documentRequest->id);
+            if ($locked->status === 'pending') {
+                $transitions->validate($locked, $request->user(), 'processing', null);
+                $locked->update([
+                    'status' => 'processing',
+                    'remarks' => 'Records Officer prepared the certificate.',
+                ]);
+                $locked->refresh();
+            }
+
+            $transitions->validate($locked, $request->user(), 'processed', null);
+            $locked->update([
+                'status' => 'processed',
+                'remarks' => 'Certificate prepared and forwarded to the Registrar for review.',
+            ]);
+        });
+
+        $documentRequest->refresh();
+        $notifications->statusChanged($documentRequest);
+        record_log('Forwarded Certificate', 'Requests', "Forwarded Request #{$documentRequest->id} to the Registrar for review");
+
+        return redirect()->route('requests.index', ['open_request' => $documentRequest->id])
+            ->with('success', 'Certificate forwarded to the Registrar for review.');
+    }
+
+    private function protectedPdf(array $data, array $form): array
+    {
         $data['documentMode'] = 'generated';
         $data['documentQr'] = app(DocumentQrCode::class)->make($data['certificate']['label'], $form['student_name'], [
             'request_id' => $form['request_id'] ?: null,
@@ -131,13 +197,7 @@ class CertificationController extends Controller
             $filename,
         );
 
-        $disposition = $request->input('output') !== 'stream' ? 'attachment' : 'inline';
-
-        return response($bytes, 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
-            'Cache-Control' => 'no-store, private',
-        ]);
+        return [$bytes, $filename];
     }
 
     public function finalize(Request $request, DocumentIssuanceService $issuance)
@@ -260,7 +320,7 @@ class CertificationController extends Controller
             ],
             'assets' => [
                 'template' => $this->imageDataUri(public_path('certificates/certificate-template.svg')),
-                'seal' => $this->imageDataUri(\App\Support\SystemContent::logoPath(public_path('certificates/fla-seal.jpg'))),
+                'seal' => $this->imageDataUri(SystemContent::logoPath(public_path('certificates/fla-seal.jpg'))),
             ],
         ];
     }

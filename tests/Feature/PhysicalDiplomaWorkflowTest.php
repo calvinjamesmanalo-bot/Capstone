@@ -37,7 +37,7 @@ class PhysicalDiplomaWorkflowTest extends TestCase
         $this->post(route('diploma.submit'), [
             'request_id' => $document->id,
             'checklist' => [0, 1, 2, 3],
-        ])->assertRedirect(route('requests.index'));
+        ])->assertRedirect(route('requests.index', ['open_request' => $document->id]));
 
         $document->refresh();
         $this->assertSame('processed', $document->status);
